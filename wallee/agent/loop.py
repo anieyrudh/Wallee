@@ -39,6 +39,7 @@ class AgentLoop:
         self._running = False
         self._knowledge_cache: dict[str, str] = {}
         self._change_detector = ExternalChangeDetector()
+        self._last_responded_intent: str | None = None
 
     def _load_knowledge(self) -> dict[str, str]:
         """Load knowledge files from disk. Cached after first load."""
@@ -124,8 +125,12 @@ class AgentLoop:
         # 2. Read episode
         episode = self._get_episode()
 
-        # 3. Read human intent
-        intent = self.wb.read("human.intent")
+        # 3. Read human intent (skip if already responded to this exact intent)
+        raw_intent = self.wb.read("human.intent")
+        if raw_intent and raw_intent == self._last_responded_intent:
+            intent = None  # already handled, don't re-present to LLM
+        else:
+            intent = raw_intent
 
         # 4. Detect external changes
         external_changes = self._change_detector.detect(state, episode)
@@ -156,6 +161,13 @@ class AgentLoop:
 
         # 9. Route
         self._route_decision(decision)
+
+        # 10. Mark intent as responded (so we don't re-present it next cycle)
+        if raw_intent and decision.type != "WAIT":
+            self._last_responded_intent = raw_intent
+        elif raw_intent and "no active human intent" not in decision.reason.lower():
+            # LLM acknowledged the intent in its response
+            self._last_responded_intent = raw_intent
 
         return raw_response
 
