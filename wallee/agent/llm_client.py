@@ -54,7 +54,7 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "response_format": {"type": "json_object"},
-            "max_tokens": 256,
+            "max_tokens": 2048,  # Gemini 3.1 Pro uses reasoning tokens — needs headroom
         }
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -69,7 +69,14 @@ class LLMClient:
                     timeout=60.0,
                 )
                 response.raise_for_status()
-                return response.json()["choices"][0]["message"]["content"]
+                data = response.json()
+                content = data["choices"][0]["message"].get("content")
+                if content is None:
+                    # Gemini reasoning models may exhaust tokens on thinking
+                    finish = data["choices"][0].get("finish_reason", "")
+                    logger.warning(f"LLM returned null content (finish_reason={finish})")
+                    return ""
+                return content
 
             except _RETRYABLE as e:
                 logger.warning(f"LLM network error (attempt {attempt}/{MAX_RETRIES}): {e}")
