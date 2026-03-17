@@ -74,6 +74,7 @@ class LLMClient:
                 "json_schema": DECISION_SCHEMA,
             },
             "plugins": [
+                {"id": "web", "max_results": 3},
                 {"id": "response-healing"},
             ],
             "max_tokens": 2048,

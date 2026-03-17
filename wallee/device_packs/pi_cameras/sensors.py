@@ -38,7 +38,8 @@ STALE_THRESHOLD = 3
 def _get_nozzle_client() -> httpx.Client:
     global _nozzle_client
     if _nozzle_client is None:
-        _nozzle_client = httpx.Client(base_url="http://localhost:8083", timeout=5.0)
+        port = os.environ.get("NOZZLE_CAMERA_PORT", "8080")
+        _nozzle_client = httpx.Client(base_url=f"http://localhost:{port}", timeout=5.0)
     return _nozzle_client
 
 
