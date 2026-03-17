@@ -9,6 +9,37 @@ import time
 from pathlib import Path
 
 
+MAX_PROMPT_EPISODE_CHARS = 160
+MAX_PROMPT_REASON_CHARS = 120
+MAX_PROMPT_STATE_JSON_CHARS = 80
+
+
+def _trim_text(value, limit: int) -> str:
+    text = str(value).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _summarize_payload(payload, limit: int = MAX_PROMPT_EPISODE_CHARS) -> str:
+    if payload in (None, "", {}):
+        return ""
+
+    normalized = payload
+    if isinstance(payload, str):
+        try:
+            normalized = json.loads(payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            normalized = payload
+
+    if isinstance(normalized, (dict, list)):
+        text = json.dumps(normalized, default=str, separators=(",", ":"))
+    else:
+        text = str(normalized)
+
+    return _trim_text(text, limit)
+
+
 def build_prompt(
     state: dict,
     episode: list[dict],
@@ -64,7 +95,7 @@ def build_prompt(
             if isinstance(val, str) and len(val) > 100:
                 continue  # skip long strings
             elif isinstance(val, (dict, list)):
-                sections.append(f"  {key}: {json.dumps(val, default=str)[:80]}")
+                sections.append(f"  {key}: {_summarize_payload(val, MAX_PROMPT_STATE_JSON_CHARS)}")
             else:
                 sections.append(f"  {key}: {val}")
     else:
@@ -80,9 +111,9 @@ def build_prompt(
         for action in episode:
             status = action.get("status", "?")
             tool_name = action.get("tool", "?")
-            reason = action.get("reason", "")
-            error = action.get("error_json", "")
-            result = action.get("result_json", "")
+            reason = _trim_text(action.get("reason", ""), MAX_PROMPT_REASON_CHARS)
+            error = _summarize_payload(action.get("error_json", ""))
+            result = _summarize_payload(action.get("result_json", ""))
             line = f"  [{status}] {tool_name}"
             if reason:
                 line += f" -- {reason}"

@@ -34,6 +34,7 @@ class SafetyKernel:
         self._engine_alerted = False
         self._oc_nozzle_alerted = False
         self._oc_input_alerted = False
+        self._estop_alerted = False
         self._boot_time = time.monotonic()
         self._boot_grace_s = 10.0  # suppress heartbeat alerts for 10s after boot
 
@@ -43,7 +44,7 @@ class SafetyKernel:
 
     def check_once(self) -> dict:
         """Run one check cycle. Returns status dict for testing."""
-        status = {"agent_ok": True, "engine_ok": True, "overcurrent_ok": True}
+        status = {"agent_ok": True, "engine_ok": True, "overcurrent_ok": True, "estop_ok": True}
 
         # Boot grace period — suppress heartbeat alerts while components start
         in_grace = (time.monotonic() - self._boot_time) < self._boot_grace_s
@@ -115,6 +116,18 @@ class SafetyKernel:
             status["overcurrent_ok"] = False
         else:
             self._oc_input_alerted = False
+
+        estop_active = self.wb.read("safety.estop")
+        if estop_active:
+            if not self._estop_alerted:
+                self.call_human_fn(
+                    "ESTOP ACTIVE: safety.estop asserted; actuator dispatch is blocked until cleared.",
+                    "critical",
+                )
+                self._estop_alerted = True
+            status["estop_ok"] = False
+        else:
+            self._estop_alerted = False
 
         return status
 

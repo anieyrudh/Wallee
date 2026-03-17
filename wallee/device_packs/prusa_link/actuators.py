@@ -12,7 +12,133 @@ from wallee.device_packs.prusa_link.sensors import _get_http
 logger = logging.getLogger(__name__)
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000)
+def _read_state(whiteboard, key: str):
+    return whiteboard.read(key) if whiteboard else None
+
+
+def _ok() -> dict:
+    return {"status": "ok"}
+
+
+def _precheck_pause_print(whiteboard=None, **kwargs) -> dict:
+    job_state = _read_state(whiteboard, "printer.job_state")
+    if job_state != "PRINTING":
+        return {"error": f"Cannot pause: job is {job_state}, not PRINTING"}
+    return _ok()
+
+
+def _precheck_resume_print(whiteboard=None, **kwargs) -> dict:
+    job_state = _read_state(whiteboard, "printer.job_state")
+    if job_state != "PAUSED":
+        return {"error": f"Cannot resume: job is {job_state}, not PAUSED"}
+
+    state = _read_state(whiteboard, "printer.state")
+    if state not in ("PAUSED", "ATTENTION", "READY", None):
+        return {"error": f"Cannot resume: printer state is {state}"}
+    return _ok()
+
+
+def _precheck_cancel_print(whiteboard=None, **kwargs) -> dict:
+    job_state = _read_state(whiteboard, "printer.job_state")
+    if job_state in ("IDLE", None):
+        return {"error": f"Cannot cancel: no active job (state={job_state})"}
+    return _ok()
+
+
+def _precheck_start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
+    job_state = _read_state(whiteboard, "printer.job_state")
+    if job_state not in ("IDLE", None):
+        return {"error": f"Cannot start print: job state is {job_state}, not IDLE"}
+
+    printer_state = _read_state(whiteboard, "printer.state")
+    if printer_state == "ERROR":
+        return {"error": "Cannot start print: printer in ERROR state"}
+
+    if not file_path:
+        return {"error": "file_path is required"}
+    return _ok()
+
+
+def _precheck_set_temperature(whiteboard=None, target: float = 0, heater: str = "nozzle", **kwargs) -> dict:
+    gcode_map = {"nozzle": "M104", "bed": "M140", "chamber": "M141"}
+    if heater not in gcode_map:
+        return {"error": f"Unknown heater: {heater}. Must be 'nozzle', 'bed', or 'chamber'"}
+
+    limits = {"nozzle": (0, 300), "bed": (0, 120), "chamber": (0, 50)}
+    low, high = limits[heater]
+    if target < low or target > high:
+        return {"error": f"{heater.title()} target {target}C outside safe range ({low}-{high})"}
+
+    printer_state = _read_state(whiteboard, "printer.state")
+    if printer_state == "ERROR":
+        return {"error": "Cannot set temp: printer in ERROR state"}
+    return _ok()
+
+
+def _precheck_idle_motion(whiteboard=None, action: str = "move", **kwargs) -> dict:
+    state = _read_state(whiteboard, "printer.state")
+    if state not in ("IDLE", "FINISHED", None):
+        return {"error": f"Cannot {action}: printer state is {state}, must be IDLE"}
+    return _ok()
+
+
+def _precheck_set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+    if percent < 10 or percent > 200:
+        return {"error": f"Speed factor {percent}% outside bounds (10-200)"}
+
+    state = _read_state(whiteboard, "printer.state")
+    if state != "PRINTING":
+        return {"error": f"Cannot set speed: printer state is {state}, must be PRINTING"}
+    return _ok()
+
+
+def _precheck_set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+    if percent < 10 or percent > 150:
+        return {"error": f"Flow factor {percent}% outside bounds (10-150)"}
+
+    state = _read_state(whiteboard, "printer.state")
+    if state != "PRINTING":
+        return {"error": f"Cannot set flow: printer state is {state}, must be PRINTING"}
+    return _ok()
+
+
+def _precheck_set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kwargs) -> dict:
+    if x < 0 or x > 252:
+        return {"error": f"X={x} outside bounds (0-252mm)"}
+    if y < 0 or y > 220:
+        return {"error": f"Y={y} outside bounds (0-220mm)"}
+    if z < 0 or z > 220:
+        return {"error": f"Z={z} outside bounds (0-220mm)"}
+
+    state = _read_state(whiteboard, "printer.state")
+    if state not in ("IDLE", "FINISHED", None):
+        return {"error": f"Cannot move: printer state is {state}, must be IDLE. Moving during a print would destroy it."}
+    return _ok()
+
+
+def _precheck_extrusion(action: str, whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+    if length_mm <= 0 or length_mm > 100:
+        return {"error": f"{action.title()} length {length_mm}mm outside bounds (0-100)"}
+
+    state = _read_state(whiteboard, "printer.state")
+    if state not in ("IDLE", "FINISHED", None):
+        return {"error": f"Cannot {action}: printer state is {state}, must be IDLE"}
+
+    nozzle_temp = _read_state(whiteboard, "printer.temp_nozzle")
+    if nozzle_temp is not None and nozzle_temp < 170:
+        return {"error": f"Cannot {action}: nozzle temp {nozzle_temp}C < 170C min_extrusion_temp"}
+    return _ok()
+
+
+def _precheck_extrude(whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+    return _precheck_extrusion("extrude", whiteboard=whiteboard, length_mm=length_mm, **kwargs)
+
+
+def _precheck_retract(whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+    return _precheck_extrusion("retract", whiteboard=whiteboard, length_mm=length_mm, **kwargs)
+
+
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_pause_print)
 def pause_print(whiteboard=None, **kwargs) -> dict:
     """Pause the current print via PUT /api/v1/job {"command":"PAUSE"}.
 
@@ -40,7 +166,7 @@ def pause_print(whiteboard=None, **kwargs) -> dict:
             "note": "Core One+ auto-resumes after ~30s. Use cancel_print for permanent stop."}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_resume_print)
 def resume_print(whiteboard=None, **kwargs) -> dict:
     """Resume a paused print via PUT /api/v1/job {"command":"RESUME"}.
 
@@ -68,7 +194,7 @@ def resume_print(whiteboard=None, **kwargs) -> dict:
     return {"status": "success", "action": "resume_print"}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_cancel_print)
 def cancel_print(whiteboard=None, **kwargs) -> dict:
     """Cancel the current print via DELETE /api/v1/job. Irreversible.
 
@@ -89,7 +215,7 @@ def cancel_print(whiteboard=None, **kwargs) -> dict:
     return {"status": "success", "action": "cancel_print"}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=60000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=60000, precheck_fn=_precheck_start_print)
 def start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
     """Start printing a file via POST /api/v1/files/{path}/pprint.
 
@@ -125,7 +251,7 @@ def start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
     return {"status": "success", "action": "start_print", "file_path": file_path}
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_temperature)
 def set_temperature(whiteboard=None, target: float = 0, heater: str = "nozzle", **kwargs) -> dict:
     """Set target temperature via POST /api/v1/gcode. Fire-and-forget.
 
@@ -173,7 +299,7 @@ def _gcode(http, command: str, action: str, **extra) -> dict:
     return {"status": "success", "action": action, "gcode": command, **extra}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=lambda whiteboard=None, **kwargs: _precheck_idle_motion(whiteboard=whiteboard, action="home", **kwargs))
 def home_axes(whiteboard=None, **kwargs) -> dict:
     """Home all axes via G28. Printer must be IDLE — never home during a print."""
     http = _get_http()
@@ -187,7 +313,7 @@ def home_axes(whiteboard=None, **kwargs) -> dict:
     return _gcode(http, "G28", "home_axes")
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=lambda whiteboard=None, **kwargs: _precheck_idle_motion(whiteboard=whiteboard, action="disable motors", **kwargs))
 def disable_motors(whiteboard=None, **kwargs) -> dict:
     """Disable stepper motors via M18. Idempotent, safe. Printer must be IDLE."""
     http = _get_http()
@@ -201,7 +327,7 @@ def disable_motors(whiteboard=None, **kwargs) -> dict:
     return _gcode(http, "M18", "disable_motors")
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_speed_factor)
 def set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
     """Set print speed factor (M220). Only during printing. Bounds: 10-200%."""
     http = _get_http()
@@ -218,7 +344,7 @@ def set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
     return _gcode(http, f"M220 S{percent}", "set_speed_factor", percent=percent)
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_flow_factor)
 def set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
     """Set flow/extrusion factor (M221). Only during printing. Bounds: 10-150%."""
     http = _get_http()
@@ -235,7 +361,7 @@ def set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
     return _gcode(http, f"M221 S{percent}", "set_flow_factor", percent=percent)
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_set_position)
 def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kwargs) -> dict:
     """Move toolhead to position via G1. HIGH CONSEQUENCE — never during a print.
 
@@ -263,7 +389,7 @@ def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kw
     return _gcode(http, f"G1 X{x} Y{y} Z{z} F3000", "set_position", x=x, y=y, z=z)
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_extrude)
 def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
     """Extrude filament via G1 E{length}. Requires nozzle >= 170C.
 
@@ -296,7 +422,7 @@ def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwarg
     return {"status": "success", "action": "extrude", "length_mm": length_mm, "feedrate": feedrate}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_retract)
 def retract(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
     """Retract filament via G1 E-{length}. Requires nozzle >= 170C.
 

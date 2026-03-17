@@ -67,16 +67,6 @@ class ExternalChangeDetector:
                 f"{key} changed: {prev_val} -> {curr_val}"
             )
 
-        # Check for G-code commands Wallee didn't send
-        gcode_change = self._check_external_gcode(current_state, wallee_tools)
-        if gcode_change:
-            changes.append(gcode_change)
-
-        # Check command count acceleration
-        cmdcnt_change = self._check_cmdcnt(current_state)
-        if cmdcnt_change:
-            changes.append(cmdcnt_change)
-
         # Update snapshot
         self._prev_state = dict(current_state)
 
@@ -88,42 +78,6 @@ class ExternalChangeDetector:
             logger.debug(f"Change detector: {tracked_count} keys tracked, no external changes")
 
         return changes
-
-    def _check_external_gcode(self, state: dict, wallee_tools: set) -> str | None:
-        """Check if firmware executed a G-code command Wallee didn't send."""
-        # The metrics stream publishes the last G-code via printer.last_gcode
-        # (mapped from the 'gcode' metric field)
-        curr_gcode = state.get("printer.last_gcode")
-        prev_gcode = self._prev_state.get("printer.last_gcode")
-
-        if curr_gcode and curr_gcode != prev_gcode:
-            # If Wallee has any gcode-sending tool in the episode, it's likely ours
-            gcode_tools = {"set_temperature", "home_axes", "disable_motors",
-                           "set_speed_factor", "set_flow_factor", "set_position",
-                           "extrude", "retract", "send_gcode"}
-            if not (wallee_tools & gcode_tools):
-                return f"External G-code detected: {curr_gcode}"
-
-        return None
-
-    def _check_cmdcnt(self, state: dict) -> str | None:
-        """Check if command count is incrementing faster than expected."""
-        curr_cnt = state.get("printer.cmdcnt")
-        prev_cnt = self._prev_state.get("printer.cmdcnt")
-
-        if curr_cnt is None or prev_cnt is None:
-            return None
-
-        try:
-            delta = int(curr_cnt) - int(prev_cnt)
-        except (ValueError, TypeError):
-            return None
-
-        # More than 10 commands per cycle is suspicious (Wallee sends ~1 per cycle max)
-        if delta > 10:
-            return f"Command count jumped by {delta} (expected ~1, possible external control)"
-
-        return None
 
     def format_for_prompt(self, changes: list[str]) -> str:
         """Format changes for insertion at the top of the LLM prompt."""
@@ -138,9 +92,11 @@ class ExternalChangeDetector:
 
 
 def _episode_tools(episode: list[dict]) -> set[str]:
-    """Extract the set of tool names used in the current episode."""
+    """Extract successfully dispatched Wallee tools from the current episode."""
     tools = set()
     for action in episode:
+        if action.get("status") not in {"DISPATCHED", "DONE"}:
+            continue
         tool_name = action.get("tool")
         if tool_name:
             tools.add(tool_name)

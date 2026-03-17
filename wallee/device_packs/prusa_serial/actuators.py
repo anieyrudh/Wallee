@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Prusa-specific constants — kept in the device pack, not in the generic bus
 PRUSA_BY_ID_PATTERN = "Prusa"       # matches /dev/serial/by-id/*Prusa*
 PRUSA_BLACKLISTED = frozenset({"M997", "M112", "M502", "M500"})
+PRUSA_ALLOWED_DIAGNOSTIC_GCODE = frozenset({"M105", "M114", "M115", "M119", "M503"})
 PRUSA_M115_SPAM = frozenset({
     "FIRMWARE_NAME:", "SOURCE_CODE_URL:", "PROTOCOL_VERSION:",
     "MACHINE_TYPE:", "EXTRUDER_COUNT:", "UUID:", "Cap:",
@@ -41,6 +42,26 @@ def _get_serial() -> SerialBus:
         )
         logger.info("Prusa serial bus initialized")
     return _serial
+
+
+def _normalize_diagnostic_gcode(command: str) -> tuple[str, str]:
+    """Validate that send_gcode only permits a single allowed read-only command."""
+    if not command or not command.strip():
+        return "", "command is required"
+
+    if any(ch in command for ch in ("\n", "\r", ";")):
+        return "", "only a single bare diagnostic G-code command is allowed"
+
+    normalized = " ".join(command.strip().upper().split())
+    token = normalized.split()[0]
+    if normalized != token:
+        return "", "diagnostic G-code must not include parameters or comments"
+
+    if token not in PRUSA_ALLOWED_DIAGNOSTIC_GCODE:
+        allowed = ", ".join(sorted(PRUSA_ALLOWED_DIAGNOSTIC_GCODE))
+        return "", f"command {token} is not allowed; permitted diagnostic commands: {allowed}"
+
+    return token, ""
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=10000)
@@ -70,19 +91,21 @@ def read_endstops(whiteboard=None, **kwargs) -> dict:
 
 @tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
 def send_gcode(whiteboard=None, command: str = "", **kwargs) -> dict:
-    """Send an arbitrary G-code command and return the response.
+    """Send a single allowed diagnostic G-code command and return the response.
 
-    Use this for commands not covered by other tools. The command is validated
-    against the blacklist (M997, M112, M502, M500 are forbidden).
+    This path is intentionally restricted to a small read-only allowlist.
+    State-changing motion, temperature, EEPROM, reset, and emergency commands
+    must use dedicated tools instead of raw G-code.
 
     Args:
-        command: The G-code command to send (e.g., 'M119', 'G28').
+        command: One bare allowed command (for example: 'M105' or 'M114').
     """
-    if not command:
-        return {"error": "command is required"}
+    normalized, error = _normalize_diagnostic_gcode(command)
+    if error:
+        return {"error": error}
 
     serial = _get_serial()
-    result = serial.send_command(command)
+    result = serial.send_command(normalized)
 
     if "error" in result:
         return result
@@ -90,6 +113,6 @@ def send_gcode(whiteboard=None, command: str = "", **kwargs) -> dict:
     return {
         "status": "success",
         "action": "send_gcode",
-        "command": command,
+        "command": normalized,
         "response": result.get("lines", []),
     }

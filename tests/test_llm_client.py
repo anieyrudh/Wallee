@@ -30,7 +30,9 @@ class TestLLMClient:
         assert body["model"] == "test/model"
         assert body["messages"][0]["role"] == "system"
         assert body["messages"][1]["content"] == "Decide your next action."
-        assert body["response_format"] == {"type": "json_object"}
+        assert body["response_format"]["type"] == "json_schema"
+        assert body["response_format"]["json_schema"]["name"] == "agent_decision"
+        assert body["response_format"]["json_schema"]["strict"] is True
 
     def test_custom_messages(self, client):
         """Support vision content blocks via messages parameter."""

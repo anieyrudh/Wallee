@@ -23,6 +23,7 @@ class Engine:
         heartbeat_interval: float = 1.0,
         heartbeat_ttl: int = 3,
         approval_timeout: float = 120.0,
+        approval_notifier=None,
     ):
         self.wb = whiteboard
         self.ledger = ledger
@@ -32,6 +33,7 @@ class Engine:
         self.heartbeat_interval = heartbeat_interval
         self.heartbeat_ttl = heartbeat_ttl
         self.approval_timeout = approval_timeout
+        self.approval_notifier = approval_notifier
         self._running = False
         self._diaries: dict[str, Diary] = {}
 
@@ -50,6 +52,14 @@ class Engine:
                 logger.error(f"Engine heartbeat failed: {e}")
             time.sleep(self.heartbeat_interval)
 
+    def _notify_approval_request(self, action_id: str, tool_name: str, params: dict):
+        if self.approval_notifier is None:
+            return
+        try:
+            self.approval_notifier(action_id, tool_name, params)
+        except Exception as e:
+            logger.error(f"Approval notification failed for {action_id}: {e}")
+
     def process_proposal(self, proposal: dict) -> str:
         """Run a proposal through all gates. Returns final status string."""
         action_id = proposal["action_id"]
@@ -63,42 +73,49 @@ class Engine:
 
         params = __import__("json").loads(proposal["params_json"])
 
-        # Gate 1: TOCTOU — run tool's precondition check
-        try:
-            result = tool.execute(whiteboard=self.wb, **params)
-            if isinstance(result, dict) and "error" in result:
-                logger.warning(f"REJECTED {tool_name}: TOCTOU — {result['error']}")
-                self.ledger.reject(action_id, f"TOCTOU: {result['error']}")
-                return "REJECTED"
-        except Exception as e:
-            logger.warning(f"REJECTED {tool_name}: TOCTOU exception — {e}")
-            self.ledger.reject(action_id, f"TOCTOU exception: {e}")
+        if self.wb.read("safety.estop"):
+            logger.critical(f"REJECTED {tool_name}: safety.estop active")
+            self.ledger.reject(action_id, "blocked by safety.estop")
             return "REJECTED"
 
-        # Gate 2: Queue guard — no double-dispatch per device group
+        # Gate 1: Queue guard — no double-dispatch per device group
         device_group = tool.device_group
         if self.ledger.has_inflight(device_group):
             # Don't reject, just skip — retry next poll
             logger.debug(f"Queue guard: {device_group} has inflight, skipping {action_id}")
             return "SKIPPED"
 
-        # Gate 3: Deadline — reject stale proposals
+        # Gate 2: Deadline — reject stale proposals
         age_ms = (time.monotonic() - proposal["created_mono"]) * 1000
         max_age = proposal["max_proposal_age_ms"]
         if age_ms > max_age:
             self.ledger.reject(action_id, f"expired ({age_ms:.0f}ms > {max_age}ms)")
             return "REJECTED"
 
-        # Gate 4: Approval — if required, check for approval record
+        # Gate 3: Approval — if required, check for approval record
         if proposal["requires_approval"]:
             approval = self.ledger.get_approval(action_id)
             if approval is None:
-                # Set status and wait — don't block the engine loop
-                self.ledger.set_status(action_id, "WAITING_APPROVAL")
+                if proposal.get("status") != "WAITING_APPROVAL":
+                    self.ledger.set_status(action_id, "WAITING_APPROVAL")
+                    self._notify_approval_request(action_id, tool_name, params)
                 logger.info(f"Waiting for approval: {action_id} ({tool_name})")
                 return "WAITING_APPROVAL"
             if approval["decision"] != "APPROVE":
                 self.ledger.reject(action_id, "not approved by operator")
+                return "REJECTED"
+
+        # Gate 4: TOCTOU — run the tool's side-effect-free precheck if defined
+        if tool.has_precheck:
+            try:
+                result = tool.precheck(whiteboard=self.wb, **params)
+                if isinstance(result, dict) and "error" in result:
+                    logger.warning(f"REJECTED {tool_name}: TOCTOU — {result['error']}")
+                    self.ledger.reject(action_id, f"TOCTOU: {result['error']}")
+                    return "REJECTED"
+            except Exception as e:
+                logger.warning(f"REJECTED {tool_name}: TOCTOU exception — {e}")
+                self.ledger.reject(action_id, f"TOCTOU exception: {e}")
                 return "REJECTED"
 
         # Gate 5: Dispatch — diary write BEFORE execution

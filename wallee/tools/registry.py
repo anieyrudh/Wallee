@@ -38,6 +38,17 @@ class RegisteredTool:
     def device_group(self) -> str:
         return self.pack_name
 
+    @property
+    def has_precheck(self) -> bool:
+        return callable(self.meta.get("precheck_fn"))
+
+    def precheck(self, whiteboard: Whiteboard | None = None, **kwargs):
+        """Run the tool's side-effect-free precheck if one is defined."""
+        precheck_fn = self.meta.get("precheck_fn")
+        if not callable(precheck_fn):
+            return None
+        return precheck_fn(whiteboard=whiteboard, **kwargs) if whiteboard else precheck_fn(**kwargs)
+
     def execute(self, whiteboard: Whiteboard | None = None, **kwargs):
         """Execute the tool function."""
         return self.fn(whiteboard=whiteboard, **kwargs) if whiteboard else self.fn(**kwargs)
@@ -157,13 +168,13 @@ class ToolRegistry:
             try:
                 result = tool.fn()
                 if isinstance(result, dict):
-                    for key, value in result.items():
-                        if not key.startswith("error"):
-                            whiteboard.publish(
-                                key, value,
-                                ttl=ttl_redis,
-                                history_depth=history_depth,
-                            )
+                    payload = {key: value for key, value in result.items() if not key.startswith("error")}
+                    if payload:
+                        whiteboard.publish_many(
+                            payload,
+                            ttl=ttl_redis,
+                            history_depth=history_depth,
+                        )
             except Exception as e:
                 logger.error(f"Sensor {tool.name} error: {e}")
             time.sleep(interval)

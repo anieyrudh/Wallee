@@ -13,6 +13,7 @@ from wallee.agent.llm_client import LLMClient
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.registry import ToolRegistry
 from wallee.tools.decorator import tool
+from wallee.ledger.db import Ledger
 
 
 @pytest.fixture
@@ -39,6 +40,13 @@ def registry():
 
     reg.register("test_action", test_action, test_action._tool_meta, "test")
     return reg
+
+
+@pytest.fixture
+def ledger(tmp_path):
+    db = Ledger(tmp_path / "agent_loop.db")
+    yield db
+    db.close()
 
 
 @pytest.fixture
@@ -106,10 +114,49 @@ class TestRunOnce:
         })
         agent.run_once()
 
+    def test_call_human_records_episode_boundary(self, wb, mock_llm, registry, knowledge_dir, ledger):
+        agent = AgentLoop(
+            whiteboard=wb,
+            llm=mock_llm,
+            tools=registry,
+            knowledge_dir=knowledge_dir,
+            ledger=ledger,
+        )
+        mock_llm.call.return_value = json.dumps({
+            "type": "CALL_HUMAN", "message": "need operator", "severity": "warning"
+        })
+
+        agent.run_once()
+
+        event = ledger.conn.execute(
+            "SELECT message, details_json FROM events ORDER BY event_id DESC LIMIT 1"
+        ).fetchone()
+        assert event["message"] == "CALL_HUMAN"
+        assert event["details_json"] == "need operator"
+
     def test_handles_empty_llm_response(self, agent, mock_llm):
         mock_llm.call.return_value = ""
         # Parser defaults to WAIT, no crash
         agent.run_once()
+
+    def test_wait_updates_next_cycle_delay(self, agent, mock_llm):
+        mock_llm.call.return_value = json.dumps({
+            "type": "WAIT", "reason": "watching", "check_after_s": 45
+        })
+
+        agent.run_once()
+
+        assert agent._next_cycle_delay_s == 45
+
+    def test_action_resets_next_cycle_delay_to_poll_interval(self, agent, mock_llm):
+        agent._next_cycle_delay_s = 90
+        mock_llm.call.return_value = json.dumps({
+            "type": "ACTION", "tool": "test_action", "params": {}, "reason": "testing"
+        })
+
+        agent.run_once()
+
+        assert agent._next_cycle_delay_s == agent.poll_interval
 
 
 class TestHeartbeat:
@@ -159,6 +206,19 @@ class TestRunLoop:
 
         # Should have recovered and called more than once
         assert call_count >= 2
+
+    def test_stop_interrupts_long_wait_sleep(self, agent, mock_llm):
+        mock_llm.call.return_value = json.dumps({
+            "type": "WAIT", "reason": "idle", "check_after_s": 120
+        })
+
+        t = threading.Thread(target=agent.run, daemon=True)
+        t.start()
+        time.sleep(0.2)
+        agent.stop()
+        t.join(timeout=1)
+
+        assert not t.is_alive()
 
 
 class TestKnowledge:

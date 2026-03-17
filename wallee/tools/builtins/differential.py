@@ -16,11 +16,28 @@ def differential(key: str = "", whiteboard=None, **kwargs) -> dict:
     if not history:
         return {"key": key, "rate": "no history available"}
 
-    numeric = [v for v in history if isinstance(v, (int, float))]
+    timestamps = []
+    if hasattr(whiteboard, "read_history_timestamps"):
+        timestamps = whiteboard.read_history_timestamps(key)
+
+    numeric = []
+    numeric_ts = []
+    for index, value in enumerate(history):
+        if not isinstance(value, (int, float)):
+            continue
+        numeric.append(value)
+        if index < len(timestamps):
+            numeric_ts.append(timestamps[index])
+
     if len(numeric) < 2:
         return {"key": key, "rate": "insufficient numeric data"}
 
-    # Estimate interval from key metadata or use default 1.0s
-    interval_s = 1.0  # default — accurate when sensor refresh_hz=1.0
-    rate = compute_differential(numeric, interval_s)
+    if len(numeric_ts) >= 2 and numeric_ts[0] > numeric_ts[-1]:
+        time_span = numeric_ts[0] - numeric_ts[-1]
+        if time_span > 0:
+            delta = numeric[0] - numeric[-1]
+            rate = f"{delta / time_span:+.3f}/s"
+            return {"key": key, "rate": rate, "readings": len(numeric)}
+
+    rate = compute_differential(numeric, 1.0)
     return {"key": key, "rate": rate, "readings": len(numeric)}

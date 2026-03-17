@@ -22,6 +22,13 @@ import threading
 import time
 from typing import Callable
 
+from wallee.config import (
+    DEFAULT_HUMAN_ESTOP_TTL_S,
+    DEFAULT_HUMAN_IMAGE_TTL_S,
+    DEFAULT_HUMAN_INTENT_TTL_S,
+    DEFAULT_HUMAN_URGENT_TTL_S,
+)
+
 logger = logging.getLogger(__name__)
 
 # Lazy imports — telegram library may not be installed
@@ -49,6 +56,11 @@ class TelegramBot:
         self,
         token: str,
         chat_id: str,
+        allowed_user_ids: list[str] | None = None,
+        intent_ttl: int = DEFAULT_HUMAN_INTENT_TTL_S,
+        urgent_ttl: int = DEFAULT_HUMAN_URGENT_TTL_S,
+        image_ttl: int = DEFAULT_HUMAN_IMAGE_TTL_S,
+        estop_ttl: int = DEFAULT_HUMAN_ESTOP_TTL_S,
         whiteboard=None,
         ledger=None,
         safety_kernel=None,
@@ -56,6 +68,17 @@ class TelegramBot:
         _ensure_telegram()
         self.token = token
         self.chat_id = str(chat_id)
+        self.allowed_user_ids = {
+            str(user_id).strip()
+            for user_id in (allowed_user_ids or self._load_allowed_user_ids())
+            if str(user_id).strip()
+        }
+        if not self.allowed_user_ids and self.chat_id.isdigit():
+            self.allowed_user_ids = {self.chat_id}
+        self.intent_ttl = intent_ttl
+        self.urgent_ttl = urgent_ttl
+        self.image_ttl = image_ttl
+        self.estop_ttl = estop_ttl
         self.wb = whiteboard
         self.ledger = ledger
         self.safety_kernel = safety_kernel
@@ -182,6 +205,51 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Failed to send approval request: {e}")
 
+    @staticmethod
+    def _load_allowed_user_ids() -> list[str]:
+        raw = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "")
+        return [user_id.strip() for user_id in raw.split(",") if user_id.strip()]
+
+    def _is_authorized(self, update) -> bool:
+        chat = getattr(update, "effective_chat", None)
+        user = getattr(update, "effective_user", None)
+
+        if self.chat_id and (chat is None or str(chat.id) != self.chat_id):
+            return False
+        if self.allowed_user_ids and (user is None or str(user.id) not in self.allowed_user_ids):
+            return False
+        return True
+
+    async def _reject_unauthorized(self, update):
+        chat = getattr(update, "effective_chat", None)
+        user = getattr(update, "effective_user", None)
+        logger.warning(
+            "Rejected unauthorized Telegram update: chat=%s user=%s",
+            getattr(chat, "id", None),
+            getattr(user, "id", None),
+        )
+
+        query = getattr(update, "callback_query", None)
+        if query is not None:
+            try:
+                await query.answer("Unauthorized", show_alert=True)
+            except Exception:
+                pass
+            return False
+
+        message = getattr(update, "message", None)
+        if message is not None:
+            try:
+                await message.reply_text("Unauthorized")
+            except Exception:
+                pass
+        return False
+
+    async def _ensure_authorized(self, update) -> bool:
+        if self._is_authorized(update):
+            return True
+        return await self._reject_unauthorized(update)
+
     # --- Setup ---
 
     async def _register_commands(self):
@@ -212,6 +280,9 @@ class TelegramBot:
     # --- Command handlers ---
 
     async def _cmd_start(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         await update.message.reply_text(
             "🤖 *Wallee* is connected\\.\n\n"
             "I monitor your Prusa Core One\\+ and can:\n"
@@ -225,6 +296,9 @@ class TelegramBot:
         )
 
     async def _cmd_help(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         await update.message.reply_text(
             "Commands:\n"
             "/status — Printer state, temps, safety\n"
@@ -242,6 +316,9 @@ class TelegramBot:
         )
 
     async def _cmd_status(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         if not self.wb:
             await update.message.reply_text("Whiteboard not connected")
             return
@@ -305,17 +382,26 @@ class TelegramBot:
         await update.message.reply_text("\n".join(lines))
 
     async def _cmd_urgent(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         if self.wb:
-            self.wb.publish("human.urgent", True, ttl=10)
-        await update.message.reply_text("🚨 Urgent flag set (10s TTL)")
+            self.wb.publish("human.urgent", True, ttl=self.urgent_ttl)
+        await update.message.reply_text(f"🚨 Urgent flag set ({self.urgent_ttl}s TTL)")
 
     async def _cmd_estop(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         if self.wb:
-            self.wb.publish("human.estop", True, ttl=30)
+            self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
         logger.critical("ESTOP triggered via Telegram")
         await update.message.reply_text("🛑 ESTOP triggered. All actions paused.")
 
     async def _cmd_snapshot(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         """Send camera snapshots — all live cameras."""
         if not self.wb:
             await update.message.reply_text("Whiteboard not connected")
@@ -346,6 +432,9 @@ class TelegramBot:
             await update.message.reply_text("No live cameras available")
 
     async def _cmd_approve(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         if not context.args:
             await update.message.reply_text("Usage: /approve <action_id>")
             return
@@ -354,6 +443,9 @@ class TelegramBot:
         await update.message.reply_text(f"✅ Approved {action_id[:8]}")
 
     async def _cmd_reject(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         if not context.args:
             await update.message.reply_text("Usage: /reject <action_id>")
             return
@@ -362,6 +454,9 @@ class TelegramBot:
         await update.message.reply_text(f"❌ Rejected {action_id[:8]}")
 
     async def _callback_handler(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         """Handle inline keyboard button presses (approve/reject)."""
         query = update.callback_query
         await query.answer()
@@ -380,6 +475,9 @@ class TelegramBot:
         await query.edit_message_text(f"{emoji} {decision.title()}d: {action_id[:8]}")
 
     async def _handle_photo(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         """Download photo, resize, base64 encode, publish to whiteboard."""
         if not self.wb:
             await update.message.reply_text("Whiteboard not connected")
@@ -406,13 +504,13 @@ class TelegramBot:
                 jpeg_data = bytes(data)
 
             b64 = base64.b64encode(jpeg_data).decode("ascii")
-            self.wb.publish("human.image", b64, ttl=60)
-            logger.info(f"Published human.image ({len(jpeg_data)} bytes, TTL=60s)")
+            self.wb.publish("human.image", b64, ttl=self.image_ttl)
+            logger.info(f"Published human.image ({len(jpeg_data)} bytes, TTL={self.image_ttl}s)")
 
             # If photo has a caption, publish as intent too
             caption = update.message.caption
             if caption:
-                self.wb.publish("human.intent", caption.strip(), ttl=600)
+                self.wb.publish("human.intent", caption.strip(), ttl=self.intent_ttl)
                 await update.message.reply_text(f"📸 Image + intent received: {caption.strip()}")
             else:
                 await update.message.reply_text("📸 Image received — LLM will analyze on next cycle")
@@ -422,6 +520,9 @@ class TelegramBot:
             await update.message.reply_text(f"Failed to process photo: {e}")
 
     async def _handle_intent(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
         """Route quick keyboard buttons or set as human.intent."""
         text = update.message.text.strip()
         if not text:
@@ -441,7 +542,7 @@ class TelegramBot:
 
         # Everything else is a human intent for the agent
         if self.wb:
-            self.wb.publish("human.intent", text, ttl=600)
+            self.wb.publish("human.intent", text, ttl=self.intent_ttl)
             # Also store in intent history for dashboard persistence
             import json as _json, time as _time
             entry = _json.dumps({"ts": _time.strftime("%H:%M:%S"), "text": text})

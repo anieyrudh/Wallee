@@ -121,3 +121,28 @@ class TestSensorLoop:
         history = wb.read_history("test.counter")
         assert len(history) >= 2  # At least a few readings
         assert len(history) <= 5  # Capped by history_depth
+
+    def test_sensor_uses_publish_many_for_multi_key_payloads(self, registry):
+        class RecordingWhiteboard:
+            def __init__(self):
+                self.calls = []
+
+            def publish(self, *args, **kwargs):
+                raise AssertionError("sensor loop should not call publish for multi-key payloads")
+
+            def publish_many(self, values, ttl=None, history_depth=0):
+                self.calls.append((values, ttl, history_depth))
+
+        wb = RecordingWhiteboard()
+
+        @tool(kind="sensor", refresh_hz=10.0, history_depth=5)
+        def multi_sensor():
+            registry._running = False
+            return {"env.temperature": 21.5, "env.humidity": 55.0, "error.note": "skip"}
+
+        registry.register("multi_sensor", multi_sensor, multi_sensor._tool_meta, "test")
+        registry._running = True
+        registry._sensor_loop(registry.get("multi_sensor"), wb)
+
+        assert wb.calls == [({"env.temperature": 21.5, "env.humidity": 55.0}, 1, 5)]
+

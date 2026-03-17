@@ -25,6 +25,11 @@ class TestDashboardHTML:
         assert "Electrical" in DASHBOARD_HTML
         assert "Nozzle Camera" in DASHBOARD_HTML
 
+    def test_html_contains_summary_cards(self):
+        assert "Printer State" in DASHBOARD_HTML
+        assert "Job Progress" in DASHBOARD_HTML
+        assert "Operator Intent" in DASHBOARD_HTML
+
     def test_no_inline_event_handlers(self):
         """Ensure no onclick/onerror XSS vectors in HTML."""
         assert "onclick=" not in DASHBOARD_HTML.lower()
@@ -63,3 +68,18 @@ class TestDashboardServer:
         time.sleep(0.3)
         server.stop()
         # Should not hang or throw
+
+    def test_can_restart_on_same_port_after_stop(self, wb):
+        server = DashboardServer(wb, host="127.0.0.1", port=18767)
+        server.start()
+        time.sleep(0.3)
+        server.stop()
+
+        server2 = DashboardServer(wb, host="127.0.0.1", port=18767)
+        server2.start()
+        time.sleep(0.3)
+        try:
+            resp = urllib.request.urlopen("http://127.0.0.1:18767", timeout=3)
+            assert resp.status == 200
+        finally:
+            server2.stop()

@@ -18,7 +18,9 @@ from wallee.tools.registry import ToolRegistry
 def wb():
     r = fakeredis.FakeRedis(decode_responses=True)
     w = Whiteboard(_redis=r)
-    # Populate some history
+    # Populate some history with known timestamps: newest-oldest span = 4s
+    values = iter([100.0, 101.0, 102.0, 103.0, 104.0])
+    w._now = lambda: next(values)
     for val in [20.0, 20.5, 21.0, 21.5, 22.0]:
         w.publish("env.temperature", val, history_depth=10)
     return w
@@ -46,8 +48,13 @@ class TestTrends:
 class TestDifferential:
     def test_positive_rate(self, wb):
         result = differential(key="env.temperature", whiteboard=wb)
-        assert "/s" in result["rate"]
+        assert result["rate"] == "+0.500/s"
         assert result["readings"] == 5
+
+    def test_falls_back_without_timestamps(self, wb):
+        wb.r.delete("env.temperature:history_ts")
+        result = differential(key="env.temperature", whiteboard=wb)
+        assert result["rate"] == "+0.500/s"
 
     def test_no_key(self, wb):
         result = differential(key="", whiteboard=wb)

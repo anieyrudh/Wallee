@@ -1,5 +1,6 @@
 """Tests for prompt builder and vision message construction."""
 
+import json
 import time
 import pytest
 from wallee.agent.prompt import build_prompt, build_messages
@@ -156,7 +157,53 @@ class TestBuildPrompt:
         }
         prompt = build_prompt(state=state, episode=[], intent=None,
                               knowledge={}, tools=[], current_time=time.time())
-        assert "AAAA" not in prompt
+        assert "A" * 180 not in prompt
+
+    def test_episode_payloads_are_summarized(self, sample_state, sample_tools, sample_knowledge):
+        long_reason = "check " * 40
+        episode = [
+            {
+                "status": "DONE",
+                "tool": "web_search",
+                "reason": long_reason,
+                "result_json": json.dumps({"items": ["x" * 50, "y" * 50, "z" * 50]}),
+                "error_json": "",
+            },
+            {
+                "status": "FAILED",
+                "tool": "resume_print",
+                "reason": "temps ok",
+                "error_json": json.dumps({"error": "not paused", "details": "A" * 200}),
+                "result_json": "",
+            },
+        ]
+        prompt = build_prompt(
+            state=sample_state,
+            episode=episode,
+            intent=None,
+            knowledge=sample_knowledge,
+            tools=sample_tools,
+            current_time=time.time(),
+        )
+        assert '"items"' in prompt
+        assert '"details"' in prompt
+        assert "A" * 180 not in prompt
+        assert "..." in prompt
+        assert long_reason not in prompt
+
+    def test_long_state_json_is_truncated(self, sample_tools, sample_knowledge):
+        state = {"printer.snapshot": {"blob": "B" * 300}}
+        prompt = build_prompt(
+            state=state,
+            episode=[],
+            intent=None,
+            knowledge=sample_knowledge,
+            tools=sample_tools,
+            current_time=time.time(),
+        )
+        assert '"blob"' in prompt
+        assert "..." in prompt
+        assert "B" * 120 not in prompt
 
 
 class TestBuildMessages:

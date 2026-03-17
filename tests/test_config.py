@@ -84,3 +84,18 @@ class TestLoadConfig:
             os.environ.update(saved)
             os.environ.pop("OPENROUTER_API_KEY", None)
             os.environ.pop("REDIS_URL", None)
+
+
+    def test_reads_telegram_allowed_user_ids(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("TELEGRAM_ALLOWED_USER_IDS=123, 456 ,789\n")
+        saved = {}
+        for key in ["TELEGRAM_ALLOWED_USER_IDS"]:
+            if key in os.environ:
+                saved[key] = os.environ.pop(key)
+        try:
+            cfg = load_config(env_file)
+            assert cfg.telegram_allowed_user_ids == ["123", "456", "789"]
+        finally:
+            os.environ.update(saved)
+            os.environ.pop("TELEGRAM_ALLOWED_USER_IDS", None)

@@ -21,6 +21,11 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 logger = logging.getLogger(__name__)
 
+
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+
 DASHBOARD_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,36 +33,67 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wallee Dashboard</title>
 <style>
-:root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3;
+:root { --bg: #0d1117; --card: rgba(22,27,34,0.9); --border: #30363d; --text: #e6edf3;
         --muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922;
-        --blue: #58a6ff; }
+        --blue: #58a6ff; --shadow: 0 18px 60px rgba(0,0,0,0.32); --card-glow: rgba(88,166,255,0.12); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg);
-       color: var(--text); font-size: 13px; padding: 16px; }
-h1 { font-size: 18px; margin-bottom: 12px; color: var(--blue); }
-h2 { font-size: 14px; margin-bottom: 8px; color: var(--muted); text-transform: uppercase;
+body { font-family: 'SF Mono', 'Fira Code', monospace; background:
+       radial-gradient(circle at top, rgba(88,166,255,0.08), transparent 28%),
+       linear-gradient(180deg, #0b1016 0%, var(--bg) 35%);
+       color: var(--text); font-size: 13px; padding: 20px; }
+.shell { max-width: 1760px; margin: 0 auto; }
+h1 { font-size: 28px; margin-bottom: 6px; color: var(--blue); letter-spacing: 1px; }
+h2 { font-size: 14px; margin-bottom: 10px; color: var(--muted); text-transform: uppercase;
      letter-spacing: 1px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-        gap: 12px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
-        padding: 12px; }
-.status-bar { display: flex; gap: 16px; margin-bottom: 12px; align-items: center; }
-.indicator { display: inline-flex; align-items: center; gap: 4px; }
+.hero { margin-bottom: 16px; padding: 16px 18px; border-radius: 14px;
+        border: 1px solid rgba(88,166,255,0.16); background:
+        linear-gradient(135deg, rgba(88,166,255,0.12), rgba(22,27,34,0.94) 55%);
+        box-shadow: var(--shadow); }
+.subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+        padding: 14px; box-shadow: 0 10px 28px rgba(0,0,0,0.18); backdrop-filter: blur(8px); }
+.card:hover { border-color: rgba(88,166,255,0.28); }
+.card-wide { grid-column: 1 / -1; }
+.status-bar { display: flex; gap: 16px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.status-meta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.indicator { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
+             border-radius: 999px; background: rgba(13,17,23,0.55); border: 1px solid var(--border); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .dot.green { background: var(--green); }
 .dot.red { background: var(--red); animation: pulse 1s infinite; }
 .dot.yellow { background: var(--yellow); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.stat-card { padding: 12px 14px; border-radius: 12px; background: rgba(13,17,23,0.52);
+             border: 1px solid rgba(88,166,255,0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.stat-value { margin-top: 8px; font-size: 22px; font-weight: 700; color: var(--text); }
+.stat-meta { margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.4; min-height: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 table { width: 100%; border-collapse: collapse; }
-td { padding: 3px 8px; border-bottom: 1px solid var(--border); }
+td { padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 td:first-child { color: var(--muted); white-space: nowrap; width: 40%; }
-.progress-bar { height: 6px; background: var(--border); border-radius: 3px;
-                overflow: hidden; margin-top: 4px; }
-.progress-fill { height: 100%; background: var(--green); border-radius: 3px;
+.progress-bar { height: 8px; background: rgba(48,54,61,0.9); border-radius: 999px;
+                overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), #5ee37b); border-radius: 999px;
                  transition: width 0.5s; }
-canvas { width: 100%; height: 120px; }
-img.cam { max-width: 100%; border-radius: 4px; margin-top: 4px; }
+canvas { width: 100%; height: 120px; margin-top: 8px; }
+.camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; grid-column: 1 / -1; }
+.camera-card { min-height: 250px; }
+.cam-shell { position: relative; min-height: 210px; margin-top: 4px; border-radius: 10px;
+             overflow: hidden; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(88,166,255,0.06), rgba(13,17,23,0.88)); }
+img.cam { display: block; width: 100%; min-height: 210px; object-fit: cover; }
+.cam-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+             color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 16px; text-align: center; }
+.cam-status { position: absolute; top: 10px; right: 10px; font-size: 10px; font-weight: 700;
+              text-transform: uppercase; letter-spacing: 1px; padding: 4px 8px; border-radius: 999px;
+              border: 1px solid var(--border); background: rgba(13,17,23,0.72); color: var(--muted); }
+.cam-status.live { color: var(--green); border-color: rgba(63,185,80,0.4); }
+.cam-status.stale { color: var(--yellow); border-color: rgba(210,153,34,0.4); }
+.cam-status.offline { color: var(--red); border-color: rgba(248,81,73,0.4); }
 #conn { font-size: 11px; }
+@media (max-width: 900px) { body { padding: 14px; } h1 { font-size: 24px; } .hero { padding: 14px; } }
 /* --- Feed panels (intent + agent activity) --- */
 .feed { max-height: 340px; overflow-y: auto; scrollbar-width: thin;
         scrollbar-color: var(--border) transparent; }
@@ -91,25 +127,59 @@ img.cam { max-width: 100%; border-radius: 4px; margin-top: 4px; }
 </style>
 </head>
 <body>
-<div class="status-bar">
-  <h1>WALLEE</h1>
-  <span id="conn" class="indicator"></span>
-  <span id="safety" class="indicator"></span>
-</div>
+<div class="shell">
+  <div class="hero">
+    <div class="status-bar">
+      <div>
+        <h1>WALLEE</h1>
+        <div class="subtitle">Autonomous printer oversight dashboard — live whiteboard, cameras, and agent reasoning context.</div>
+      </div>
+      <div class="status-meta">
+        <span id="conn" class="indicator"></span>
+        <span id="safety" class="indicator"></span>
+      </div>
+    </div>
 
-<div class="grid">
-  <div class="card"><h2>Print Status</h2><div id="print-status"></div></div>
-  <div class="card"><h2>Temperatures</h2><table id="temps"></table><canvas id="temp-chart"></canvas></div>
-  <div class="card"><h2>Electrical</h2><table id="electrical"></table></div>
-  <div class="card"><h2>Fans</h2><table id="fans"></table></div>
-  <div class="card"><h2>Position</h2><table id="position"></table></div>
-  <div class="card"><h2>Firmware Health</h2><table id="health"></table></div>
-  <div class="card"><h2>Human Intent</h2><div id="intent"></div></div>
-  <div class="card" style="grid-column: 1 / -1"><h2>Agent Activity</h2><div id="agent-log" class="feed"></div></div>
-  <div class="card"><h2>Nozzle Camera</h2><img id="cam-nozzle" class="cam" alt="No frame"></div>
-  <div class="card"><h2>Buddy Camera 1</h2><img id="cam-buddy1" class="cam" alt="No frame"></div>
-  <div class="card"><h2>Buddy Camera 2</h2><img id="cam-buddy2" class="cam" alt="No frame"></div>
-  <div class="card" style="grid-column: 1 / -1"><h2>All Whiteboard Keys</h2><table id="all-keys"></table></div>
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Printer State</div>
+        <div id="summary-state" class="stat-value">--</div>
+        <div id="summary-state-meta" class="stat-meta"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Job Progress</div>
+        <div id="summary-progress" class="stat-value">--</div>
+        <div id="summary-progress-meta" class="stat-meta"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Agent</div>
+        <div id="summary-agent" class="stat-value">--</div>
+        <div id="summary-agent-meta" class="stat-meta"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Operator Intent</div>
+        <div id="summary-intent" class="stat-value">--</div>
+        <div id="summary-intent-meta" class="stat-meta"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="card-header"><h2>Print Status</h2></div><div id="print-status"></div></div>
+    <div class="card"><div class="card-header"><h2>Temperatures</h2></div><table id="temps"></table><canvas id="temp-chart"></canvas></div>
+    <div class="card"><div class="card-header"><h2>Electrical</h2></div><table id="electrical"></table></div>
+    <div class="card"><div class="card-header"><h2>Fans</h2></div><table id="fans"></table></div>
+    <div class="card"><div class="card-header"><h2>Position</h2></div><table id="position"></table></div>
+    <div class="card"><div class="card-header"><h2>Firmware Health</h2></div><table id="health"></table></div>
+    <div class="card"><div class="card-header"><h2>Human Intent</h2></div><div id="intent"></div></div>
+    <div class="card card-wide"><div class="card-header"><h2>Agent Activity</h2></div><div id="agent-log" class="feed"></div></div>
+    <div class="camera-grid">
+      <div class="card camera-card"><div class="card-header"><h2>Nozzle Camera</h2></div><div class="cam-shell"><img id="cam-nozzle" class="cam" alt="No frame"><div id="cam-nozzle-empty" class="cam-empty">Awaiting nozzle frame</div><span id="cam-nozzle-status" class="cam-status offline">offline</span></div></div>
+      <div class="card camera-card"><div class="card-header"><h2>Buddy Camera 1</h2></div><div class="cam-shell"><img id="cam-buddy1" class="cam" alt="No frame"><div id="cam-buddy1-empty" class="cam-empty">Awaiting buddy camera 1</div><span id="cam-buddy1-status" class="cam-status offline">offline</span></div></div>
+      <div class="card camera-card"><div class="card-header"><h2>Buddy Camera 2</h2></div><div class="cam-shell"><img id="cam-buddy2" class="cam" alt="No frame"><div id="cam-buddy2-empty" class="cam-empty">Awaiting buddy camera 2</div><span id="cam-buddy2-status" class="cam-status offline">offline</span></div></div>
+    </div>
+    <div class="card card-wide"><div class="card-header"><h2>All Whiteboard Keys</h2></div><table id="all-keys"></table></div>
+  </div>
 </div>
 
 <script>
@@ -140,6 +210,13 @@ function setIndicator(el, dotClass, text) {
   el.appendChild(document.createTextNode(' ' + text));
 }
 
+function setStat(id, value, meta) {
+  var valueEl = document.getElementById(id);
+  var metaEl = document.getElementById(id + '-meta');
+  if (valueEl) valueEl.textContent = value;
+  if (metaEl) metaEl.textContent = meta || '';
+}
+
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.hostname + ':WS_PORT');
@@ -155,7 +232,31 @@ function update(s) {
   updatePrintStatus(s); updateTemps(s); updateElectrical(s);
   updateFans(s); updatePosition(s); updateHealth(s);
   updateIntent(s); updateAgentLog(s);
-  updateCameras(s); updateSafety(s); updateAllKeys(s);
+  updateCameras(s); updateSafety(s); updateSummary(s); updateAllKeys(s);
+}
+
+function updateSummary(s) {
+  var state = s['printer.state'] || 'UNKNOWN';
+  var job = s['printer.job_state'] || 'No active job';
+  setStat('summary-state', state, job);
+
+  var progress = s['printer.job_progress'];
+  var remaining = s['printer.job_time_remaining_s'];
+  var progressValue = progress != null ? Math.round(progress) + '%' : '--';
+  var progressMeta = remaining != null ? (Math.round(remaining / 60) + ' min remaining') : (s['printer.print_filename'] || 'No file loaded');
+  setStat('summary-progress', progressValue, progressMeta);
+
+  var decision = s['agent.last_decision'] || 'No recent decision';
+  var decisionLabel = decision.split(':')[0] || 'Agent';
+  if (decisionLabel.length > 18) decisionLabel = 'Decision';
+  var decisionMeta = decision;
+  if (decisionMeta.indexOf(': ') > 0) decisionMeta = decisionMeta.substring(decisionMeta.indexOf(': ') + 2);
+  setStat('summary-agent', decisionLabel.toUpperCase(), decisionMeta);
+
+  var intent = s['human.intent'];
+  var urgent = s['human.urgent'];
+  if (intent) setStat('summary-intent', urgent ? 'URGENT' : 'ACTIVE', intent);
+  else setStat('summary-intent', 'CLEAR', 'No active operator intent');
 }
 
 function updatePrintStatus(s) {
@@ -293,13 +394,24 @@ function updateHealth(s) {
 
 function updateCamCard(imgId, statusKey, frameKey, s) {
   var img = document.getElementById(imgId);
-  var status = s[statusKey];
+  var empty = document.getElementById(imgId + '-empty');
+  var badge = document.getElementById(imgId + '-status');
+  var status = s[statusKey] || 'offline';
+  if (badge) {
+    badge.className = 'cam-status ' + status;
+    badge.textContent = status;
+  }
   if (status === 'live' && s[frameKey]) {
     img.src = 'data:image/jpeg;base64,' + s[frameKey];
     img.alt = '';
+    if (empty) empty.style.display = 'none';
   } else {
     img.removeAttribute('src');
     img.alt = status === 'stale' ? 'Camera stale (frozen frame)' : 'Camera offline';
+    if (empty) {
+      empty.style.display = 'flex';
+      empty.textContent = status === 'stale' ? 'Camera stale — last frame frozen' : 'Camera offline';
+    }
   }
 }
 
@@ -312,7 +424,8 @@ function updateCameras(s) {
 function updateSafety(s) {
   var el = document.getElementById('safety');
   var ocn = s['printer.oc_nozzle'], oci = s['printer.oc_input'];
-  if (ocn != null && ocn !== 0) setIndicator(el, 'red', 'OC NOZZLE');
+  if (s['safety.estop']) setIndicator(el, 'red', 'ESTOP ACTIVE');
+  else if (ocn != null && ocn !== 0) setIndicator(el, 'red', 'OC NOZZLE');
   else if (oci != null && oci !== 0) setIndicator(el, 'red', 'OC INPUT');
   else setIndicator(el, 'green', 'safe');
 }
@@ -560,6 +673,9 @@ class DashboardServer:
         self._ws_port = port + 1
         self._clients: set = set()
         self._thread: threading.Thread | None = None
+        self._http_thread: threading.Thread | None = None
+        self._http_server: ReusableHTTPServer | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._running = False
 
     def start(self):
@@ -574,11 +690,11 @@ class DashboardServer:
     def _run(self):
         """Run HTTP server + websocket updater."""
         loop = asyncio.new_event_loop()
+        self._loop = loop
         asyncio.set_event_loop(loop)
 
         try:
             import websockets
-            import websockets.server
         except ImportError:
             logger.warning("websockets not installed — dashboard will serve static page only")
             self._run_http_only()
@@ -593,10 +709,10 @@ class DashboardServer:
                 self._clients.discard(websocket)
 
         async def main():
-            ws_server = await websockets.server.serve(ws_handler, self.host, self._ws_port)
+            ws_server = await websockets.serve(ws_handler, self.host, self._ws_port)
 
-            http_thread = threading.Thread(target=self._run_http, daemon=True)
-            http_thread.start()
+            self._http_thread = threading.Thread(target=self._run_http, daemon=True, name="dashboard-http")
+            self._http_thread.start()
 
             while self._running:
                 try:
@@ -624,7 +740,11 @@ class DashboardServer:
             ws_server.close()
             await ws_server.wait_closed()
 
-        loop.run_until_complete(main())
+        try:
+            loop.run_until_complete(main())
+        finally:
+            self._loop = None
+            loop.close()
 
     def _run_http(self):
         """Simple HTTP server for the dashboard page."""
@@ -642,10 +762,24 @@ class DashboardServer:
             def log_message(self, format, *args):
                 pass
 
-        server = HTTPServer((self.host, self.port), Handler)
+        server = ReusableHTTPServer((self.host, self.port), Handler)
+        server.timeout = 0.5
+        self._http_server = server
         logger.info(f"Dashboard HTTP on port {self.port}, WebSocket on port {self._ws_port}")
-        while outer._running:
-            server.handle_request()
+        try:
+            while outer._running:
+                try:
+                    server.handle_request()
+                except OSError:
+                    if not outer._running:
+                        break
+                    raise
+        finally:
+            self._http_server = None
+            try:
+                server.server_close()
+            except Exception:
+                pass
 
     def _run_http_only(self):
         """Fallback HTTP-only server (no live updates)."""
@@ -663,10 +797,38 @@ class DashboardServer:
             def log_message(self, format, *args):
                 pass
 
-        server = HTTPServer((self.host, self.port), Handler)
+        server = ReusableHTTPServer((self.host, self.port), Handler)
+        server.timeout = 0.5
+        self._http_server = server
         logger.info(f"Dashboard HTTP-only on port {self.port}")
-        while outer._running:
-            server.handle_request()
+        try:
+            while outer._running:
+                try:
+                    server.handle_request()
+                except OSError:
+                    if not outer._running:
+                        break
+                    raise
+        finally:
+            self._http_server = None
+            try:
+                server.server_close()
+            except Exception:
+                pass
 
     def stop(self):
         self._running = False
+        if self._http_server is not None:
+            try:
+                self._http_server.server_close()
+            except Exception:
+                pass
+        if self._loop is not None:
+            try:
+                self._loop.call_soon_threadsafe(lambda: None)
+            except Exception:
+                pass
+        if self._http_thread and self._http_thread.is_alive() and self._http_thread is not threading.current_thread():
+            self._http_thread.join(timeout=2)
+        if self._thread and self._thread.is_alive() and self._thread is not threading.current_thread():
+            self._thread.join(timeout=2)

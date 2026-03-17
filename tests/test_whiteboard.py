@@ -31,9 +31,24 @@ class TestPublishRead:
         val = wb.read("printer.state")
         assert val == {"job": "PRINTING", "progress": 42}
 
-    def test_publish_string_value(self, wb):
-        wb.publish("human.intent", "resume the print")
-        assert wb.read("human.intent") == "resume the print"
+    def test_publish_many_updates_multiple_keys(self, wb):
+        wb.publish_many({"env.temperature": 21.5, "env.humidity": 55.0}, ttl=5)
+        assert wb.read("env.temperature") == 21.5
+        assert wb.read("env.humidity") == 55.0
+        assert wb.r.ttl("env.temperature") > 0
+        assert wb.r.ttl("env.humidity") > 0
+
+    def test_publish_many_builds_histories(self, wb):
+        wb.publish_many(
+            {"env.temperature": 21.5, "env.humidity": 55.0},
+            history_depth={"env.temperature": 3, "env.humidity": 2},
+        )
+        wb.publish_many(
+            {"env.temperature": 22.0, "env.humidity": 56.0},
+            history_depth={"env.temperature": 3, "env.humidity": 2},
+        )
+        assert wb.read_history("env.temperature") == [22.0, 21.5]
+        assert wb.read_history("env.humidity") == [56.0, 55.0]
 
     def test_ttl_expiry(self, wb):
         """Key should expire after TTL. fakeredis supports time-based expiry."""
@@ -65,8 +80,14 @@ class TestRingBuffer:
         wb.publish("env.temperature", 21.0, history_depth=0)
         assert wb.read_history("env.temperature") == []
 
-    def test_empty_history_for_unknown_key(self, wb):
-        assert wb.read_history("unknown.key") == []
+    def test_history_timestamps_track_publish_times(self, wb):
+        values = iter([100.0, 101.5])
+        wb._now = lambda: next(values)
+        wb.publish("env.temperature", 20.0, history_depth=3)
+        wb.publish("env.temperature", 21.0, history_depth=3)
+
+        timestamps = wb.read_history_timestamps("env.temperature")
+        assert timestamps == [101.5, 100.0]
 
 
 class TestReadAll:
@@ -86,6 +107,16 @@ class TestReadAll:
         assert "env.temperature" in state
         assert "env.temperature:trend" in state
         assert "rising" in state["env.temperature:trend"]
+
+    def test_read_all_uses_scan_not_keys(self, wb):
+        wb.publish("env.temperature", 21.5)
+
+        def fail_keys(pattern):
+            raise AssertionError("read_all should not call KEYS *")
+
+        wb.r.keys = fail_keys
+        state = wb.read_all()
+        assert state["env.temperature"] == 21.5
 
     def test_no_trend_for_non_numeric(self, wb):
         wb.publish("printer.state", "PRINTING", history_depth=5)

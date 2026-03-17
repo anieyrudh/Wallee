@@ -1,6 +1,7 @@
 """Tests for ledger SQLite operations."""
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 import pytest
 from wallee.ledger.db import Ledger
 
@@ -28,6 +29,19 @@ class TestPropose:
         aid2 = ledger.propose("resume_print", {"speed": 100}, "reason2", "prusa")
         assert aid1 != ""
         assert aid2 == ""  # duplicate
+
+    def test_reproposal_after_terminal_state_preserves_history(self, ledger):
+        aid1 = ledger.propose("resume_print", {"speed": 100}, "reason1", "prusa")
+        ledger.set_status(aid1, "DONE", result={"status": "ok"})
+
+        aid2 = ledger.propose("resume_print", {"speed": 100}, "reason2", "prusa")
+
+        assert aid2 != ""
+        action1 = ledger.get_action(aid1)
+        action2 = ledger.get_action(aid2)
+        assert action1["idempotency_key"] != action2["idempotency_key"]
+        count = ledger.conn.execute("SELECT COUNT(*) FROM actions").fetchone()[0]
+        assert count == 2
 
     def test_different_params_are_not_duplicates(self, ledger):
         aid1 = ledger.propose("set_temp", {"target": 200}, "heat up", "prusa")
@@ -161,6 +175,29 @@ class TestEpisode:
         episode = ledger.current_episode()
         assert len(episode) == 1
         assert episode[0]["tool"] == "tool_c"
+
+    def test_episode_is_bounded_to_recent_actions(self, ledger):
+        for index in range(20):
+            ledger.propose(f"tool_{index}", {"x": index}, "r", "grp")
+            time.sleep(0.002)
+
+        episode = ledger.current_episode()
+        assert len(episode) == 12
+        assert episode[0]["tool"] == "tool_8"
+        assert episode[-1]["tool"] == "tool_19"
+
+
+class TestThreadSafety:
+    def test_concurrent_proposals_do_not_corrupt_connection(self, ledger):
+        def create_action(index):
+            return ledger.propose(f"tool_{index}", {"x": index}, "r", "grp")
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            action_ids = list(executor.map(create_action, range(12)))
+
+        assert all(action_ids)
+        proposals = ledger.get_proposals()
+        assert len(proposals) == 12
 
 
 class TestGetByStatus:

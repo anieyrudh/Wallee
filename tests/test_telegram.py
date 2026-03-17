@@ -1,9 +1,14 @@
 """Tests for Telegram bot — unit tests without real Telegram connection."""
 
+import asyncio
+
+import fakeredis
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from wallee.human.telegram import _escape_md
+from wallee.human.telegram import TelegramBot, _escape_md
+from wallee.whiteboard.client import Whiteboard
 
 
 class TestEscapeMarkdown:
@@ -75,3 +80,59 @@ class TestTelegramBotInit:
 
         # Should fall through to CLI or outbox
         assert result in ("cli", "outbox")
+
+
+class TestTelegramAuth:
+    def _make_update(self, chat_id, user_id):
+        return SimpleNamespace(
+            effective_chat=SimpleNamespace(id=chat_id),
+            effective_user=SimpleNamespace(id=user_id),
+        )
+
+    def test_private_chat_defaults_to_same_user(self):
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="12345")
+
+        assert bot._is_authorized(self._make_update(12345, 12345)) is True
+        assert bot._is_authorized(self._make_update(12345, 99999)) is False
+
+    def test_group_chat_requires_allowed_user_list(self):
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="-555", allowed_user_ids=["42"])
+
+        assert bot._is_authorized(self._make_update(-555, 42)) is True
+        assert bot._is_authorized(self._make_update(-555, 99)) is False
+
+    def test_wrong_chat_is_rejected(self):
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="12345", allowed_user_ids=["12345"])
+
+        assert bot._is_authorized(self._make_update(99999, 12345)) is False
+
+    def test_estop_command_publishes_safety_key(self):
+        wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(
+                token="token",
+                chat_id="12345",
+                allowed_user_ids=["12345"],
+                whiteboard=wb,
+            )
+
+        replies = []
+
+        async def reply_text(message):
+            replies.append(message)
+
+        update = SimpleNamespace(
+            effective_chat=SimpleNamespace(id=12345),
+            effective_user=SimpleNamespace(id=12345),
+            callback_query=None,
+            message=SimpleNamespace(reply_text=reply_text),
+        )
+
+        asyncio.run(bot._cmd_estop(update, None))
+
+        assert wb.read("safety.estop") is True
+        assert wb.read("human.estop") is None
+        assert replies == ["🛑 ESTOP triggered. All actions paused."]

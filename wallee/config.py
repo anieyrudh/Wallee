@@ -5,6 +5,18 @@ from pathlib import Path
 from dataclasses import dataclass, field
 
 
+DEFAULT_MIN_CHECK_INTERVAL_S = 30
+DEFAULT_MAX_CHECK_INTERVAL_S = 120
+DEFAULT_MAX_CHECK_INTERVAL_IDLE_S = 300
+DEFAULT_CHECK_INTERVAL_S = 60
+DEFAULT_HUMAN_INTENT_TTL_S = 600
+DEFAULT_HUMAN_URGENT_TTL_S = 600
+DEFAULT_HUMAN_IMAGE_TTL_S = 600
+DEFAULT_HUMAN_ESTOP_TTL_S = 600
+DEFAULT_AGENT_LAST_DECISION_TTL_S = 600
+DEFAULT_ENGINE_APPROVAL_TIMEOUT_S = 300.0
+
+
 def _load_dotenv(path: Path) -> None:
     """Minimal .env loader. No external dependency needed."""
     if not path.exists():
@@ -47,6 +59,7 @@ class Config:
     # Telegram (Phase 4)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_allowed_user_ids: list = field(default_factory=list)
 
     # Paths
     data_dir: Path = field(default_factory=lambda: Path("/var/lib/wallee"))
@@ -56,7 +69,17 @@ class Config:
     agent_poll_interval_s: float = 5.0
     agent_heartbeat_interval_s: float = 1.0
     agent_heartbeat_ttl_s: int = 3
+    agent_min_check_interval_s: int = DEFAULT_MIN_CHECK_INTERVAL_S
+    agent_max_check_interval_s: int = DEFAULT_MAX_CHECK_INTERVAL_S
+    agent_max_check_interval_idle_s: int = DEFAULT_MAX_CHECK_INTERVAL_IDLE_S
+    agent_default_check_interval_s: int = DEFAULT_CHECK_INTERVAL_S
+    agent_last_decision_ttl_s: int = DEFAULT_AGENT_LAST_DECISION_TTL_S
     engine_poll_interval_s: float = 0.5
+    engine_approval_timeout_s: float = DEFAULT_ENGINE_APPROVAL_TIMEOUT_S
+    human_intent_ttl_s: int = DEFAULT_HUMAN_INTENT_TTL_S
+    human_urgent_ttl_s: int = DEFAULT_HUMAN_URGENT_TTL_S
+    human_image_ttl_s: int = DEFAULT_HUMAN_IMAGE_TTL_S
+    human_estop_ttl_s: int = DEFAULT_HUMAN_ESTOP_TTL_S
     default_max_proposal_age_ms: int = 30000
 
     # Device packs to load (comma-separated in .env)
@@ -81,12 +104,27 @@ def load_config(env_path: Path | None = None) -> Config:
         prusalink_api_key=os.environ.get("PRUSALINK_API_KEY", ""),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        telegram_allowed_user_ids=[
+            user_id.strip()
+            for user_id in os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "").split(",")
+            if user_id.strip()
+        ],
         data_dir=Path(os.environ.get("WALLEE_DATA_DIR", "/var/lib/wallee")),
         log_dir=Path(os.environ.get("WALLEE_LOG_DIR", "/var/log/wallee")),
         agent_poll_interval_s=float(os.environ.get("AGENT_POLL_INTERVAL_S", "5")),
         agent_heartbeat_interval_s=float(os.environ.get("AGENT_HEARTBEAT_INTERVAL_S", "1")),
         agent_heartbeat_ttl_s=int(os.environ.get("AGENT_HEARTBEAT_TTL_S", "3")),
+        agent_min_check_interval_s=int(os.environ.get("AGENT_MIN_CHECK_INTERVAL_S", str(DEFAULT_MIN_CHECK_INTERVAL_S))),
+        agent_max_check_interval_s=int(os.environ.get("AGENT_MAX_CHECK_INTERVAL_S", str(DEFAULT_MAX_CHECK_INTERVAL_S))),
+        agent_max_check_interval_idle_s=int(os.environ.get("AGENT_MAX_CHECK_INTERVAL_IDLE_S", str(DEFAULT_MAX_CHECK_INTERVAL_IDLE_S))),
+        agent_default_check_interval_s=int(os.environ.get("AGENT_DEFAULT_CHECK_INTERVAL_S", str(DEFAULT_CHECK_INTERVAL_S))),
+        agent_last_decision_ttl_s=int(os.environ.get("AGENT_LAST_DECISION_TTL_S", str(DEFAULT_AGENT_LAST_DECISION_TTL_S))),
         engine_poll_interval_s=float(os.environ.get("ENGINE_POLL_INTERVAL_S", "0.5")),
+        engine_approval_timeout_s=float(os.environ.get("ENGINE_APPROVAL_TIMEOUT_S", str(DEFAULT_ENGINE_APPROVAL_TIMEOUT_S))),
+        human_intent_ttl_s=int(os.environ.get("HUMAN_INTENT_TTL_S", str(DEFAULT_HUMAN_INTENT_TTL_S))),
+        human_urgent_ttl_s=int(os.environ.get("HUMAN_URGENT_TTL_S", str(DEFAULT_HUMAN_URGENT_TTL_S))),
+        human_image_ttl_s=int(os.environ.get("HUMAN_IMAGE_TTL_S", str(DEFAULT_HUMAN_IMAGE_TTL_S))),
+        human_estop_ttl_s=int(os.environ.get("HUMAN_ESTOP_TTL_S", str(DEFAULT_HUMAN_ESTOP_TTL_S))),
         default_max_proposal_age_ms=int(os.environ.get("DEFAULT_MAX_PROPOSAL_AGE_MS", "30000")),
         device_packs=[p.strip() for p in os.environ.get("DEVICE_PACKS", "host_pi").split(",") if p.strip()],
         dashboard_port=int(os.environ.get("DASHBOARD_PORT", "8081")),

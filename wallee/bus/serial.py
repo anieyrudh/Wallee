@@ -126,14 +126,14 @@ class SerialBus:
 
     def _send_locked(self, gcode: str) -> dict:
         """Send with port held under lock."""
+        port_path = self.port
+        if not port_path:
+            return {"error": "No serial port found"}
+
         try:
             import serial as pyserial
         except ImportError:
             return {"error": "pyserial not installed"}
-
-        port_path = self.port
-        if not port_path:
-            return {"error": "No serial port found"}
 
         if not os.path.exists(port_path):
             port_path = self._wait_for_port()

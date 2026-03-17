@@ -27,34 +27,54 @@ def ledger(tmp_path):
 @pytest.fixture
 def registry():
     reg = ToolRegistry()
+    call_counts = {
+        "simple_action": 0,
+        "approval_action": 0,
+        "failing_action": 0,
+        "precondition_action": 0,
+        "exception_action": 0,
+    }
 
     @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000)
     def simple_action(whiteboard=None, **kwargs):
         """Simple action that always succeeds."""
+        call_counts["simple_action"] += 1
         return {"status": "success"}
 
     @tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000)
     def approval_action(whiteboard=None, **kwargs):
         """Action that requires approval."""
+        call_counts["approval_action"] += 1
         return {"status": "success"}
 
     @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000)
     def failing_action(whiteboard=None, **kwargs):
         """Action that returns an error."""
+        call_counts["failing_action"] += 1
         return {"error": "something broke"}
 
-    @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000)
-    def precondition_action(whiteboard=None, **kwargs):
-        """Action with precondition that checks whiteboard."""
+    def precondition_check(whiteboard=None, **kwargs):
         if whiteboard:
             state = whiteboard.read("printer.state")
             if state != "PAUSED":
                 return {"error": f"not paused, state={state}"}
+        return {"status": "ok"}
+
+    @tool(
+        kind="actuator",
+        requires_approval=False,
+        max_proposal_age_ms=30000,
+        precheck_fn=precondition_check,
+    )
+    def precondition_action(whiteboard=None, **kwargs):
+        """Action with side-effect-free precondition check."""
+        call_counts["precondition_action"] += 1
         return {"status": "success"}
 
     @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000)
     def exception_action(whiteboard=None, **kwargs):
         """Action that raises."""
+        call_counts["exception_action"] += 1
         raise RuntimeError("hardware error")
 
     reg.register("simple_action", simple_action, simple_action._tool_meta, "test_group")
@@ -62,6 +82,7 @@ def registry():
     reg.register("failing_action", failing_action, failing_action._tool_meta, "test_group")
     reg.register("precondition_action", precondition_action, precondition_action._tool_meta, "test_group")
     reg.register("exception_action", exception_action, exception_action._tool_meta, "test_group")
+    reg._call_counts = call_counts
     return reg
 
 
@@ -77,30 +98,45 @@ def engine(wb, ledger, registry, tmp_path):
 
 
 class TestGate1TOCTOU:
-    def test_rejects_when_precondition_fails(self, engine, ledger, wb):
+    def test_rejects_when_precondition_fails(self, engine, ledger, wb, registry):
         wb.publish("printer.state", "PRINTING")
         aid = ledger.propose("precondition_action", {}, "test", "test_group")
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "REJECTED"
         assert ledger.get_action(aid)["status"] == "REJECTED"
         assert "not paused" in ledger.get_action(aid)["error_json"]
+        assert registry._call_counts["precondition_action"] == 0
 
-    def test_passes_when_precondition_ok(self, engine, ledger, wb):
+    def test_passes_when_precondition_ok(self, engine, ledger, wb, registry):
         wb.publish("printer.state", "PAUSED")
         aid = ledger.propose("precondition_action", {}, "test", "test_group")
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "DONE"
+        assert registry._call_counts["precondition_action"] == 1
 
-    def test_rejects_on_exception(self, engine, ledger):
+    def test_rejects_on_exception(self, engine, ledger, registry):
         aid = ledger.propose("exception_action", {}, "test", "test_group")
         result = engine.process_proposal(ledger.get_action(aid))
-        # TOCTOU will catch the exception from the first execution
-        assert result == "REJECTED"
+        assert result == "FAILED"
+        assert registry._call_counts["exception_action"] == 1
 
     def test_rejects_unknown_tool(self, engine, ledger):
         aid = ledger.propose("nonexistent_tool", {}, "test", "test_group")
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "REJECTED"
+
+
+class TestGate0Estop:
+    def test_rejects_when_estop_active(self, engine, ledger, wb, registry):
+        wb.publish("safety.estop", True, ttl=30)
+        aid = ledger.propose("simple_action", {}, "test", "test_group")
+
+        result = engine.process_proposal(ledger.get_action(aid))
+
+        assert result == "REJECTED"
+        assert ledger.get_action(aid)["status"] == "REJECTED"
+        assert "safety.estop" in ledger.get_action(aid)["error_json"]
+        assert registry._call_counts["simple_action"] == 0
 
 
 class TestGate2QueueGuard:
@@ -138,23 +174,56 @@ class TestGate3Deadline:
 
 
 class TestGate4Approval:
-    def test_waits_when_no_approval(self, engine, ledger):
+    def test_waits_when_no_approval(self, engine, ledger, registry):
         aid = ledger.propose("approval_action", {}, "test", "test_group", requires_approval=True)
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "WAITING_APPROVAL"
         assert ledger.get_action(aid)["status"] == "WAITING_APPROVAL"
+        assert registry._call_counts["approval_action"] == 0
 
-    def test_proceeds_when_approved(self, engine, ledger):
+    def test_proceeds_when_approved(self, engine, ledger, registry):
         aid = ledger.propose("approval_action", {}, "test", "test_group", requires_approval=True)
         ledger.record_approval(aid, "APPROVE", "operator")
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "DONE"
+        assert registry._call_counts["approval_action"] == 1
 
-    def test_rejects_when_not_approved(self, engine, ledger):
-        aid = ledger.propose("approval_action", {}, "test", "test_group", requires_approval=True)
-        ledger.record_approval(aid, "REJECT", "operator")
+    def test_sends_approval_notification_once(self, wb, ledger, registry, tmp_path):
+        notifications = []
+
+        engine = Engine(
+            whiteboard=wb,
+            ledger=ledger,
+            tools=registry,
+            data_dir=str(tmp_path),
+            poll_interval=0.1,
+            approval_notifier=lambda action_id, tool, params: notifications.append((action_id, tool, params)),
+        )
+
+        aid = ledger.propose("approval_action", {"speed": 42}, "test", "test_group", requires_approval=True)
         result = engine.process_proposal(ledger.get_action(aid))
-        assert result == "REJECTED"
+        assert result == "WAITING_APPROVAL"
+        assert notifications == [(aid, "approval_action", {"speed": 42})]
+
+        result = engine.process_proposal(ledger.get_action(aid))
+        assert result == "WAITING_APPROVAL"
+        assert notifications == [(aid, "approval_action", {"speed": 42})]
+
+    def test_waiting_approval_survives_notifier_failure(self, wb, ledger, registry, tmp_path):
+        engine = Engine(
+            whiteboard=wb,
+            ledger=ledger,
+            tools=registry,
+            data_dir=str(tmp_path),
+            poll_interval=0.1,
+            approval_notifier=lambda *args: (_ for _ in ()).throw(RuntimeError("telegram down")),
+        )
+
+        aid = ledger.propose("approval_action", {}, "test", "test_group", requires_approval=True)
+        result = engine.process_proposal(ledger.get_action(aid))
+        assert result == "WAITING_APPROVAL"
+        assert ledger.get_action(aid)["status"] == "WAITING_APPROVAL"
+        assert registry._call_counts["approval_action"] == 0
 
 
 class TestGate5Dispatch:
@@ -166,11 +235,12 @@ class TestGate5Dispatch:
         assert action["status"] == "DONE"
         assert "success" in action["result_json"]
 
-    def test_failed_dispatch(self, engine, ledger):
+    def test_failed_dispatch(self, engine, ledger, registry):
         aid = ledger.propose("failing_action", {}, "test", "test_group")
         result = engine.process_proposal(ledger.get_action(aid))
-        # Gate 1 TOCTOU catches the error return first
-        assert result == "REJECTED"
+        assert result == "FAILED"
+        assert ledger.get_action(aid)["status"] == "FAILED"
+        assert registry._call_counts["failing_action"] == 1
 
     def test_diary_records_success(self, engine, ledger, tmp_path):
         aid = ledger.propose("simple_action", {}, "test", "test_group")

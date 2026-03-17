@@ -14,6 +14,7 @@ def tool(
     safety_limits: dict | None = None,
     bus: str | None = None,
     address: Any = None,
+    precheck_fn=None,
 ):
     """Decorator that marks a method as a Wallee tool (sensor or actuator).
 
@@ -52,6 +53,7 @@ def tool(
             "safety_limits": safety_limits or {},
             "bus": bus,
             "address": address,
+            "precheck_fn": precheck_fn,
         }
         return wrapper
 

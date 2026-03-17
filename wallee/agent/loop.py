@@ -25,6 +25,7 @@ class AgentLoop:
         poll_interval: float = 5.0,
         heartbeat_interval: float = 1.0,
         heartbeat_ttl: int = 3,
+        last_decision_ttl: int = 600,
         ledger=None,  # Phase 2
     ):
         self.wb = whiteboard
@@ -34,12 +35,14 @@ class AgentLoop:
         self.poll_interval = poll_interval
         self.heartbeat_interval = heartbeat_interval
         self.heartbeat_ttl = heartbeat_ttl
+        self.last_decision_ttl = last_decision_ttl
         self.ledger = ledger
         self.call_human_fn = None  # Set by main.py to wire Telegram
         self._running = False
         self._knowledge_cache: dict[str, str] = {}
         self._change_detector = ExternalChangeDetector()
         self._last_responded_intent: str | None = None
+        self._next_cycle_delay_s = poll_interval
 
     def _load_knowledge(self) -> dict[str, str]:
         """Load knowledge files from disk. Cached after first load."""
@@ -67,6 +70,21 @@ class AgentLoop:
         if self.ledger and hasattr(self.ledger, "current_episode"):
             return self.ledger.current_episode()
         return []
+
+    def _set_next_cycle_delay(self, decision):
+        """Select the next loop delay based on the routed decision."""
+        if getattr(decision, "type", "") == "WAIT":
+            self._next_cycle_delay_s = max(0.0, float(decision.check_after_s))
+        else:
+            self._next_cycle_delay_s = self.poll_interval
+
+    def _sleep_until_next_cycle(self, delay_s: float):
+        """Sleep in short chunks so stop() remains responsive during long WAITs."""
+        remaining = max(0.0, float(delay_s))
+        while self._running and remaining > 0:
+            chunk = min(remaining, 0.5)
+            time.sleep(chunk)
+            remaining -= chunk
 
     def _route_decision(self, decision):
         """Route a parsed decision to the appropriate handler."""
@@ -98,6 +116,8 @@ class AgentLoop:
         elif decision.type == "CALL_HUMAN":
             summary = f"CALL_HUMAN [{decision.severity}]: {decision.message}"
             logger.warning(f"CALL_HUMAN [{decision.severity}]: {decision.message}")
+            if self.ledger and hasattr(self.ledger, "record_call_human"):
+                self.ledger.record_call_human(decision.message)
             if self.call_human_fn:
                 try:
                     self.call_human_fn(decision.message, decision.severity)
@@ -107,7 +127,7 @@ class AgentLoop:
         # Publish to whiteboard so dashboard can show agent activity
         if summary:
             import json as _json
-            self.wb.publish("agent.last_decision", summary, ttl=120)
+            self.wb.publish("agent.last_decision", summary, ttl=self.last_decision_ttl)
             # Append to activity log (kept in Redis list, max 20 entries)
             entry = _json.dumps({
                 "ts": time.strftime("%H:%M:%S"),
@@ -161,6 +181,7 @@ class AgentLoop:
 
         # 9. Route
         self._route_decision(decision)
+        self._set_next_cycle_delay(decision)
 
         # 10. Mark intent as responded (so we don't re-present it next cycle)
         if raw_intent and decision.type != "WAIT":
@@ -182,11 +203,14 @@ class AgentLoop:
 
         try:
             while self._running:
+                delay_s = self.poll_interval
                 try:
                     self.run_once()
+                    delay_s = self._next_cycle_delay_s
                 except Exception as e:
                     logger.error(f"Agent cycle error: {e}")
-                time.sleep(self.poll_interval)
+                    self._next_cycle_delay_s = self.poll_interval
+                self._sleep_until_next_cycle(delay_s)
         finally:
             self._running = False
             logger.info("Agent loop stopped")

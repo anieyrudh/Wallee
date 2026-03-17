@@ -2,6 +2,8 @@
 
 import json
 import logging
+import time
+from collections.abc import Mapping
 import redis
 
 logger = logging.getLogger(__name__)
@@ -36,17 +38,62 @@ class Whiteboard:
         else:
             self.r = redis.Redis.from_url(redis_url, decode_responses=True)
 
-    def publish(self, key: str, value, ttl: int | None = None, history_depth: int = 0):
-        """Publish a value with optional TTL and history ring buffer."""
+    def _now(self) -> float:
+        return time.time()
+
+    @staticmethod
+    def _resolve_history_depth(history_depth, key: str) -> int:
+        if isinstance(history_depth, Mapping):
+            return int(history_depth.get(key, 0) or 0)
+        return int(history_depth or 0)
+
+    def _queue_publish(
+        self,
+        pipe,
+        key: str,
+        value,
+        ttl: int | None = None,
+        history_depth: int | Mapping[str, int] = 0,
+        published_at: float | None = None,
+    ):
         encoded = json.dumps(value)
         if ttl:
-            self.r.set(key, encoded, ex=ttl)
+            pipe.set(key, encoded, ex=ttl)
         else:
-            self.r.set(key, encoded)
-        if history_depth > 0:
+            pipe.set(key, encoded)
+
+        depth = self._resolve_history_depth(history_depth, key)
+        if depth > 0:
             history_key = f"{key}:history"
-            self.r.lpush(history_key, encoded)
-            self.r.ltrim(history_key, 0, history_depth - 1)
+            history_ts_key = f"{key}:history_ts"
+            ts_encoded = json.dumps(published_at if published_at is not None else self._now())
+            pipe.lpush(history_key, encoded)
+            pipe.ltrim(history_key, 0, depth - 1)
+            pipe.lpush(history_ts_key, ts_encoded)
+            pipe.ltrim(history_ts_key, 0, depth - 1)
+
+    def publish(self, key: str, value, ttl: int | None = None, history_depth: int | Mapping[str, int] = 0):
+        """Publish a value atomically with optional TTL and history ring buffer."""
+        published_at = self._now()
+        with self.r.pipeline(transaction=True) as pipe:
+            self._queue_publish(pipe, key, value, ttl=ttl, history_depth=history_depth, published_at=published_at)
+            pipe.execute()
+
+    def publish_many(
+        self,
+        values: dict[str, object],
+        ttl: int | None = None,
+        history_depth: int | Mapping[str, int] = 0,
+    ):
+        """Publish multiple keys atomically in one Redis transaction."""
+        if not values:
+            return
+
+        published_at = self._now()
+        with self.r.pipeline(transaction=True) as pipe:
+            for key, value in values.items():
+                self._queue_publish(pipe, key, value, ttl=ttl, history_depth=history_depth, published_at=published_at)
+            pipe.execute()
 
     def read(self, key: str):
         """Read a single key. Returns None if expired, missing, or wrong type."""
@@ -67,11 +114,24 @@ class Whiteboard:
             return []
         return [json.loads(v) for v in vals]
 
+    def read_history_timestamps(self, key: str) -> list[float]:
+        """Read ring buffer timestamps for a key. Newest first."""
+        try:
+            vals = self.r.lrange(f"{key}:history_ts", 0, -1)
+        except redis.ResponseError:
+            return []
+        timestamps = []
+        for value in vals:
+            try:
+                timestamps.append(float(json.loads(value)))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return timestamps
+
     def read_all(self) -> dict:
         """Read all string-type keys (skip lists, sets, etc.)."""
-        all_keys = self.r.keys("*")
         result = {}
-        for key in sorted(all_keys):
+        for key in self.r.scan_iter(match="*"):
             if key.endswith(":history"):
                 continue
             try:

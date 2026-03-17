@@ -208,6 +208,41 @@ class TestOvercurrentMonitoring:
         assert len(msgs) == 0
 
 
+class TestEstopMonitoring:
+    def test_estop_alerts_once(self, wb, alerts):
+        msgs, fn = alerts
+        wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
+        wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
+        wb.publish("safety.estop", True, ttl=30)
+
+        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        status = kernel.check_once()
+        assert status["estop_ok"] is False
+        assert len(msgs) == 1
+        assert "ESTOP ACTIVE" in msgs[0][0]
+
+        kernel.check_once()
+        assert len(msgs) == 1
+
+    def test_estop_recovery_realerts(self, wb, alerts):
+        msgs, fn = alerts
+        wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
+        wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
+
+        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        wb.publish("safety.estop", True, ttl=30)
+        kernel.check_once()
+        assert len(msgs) == 1
+
+        wb.publish("safety.estop", False, ttl=30)
+        status = kernel.check_once()
+        assert status["estop_ok"] is True
+
+        wb.publish("safety.estop", True, ttl=30)
+        kernel.check_once()
+        assert len(msgs) == 2
+
+
 class TestRunLoop:
     def test_loop_runs_and_stops(self, wb, alerts):
         msgs, fn = alerts

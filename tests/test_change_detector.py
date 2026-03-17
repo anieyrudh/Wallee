@@ -67,34 +67,22 @@ class TestWalleeCausedChanges:
         changes = detector.detect({"printer.state": "PRINTING"}, episode)
         assert any("printer.state" in c for c in changes)
 
-
-class TestGcodeDetection:
-    def test_detects_external_gcode(self, detector):
-        detector.detect({"printer.last_gcode": "M105"}, [])
-        changes = detector.detect({"printer.last_gcode": "G28"}, [])
-        assert any("External G-code" in c for c in changes)
-
-    def test_ignores_wallee_gcode(self, detector):
-        """If Wallee sent a gcode tool, don't flag."""
-        detector.detect({"printer.last_gcode": "M105"}, [])
-        episode = [{"tool": "home_axes", "status": "DONE"}]
-        changes = detector.detect({"printer.last_gcode": "G28"}, episode)
-        assert not any("External G-code" in c for c in changes)
+    def test_failed_action_does_not_mask_external_change(self, detector):
+        detector.detect({"printer.target_nozzle": 0}, [])
+        episode = [{"tool": "set_temperature", "status": "FAILED"}]
+        changes = detector.detect({"printer.target_nozzle": 215}, episode)
+        assert any("printer.target_nozzle" in c for c in changes)
 
 
-class TestCmdcnt:
-    def test_detects_command_burst(self, detector):
-        detector.detect({"printer.cmdcnt": 100}, [])
-        changes = detector.detect({"printer.cmdcnt": 120}, [])
-        assert any("Command count jumped" in c for c in changes)
-
-    def test_normal_increment_ok(self, detector):
-        detector.detect({"printer.cmdcnt": 100}, [])
-        changes = detector.detect({"printer.cmdcnt": 102}, [])
-        assert not any("Command count" in c for c in changes)
+class TestUnpublishedMetrics:
+    def test_unpublished_gcode_and_cmdcnt_keys_do_not_create_changes(self, detector):
+        detector.detect({"printer.state": "IDLE"}, [])
+        changes = detector.detect({"printer.state": "IDLE", "printer.last_gcode": "G28", "printer.cmdcnt": 120}, [])
+        assert changes == []
 
 
 class TestFormatForPrompt:
+
     def test_empty_changes(self, detector):
         assert detector.format_for_prompt([]) == ""
 

@@ -4,15 +4,36 @@ import json
 import logging
 from dataclasses import dataclass
 
+from wallee.config import (
+    DEFAULT_CHECK_INTERVAL_S,
+    DEFAULT_MAX_CHECK_INTERVAL_IDLE_S,
+    DEFAULT_MAX_CHECK_INTERVAL_S,
+    DEFAULT_MIN_CHECK_INTERVAL_S,
+)
+
 logger = logging.getLogger(__name__)
 
 VALID_TYPES = {"ACTION", "WAIT", "CALL_HUMAN"}
 
 # Interval clamping — enforced in code, not by the LLM
-MIN_CHECK_INTERVAL = 30       # physical processes change slowly
-MAX_CHECK_INTERVAL = 120      # cap during active printing
-MAX_CHECK_INTERVAL_IDLE = 300  # allow long waits when idle
-DEFAULT_CHECK_INTERVAL = 60   # if LLM doesn't specify
+MIN_CHECK_INTERVAL = DEFAULT_MIN_CHECK_INTERVAL_S
+MAX_CHECK_INTERVAL = DEFAULT_MAX_CHECK_INTERVAL_S
+MAX_CHECK_INTERVAL_IDLE = DEFAULT_MAX_CHECK_INTERVAL_IDLE_S
+DEFAULT_CHECK_INTERVAL = DEFAULT_CHECK_INTERVAL_S
+
+
+def configure_check_intervals(
+    min_check_interval: int,
+    max_check_interval: int,
+    max_check_interval_idle: int,
+    default_check_interval: int,
+):
+    """Update parser interval bounds from central runtime config."""
+    global MIN_CHECK_INTERVAL, MAX_CHECK_INTERVAL, MAX_CHECK_INTERVAL_IDLE, DEFAULT_CHECK_INTERVAL
+    MIN_CHECK_INTERVAL = int(min_check_interval)
+    MAX_CHECK_INTERVAL = int(max_check_interval)
+    MAX_CHECK_INTERVAL_IDLE = int(max_check_interval_idle)
+    DEFAULT_CHECK_INTERVAL = int(default_check_interval)
 
 
 @dataclass

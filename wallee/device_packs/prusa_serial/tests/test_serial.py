@@ -7,6 +7,7 @@ from wallee.bus.serial import SerialBus, find_serial_port, _is_garbled
 from wallee.device_packs.prusa_serial.actuators import (
     _find_prusa_port,
     PRUSA_BLACKLISTED,
+    PRUSA_ALLOWED_DIAGNOSTIC_GCODE,
     PRUSA_M115_SPAM,
     _get_serial,
 )
@@ -158,13 +159,28 @@ class TestSendGcode:
             "status": "success",
             "lines": ["echo:E0 Flow: 100%", "ok"],
         }
-        result = send_gcode(command="M221")
+        result = send_gcode(command="M105")
         assert result["status"] == "success"
-        assert result["command"] == "M221"
+        assert result["command"] == "M105"
 
-    def test_empty_command(self, mock_serial):
-        result = send_gcode(command="")
+    def test_rejects_non_allowlisted_command(self, mock_serial):
+        result = send_gcode(command="M221")
         assert "error" in result
+        assert "not allowed" in result["error"]
+        mock_serial.send_command.assert_not_called()
+
+    def test_rejects_multiline_or_parameterized_command(self, mock_serial):
+        result = send_gcode(command="M105 ; M112")
+        assert "error" in result
+        mock_serial.send_command.assert_not_called()
+
+        mock_serial.reset_mock()
+        result = send_gcode(command="M105 S1")
+        assert "error" in result
+        mock_serial.send_command.assert_not_called()
+
+    def test_allowlist_contains_only_diagnostic_commands(self):
+        assert PRUSA_ALLOWED_DIAGNOSTIC_GCODE == {"M105", "M114", "M115", "M119", "M503"}
 
     def test_requires_approval(self):
         meta = send_gcode._tool_meta

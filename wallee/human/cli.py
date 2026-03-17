@@ -4,6 +4,11 @@ import json
 import logging
 import threading
 
+from wallee.config import (
+    DEFAULT_HUMAN_ESTOP_TTL_S,
+    DEFAULT_HUMAN_INTENT_TTL_S,
+    DEFAULT_HUMAN_URGENT_TTL_S,
+)
 from wallee.whiteboard.client import Whiteboard
 from wallee.ledger.db import Ledger
 
@@ -13,9 +18,19 @@ logger = logging.getLogger(__name__)
 class CLI:
     """Interactive CLI for Wallee. Runs in a background thread."""
 
-    def __init__(self, whiteboard: Whiteboard, ledger: Ledger):
+    def __init__(
+        self,
+        whiteboard: Whiteboard,
+        ledger: Ledger,
+        intent_ttl: int = DEFAULT_HUMAN_INTENT_TTL_S,
+        urgent_ttl: int = DEFAULT_HUMAN_URGENT_TTL_S,
+        estop_ttl: int = DEFAULT_HUMAN_ESTOP_TTL_S,
+    ):
         self.wb = whiteboard
         self.ledger = ledger
+        self.intent_ttl = intent_ttl
+        self.urgent_ttl = urgent_ttl
+        self.estop_ttl = estop_ttl
         self._running = False
 
     def _print_help(self):
@@ -37,12 +52,12 @@ Wallee CLI Commands:
         if not args:
             print("Usage: intent <message>")
             return
-        self.wb.publish("human.intent", args, ttl=600)
+        self.wb.publish("human.intent", args, ttl=self.intent_ttl)
         print(f"Intent set: {args}")
 
     def _handle_urgent(self):
-        self.wb.publish("human.urgent", True, ttl=10)
-        print("Urgent flag set (expires in 10s)")
+        self.wb.publish("human.urgent", True, ttl=self.urgent_ttl)
+        print(f"Urgent flag set (expires in {self.urgent_ttl}s)")
 
     def _handle_approve(self, args: str):
         if not args:
@@ -110,7 +125,7 @@ Wallee CLI Commands:
 
     def _handle_estop(self):
         # v1: just flag it on whiteboard and call human
-        self.wb.publish("safety.estop", True, ttl=60)
+        self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
         print("ESTOP ACTIVATED — safety.estop published to whiteboard")
         print("(v1: no GPIO relay. Future: cut power to actuators.)")
 

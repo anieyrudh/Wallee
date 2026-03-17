@@ -26,6 +26,7 @@ from wallee.safety.kernel import SafetyKernel
 from wallee.tools.registry import ToolRegistry
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.loop import AgentLoop
+from wallee.agent.parser import configure_check_intervals
 from wallee.human.call_human import call_human
 from wallee.human.cli import CLI
 from wallee.ui.dashboard import DashboardServer
@@ -49,6 +50,13 @@ def main():
     if not cfg.openrouter_api_key:
         logger.error("OPENROUTER_API_KEY not set. Create a .env file from .env.example.")
         sys.exit(1)
+
+    configure_check_intervals(
+        cfg.agent_min_check_interval_s,
+        cfg.agent_max_check_interval_s,
+        cfg.agent_max_check_interval_idle_s,
+        cfg.agent_default_check_interval_s,
+    )
 
     # Ensure data directory exists (fall back to local dir if system dir not writable)
     try:
@@ -110,6 +118,7 @@ def main():
         tools=registry,
         data_dir=str(cfg.data_dir),
         poll_interval=cfg.engine_poll_interval_s,
+        approval_timeout=cfg.engine_approval_timeout_s,
     )
     engine_thread = threading.Thread(target=engine.run, daemon=True, name="engine")
     engine_thread.start()
@@ -127,6 +136,7 @@ def main():
         poll_interval=cfg.agent_poll_interval_s,
         heartbeat_interval=cfg.agent_heartbeat_interval_s,
         heartbeat_ttl=cfg.agent_heartbeat_ttl_s,
+        last_decision_ttl=cfg.agent_last_decision_ttl_s,
         ledger=ledger,
     )
     agent_thread = threading.Thread(target=agent.run, daemon=True, name="agent-loop")
@@ -159,11 +169,17 @@ def main():
             telegram_bot = TelegramBot(
                 token=cfg.telegram_bot_token,
                 chat_id=cfg.telegram_chat_id,
+                allowed_user_ids=cfg.telegram_allowed_user_ids,
+                intent_ttl=cfg.human_intent_ttl_s,
+                urgent_ttl=cfg.human_urgent_ttl_s,
+                image_ttl=cfg.human_image_ttl_s,
+                estop_ttl=cfg.human_estop_ttl_s,
                 whiteboard=wb,
                 ledger=ledger,
                 safety_kernel=safety,
             )
             telegram_bot.start()
+            engine.approval_notifier = telegram_bot.send_approval_request
             # Wire Telegram into agent's call_human and safety kernel's call_human
             def _telegram_call_human(msg, severity="info"):
                 try:
@@ -184,7 +200,7 @@ def main():
     import sys
     if sys.stdin.isatty():
         logger.info("All systems running — starting CLI")
-        cli = CLI(wb, ledger)
+        cli = CLI(wb, ledger, intent_ttl=cfg.human_intent_ttl_s, urgent_ttl=cfg.human_urgent_ttl_s, estop_ttl=cfg.human_estop_ttl_s)
         try:
             cli.run()
         except (EOFError, KeyboardInterrupt):
