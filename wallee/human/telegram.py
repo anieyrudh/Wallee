@@ -412,7 +412,7 @@ class TelegramBot:
             # If photo has a caption, publish as intent too
             caption = update.message.caption
             if caption:
-                self.wb.publish("human.intent", caption.strip(), ttl=60)
+                self.wb.publish("human.intent", caption.strip(), ttl=600)
                 await update.message.reply_text(f"📸 Image + intent received: {caption.strip()}")
             else:
                 await update.message.reply_text("📸 Image received — LLM will analyze on next cycle")
@@ -441,7 +441,12 @@ class TelegramBot:
 
         # Everything else is a human intent for the agent
         if self.wb:
-            self.wb.publish("human.intent", text, ttl=60)
+            self.wb.publish("human.intent", text, ttl=600)
+            # Also store in intent history for dashboard persistence
+            import json as _json, time as _time
+            entry = _json.dumps({"ts": _time.strftime("%H:%M:%S"), "text": text})
+            self.wb.r.lpush("human.intent_log", entry)
+            self.wb.r.ltrim("human.intent_log", 0, 9)
         await update.message.reply_text(f"📝 Intent set: {text}")
 
     # --- Helpers ---

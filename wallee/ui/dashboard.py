@@ -343,32 +343,34 @@ function formatValue(key, v) {
 }
 
 /* --- Intent panel with history --- */
-var intentHistory = [];
-var MAX_INTENT_HISTORY = 5;
-var lastIntentText = null;
-
 function updateIntent(s) {
   var el = document.getElementById('intent');
   clearEl(el);
   var intent = s['human.intent'];
   var urgent = s['human.urgent'];
+  var intentLog = s['human.intent_log'];
 
-  /* Track intent history */
-  if (intent && intent !== lastIntentText) {
-    intentHistory.unshift({text: intent, ts: new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'})});
-    if (intentHistory.length > MAX_INTENT_HISTORY) intentHistory.pop();
-    lastIntentText = intent;
+  /* Parse intent log from Redis list */
+  var entries = [];
+  if (Array.isArray(intentLog)) {
+    for (var i = 0; i < intentLog.length; i++) {
+      try {
+        var parsed = typeof intentLog[i] === 'string' ? JSON.parse(intentLog[i]) : intentLog[i];
+        entries.push(parsed);
+      } catch(e) {}
+    }
   }
 
+  /* Current active intent */
   if (intent) {
     var box = document.createElement('div');
     box.className = 'intent-current';
     var head = document.createElement('div');
     head.className = 'feed-head';
-    if (intentHistory.length > 0) {
+    if (entries.length > 0) {
       var ts = document.createElement('span');
       ts.className = 'feed-ts';
-      ts.textContent = intentHistory[0].ts;
+      ts.textContent = entries[0].ts || '';
       head.appendChild(ts);
     }
     var label = document.createElement('span');
@@ -387,31 +389,53 @@ function updateIntent(s) {
     txt.textContent = intent;
     box.appendChild(txt);
     el.appendChild(box);
+  } else if (entries.length > 0) {
+    /* No active intent but we have history — show last as expired */
+    var box = document.createElement('div');
+    box.className = 'feed-entry stale';
+    var head = document.createElement('div');
+    head.className = 'feed-head';
+    var ts = document.createElement('span');
+    ts.className = 'feed-ts';
+    ts.textContent = entries[0].ts || '';
+    head.appendChild(ts);
+    var label = document.createElement('span');
+    label.textContent = 'EXPIRED';
+    label.style.cssText = 'font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px';
+    head.appendChild(label);
+    box.appendChild(head);
+    var txt = document.createElement('div');
+    txt.className = 'feed-text';
+    txt.style.fontSize = '13px';
+    txt.textContent = entries[0].text || '';
+    box.appendChild(txt);
+    el.appendChild(box);
   } else {
     var empty = document.createElement('div');
     empty.className = 'feed-empty';
-    empty.textContent = 'No active intent';
+    empty.textContent = 'No intent history';
     el.appendChild(empty);
   }
 
-  /* Show history (older intents, dimmed) */
-  if (intentHistory.length > 1) {
+  /* Show older intents (always visible from Redis log) */
+  var startIdx = intent ? 1 : 1;  /* skip first entry (shown above) */
+  if (entries.length > startIdx) {
     var hist = document.createElement('div');
     hist.className = 'intent-history';
-    for (var i = 1; i < intentHistory.length; i++) {
+    for (var i = startIdx; i < entries.length; i++) {
       var entry = document.createElement('div');
       entry.className = 'feed-entry stale';
       var h = document.createElement('div');
       h.className = 'feed-head';
       var ts2 = document.createElement('span');
       ts2.className = 'feed-ts';
-      ts2.textContent = intentHistory[i].ts;
+      ts2.textContent = entries[i].ts || '';
       h.appendChild(ts2);
       entry.appendChild(h);
       var t2 = document.createElement('div');
       t2.className = 'feed-text';
       t2.style.fontSize = '11px';
-      t2.textContent = intentHistory[i].text;
+      t2.textContent = entries[i].text || '';
       entry.appendChild(t2);
       hist.appendChild(entry);
     }
@@ -577,13 +601,14 @@ class DashboardServer:
             while self._running:
                 try:
                     state = self.wb.read_all()
-                    # Include agent activity log (Redis list, not a string key)
-                    try:
-                        log_raw = self.wb.r.lrange("agent.activity_log", 0, 19)
-                        if log_raw:
-                            state["agent.activity_log"] = [v for v in log_raw]
-                    except Exception:
-                        pass
+                    # Include Redis list data (not string keys — skipped by read_all)
+                    for list_key in ("agent.activity_log", "human.intent_log"):
+                        try:
+                            raw = self.wb.r.lrange(list_key, 0, 19)
+                            if raw:
+                                state[list_key] = list(raw)
+                        except Exception:
+                            pass
                     payload = json.dumps(state, default=str)
                     dead = set()
                     for client in list(self._clients):

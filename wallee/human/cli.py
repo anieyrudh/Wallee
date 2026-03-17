@@ -37,7 +37,7 @@ Wallee CLI Commands:
         if not args:
             print("Usage: intent <message>")
             return
-        self.wb.publish("human.intent", args, ttl=60)
+        self.wb.publish("human.intent", args, ttl=600)
         print(f"Intent set: {args}")
 
     def _handle_urgent(self):
