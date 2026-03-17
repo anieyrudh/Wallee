@@ -1,0 +1,7 @@
+redis>=5.0
+httpx>=0.27
+psutil>=5.9
+pyserial>=3.5
+websockets>=13.0
+python-telegram-bot>=21.0
+Pillow>=10.0
