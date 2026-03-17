@@ -41,7 +41,7 @@ DECISION_SCHEMA = {
 
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview"):
+    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview:online"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -75,7 +75,6 @@ class LLMClient:
             },
             "plugins": [
                 {"id": "response-healing"},
-                {"id": "web", "engine": "native"},
             ],
             "max_tokens": 2048,
         }
