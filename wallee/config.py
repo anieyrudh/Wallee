@@ -35,7 +35,7 @@ def _load_dotenv(path: Path) -> None:
 class Config:
     # LLM
     openrouter_api_key: str = ""
-    openrouter_model: str = "google/gemini-3.1-pro-preview"
+    openrouter_model: str = "google/gemini-3.1-pro-preview:online"
 
     # Redis
     redis_url: str = "redis://localhost:6379"
