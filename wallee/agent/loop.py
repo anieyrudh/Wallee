@@ -45,15 +45,27 @@ class AgentLoop:
         self._next_cycle_delay_s = poll_interval
 
     def _load_knowledge(self) -> dict[str, str]:
-        """Load knowledge files from disk. Cached after first load."""
-        if self._knowledge_cache:
-            return self._knowledge_cache
-        for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md"]:
-            path = self.knowledge_dir / name
-            if path.exists():
-                self._knowledge_cache[name] = path.read_text()
-            else:
-                self._knowledge_cache[name] = ""
+        """Load knowledge files from disk.
+
+        Static files (SOUL.md, HARDWARE.md, LEARNED.md) are cached after
+        first load.  OBSERVATIONS.md is re-read every cycle because the
+        remember tool appends to it at runtime.
+        """
+        if not self._knowledge_cache:
+            for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md"]:
+                path = self.knowledge_dir / name
+                if path.exists():
+                    self._knowledge_cache[name] = path.read_text()
+                else:
+                    self._knowledge_cache[name] = ""
+
+        # Re-read every cycle — remember tool writes here at runtime
+        obs_path = self.knowledge_dir / "OBSERVATIONS.md"
+        if obs_path.exists():
+            self._knowledge_cache["OBSERVATIONS.md"] = obs_path.read_text()
+        else:
+            self._knowledge_cache.pop("OBSERVATIONS.md", None)
+
         return self._knowledge_cache
 
     def _heartbeat(self):

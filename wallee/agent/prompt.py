@@ -69,7 +69,7 @@ def build_prompt(
         sections.append(detector.format_for_prompt(external_changes))
 
     # 1. Knowledge files (SOUL.md comes first — it's the mission briefing)
-    for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md"]:
+    for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md", "OBSERVATIONS.md"]:
         content = knowledge.get(name, "")
         if content:
             sections.append(f"=== {name} ===\n{content}")
