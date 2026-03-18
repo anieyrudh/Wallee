@@ -57,14 +57,15 @@ class TestLoadConfig:
         env_file.write_text("")
         # Clear any relevant env vars
         saved = {}
-        for key in ["OPENROUTER_API_KEY", "REDIS_URL", "OPENROUTER_MODEL"]:
+        for key in ["OPENROUTER_API_KEY", "REDIS_URL", "OPENROUTER_MODEL", "OPENROUTER_ENABLE_WEB_SEARCH"]:
             if key in os.environ:
                 saved[key] = os.environ.pop(key)
         try:
             cfg = load_config(env_file)
             assert cfg.openrouter_api_key == ""
             assert cfg.redis_url == "redis://localhost:6379"
-            assert cfg.openrouter_model == "anthropic/claude-opus-4-6"
+            assert cfg.openrouter_model == "google/gemini-3.1-pro-preview"
+            assert cfg.openrouter_enable_web_search is True
             assert cfg.agent_poll_interval_s == 5.0
         finally:
             os.environ.update(saved)

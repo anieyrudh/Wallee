@@ -25,22 +25,86 @@ BUDDY_MAC_PREFIX = "88:49:2d"
 # Discovery cache
 _discovered_buddies: list[str] = []  # list of IPs
 _last_discovery: float = 0
+_discovered_nozzle_port: str | None = None
+_last_nozzle_discovery: float = 0
 DISCOVERY_INTERVAL = 60  # re-scan every 60 seconds
 
 # Nozzle camera
 _nozzle_client: httpx.Client | None = None
+_nozzle_port: str | None = None
 
 # Staleness tracking
 _stale_state: dict[str, tuple[int | None, int]] = {}  # key → (last_hash, stale_count)
 STALE_THRESHOLD = 3
 
 
+def _candidate_nozzle_ports() -> list[str]:
+    ports = []
+    env_port = os.environ.get("NOZZLE_CAMERA_PORT", "").strip()
+    if env_port:
+        ports.append(env_port)
+    for port in ("8083", "8080", "8084", "8082", "8085", "8090"):
+        if port not in ports:
+            ports.append(port)
+    return ports
+
+
+def discover_nozzle_camera_port(force: bool = False) -> str | None:
+    global _discovered_nozzle_port, _last_nozzle_discovery
+
+    now = time.monotonic()
+    if not force and (now - _last_nozzle_discovery) < DISCOVERY_INTERVAL and _discovered_nozzle_port:
+        return _discovered_nozzle_port
+
+    for port in _candidate_nozzle_ports():
+        try:
+            response = httpx.get(f"http://localhost:{port}/snapshot", timeout=1.5)
+            content_type = response.headers.get("content-type", "")
+            if response.status_code == 200 and (response.content.startswith(b"\xff\xd8") or "image/jpeg" in content_type):
+                _discovered_nozzle_port = port
+                _last_nozzle_discovery = now
+                return _discovered_nozzle_port
+        except Exception:
+            continue
+
+    _discovered_nozzle_port = None
+    _last_nozzle_discovery = now
+    return None
+
+
 def _get_nozzle_client() -> httpx.Client:
-    global _nozzle_client
-    if _nozzle_client is None:
-        port = os.environ.get("NOZZLE_CAMERA_PORT", "8080")
-        _nozzle_client = httpx.Client(base_url=f"http://localhost:{port}", timeout=5.0)
+    global _nozzle_client, _nozzle_port
+    if _nozzle_client is not None:
+        return _nozzle_client
+
+    port = discover_nozzle_camera_port() or os.environ.get("NOZZLE_CAMERA_PORT", "8083")
+    _nozzle_port = str(port)
+    _nozzle_client = httpx.Client(base_url=f"http://localhost:{_nozzle_port}", timeout=5.0)
     return _nozzle_client
+
+
+def _ping_sweep_subnet():
+    """Send a quick ping sweep to populate the ARP table with responding hosts."""
+    try:
+        result = subprocess.run(
+            ["ip", "route", "show", "default"],
+            capture_output=True, text=True, timeout=3,
+        )
+        for part in result.stdout.split():
+            if part.count(".") == 3:
+                subnet = part.rsplit(".", 1)[0] + ".0/24"
+                subprocess.run(
+                    ["nmap", "-sn", "-T4", "--max-retries", "1", subnet],
+                    capture_output=True, timeout=10,
+                )
+                return
+
+        subprocess.run(
+            ["ping", "-b", "-c", "1", "-W", "1", "255.255.255.255"],
+            capture_output=True, timeout=3,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+        logger.debug(f"Ping sweep failed (non-fatal): {e}")
 
 
 def discover_buddy_cameras() -> list[str]:
@@ -50,6 +114,8 @@ def discover_buddy_cameras() -> list[str]:
     now = time.monotonic()
     if now - _last_discovery < DISCOVERY_INTERVAL and _discovered_buddies:
         return _discovered_buddies
+
+    _ping_sweep_subnet()
 
     ips = []
     try:
@@ -175,15 +241,19 @@ def _make_frame_result(key_prefix: str, jpeg: bytes | None) -> dict:
 # Sensor tools
 # ---------------------------------------------------------------------------
 
-@tool(kind="sensor", refresh_hz=0.2, history_depth=3)
+@tool(kind="sensor", refresh_hz=1.0, history_depth=3)
 def read_nozzle_camera() -> dict:
     """Capture from the 3DO nozzle endoscope (640x480 JPEG via ustreamer).
 
     Use this to inspect: first layer adhesion, nozzle condition, stringing,
     print surface quality, filament flow, and layer alignment.
     """
-    jpeg = _capture_http_jpeg(_get_nozzle_client(), "/snapshot", max_width=640)
-    return _make_frame_result("camera.nozzle", jpeg)
+    client = _get_nozzle_client()
+    jpeg = _capture_http_jpeg(client, "/snapshot", max_width=640)
+    result = _make_frame_result("camera.nozzle", jpeg)
+    if _nozzle_port is not None:
+        result["camera.nozzle_port"] = _nozzle_port
+    return result
 
 
 @tool(kind="sensor", refresh_hz=0.1, history_depth=3)

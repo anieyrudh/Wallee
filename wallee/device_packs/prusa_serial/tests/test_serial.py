@@ -184,4 +184,4 @@ class TestSendGcode:
 
     def test_requires_approval(self):
         meta = send_gcode._tool_meta
-        assert meta["requires_approval"] is True
+        assert meta["requires_approval"] is False

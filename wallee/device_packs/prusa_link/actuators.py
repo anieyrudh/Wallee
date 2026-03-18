@@ -21,6 +21,9 @@ def _ok() -> dict:
 
 
 def _precheck_pause_print(whiteboard=None, **kwargs) -> dict:
+    phase = _read_state(whiteboard, "job.phase")
+    if phase == "PREPARING":
+        return {"error": "Cannot pause during PREPARING phase — firmware rejects it (405). Wait for PRINTING phase."}
     job_state = _read_state(whiteboard, "printer.job_state")
     if job_state != "PRINTING":
         return {"error": f"Cannot pause: job is {job_state}, not PRINTING"}
@@ -140,13 +143,10 @@ def _precheck_retract(whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_pause_print)
 def pause_print(whiteboard=None, **kwargs) -> dict:
-    """Pause the current print via PUT /api/v1/job {"command":"PAUSE"}.
+    """Pause the current print via G-code M25 (SD card pause).
 
-    IMPORTANT: On Core One+ firmware, HTTP pause auto-resumes after ~30 seconds.
-    This is a temporary pause only. For a permanent stop, use cancel_print instead.
-    If you need the print to stay paused, call_human to have the operator intervene.
-
-    No approval required — pausing is the safe direction.
+    Uses G-code injection instead of PUT /api/v1/job because Core One+
+    firmware returns 405 on the REST endpoint during many states.
     """
     http = _get_http()
     if http is None:
@@ -156,23 +156,12 @@ def pause_print(whiteboard=None, **kwargs) -> dict:
     if job_state != "PRINTING":
         return {"error": f"Cannot pause: job is {job_state}, not PRINTING"}
 
-    result = http.put("/api/v1/job", json_body={"command": "PAUSE"})
-    if "error" in result:
-        if "409" in result.get("error", ""):
-            return {"error": "Printer rejected PAUSE (409 Conflict) — already paused or transitioning. Wait and retry."}
-        return result
-
-    return {"status": "success", "action": "pause_print",
-            "note": "Core One+ auto-resumes after ~30s. Use cancel_print for permanent stop."}
+    return _gcode(http, "M25", "pause_print")
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_resume_print)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_resume_print)
 def resume_print(whiteboard=None, **kwargs) -> dict:
-    """Resume a paused print via PUT /api/v1/job {"command":"RESUME"}.
-
-    Note: Core One+ may auto-resume after ~30s of pause anyway. This command
-    is for explicit resume when you don't want to wait for auto-resume.
-    """
+    """Resume a paused print via G-code M24 (SD card resume)."""
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
@@ -185,13 +174,7 @@ def resume_print(whiteboard=None, **kwargs) -> dict:
     if state not in ("PAUSED", "ATTENTION", "READY", None):
         return {"error": f"Cannot resume: printer state is {state}"}
 
-    result = http.put("/api/v1/job", json_body={"command": "RESUME"})
-    if "error" in result:
-        if "409" in result.get("error", ""):
-            return {"error": "Printer rejected RESUME (409 Conflict) — already printing or transitioning. Wait and retry."}
-        return result
-
-    return {"status": "success", "action": "resume_print"}
+    return _gcode(http, "M24", "resume_print")
 
 
 @tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_cancel_print)
@@ -299,7 +282,7 @@ def _gcode(http, command: str, action: str, **extra) -> dict:
     return {"status": "success", "action": action, "gcode": command, **extra}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=lambda whiteboard=None, **kwargs: _precheck_idle_motion(whiteboard=whiteboard, action="home", **kwargs))
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=lambda whiteboard=None, **kwargs: _precheck_idle_motion(whiteboard=whiteboard, action="home", **kwargs))
 def home_axes(whiteboard=None, **kwargs) -> dict:
     """Home all axes via G28. Printer must be IDLE — never home during a print."""
     http = _get_http()
@@ -361,7 +344,7 @@ def set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
     return _gcode(http, f"M221 S{percent}", "set_flow_factor", percent=percent)
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_set_position)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_set_position)
 def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kwargs) -> dict:
     """Move toolhead to position via G1. HIGH CONSEQUENCE — never during a print.
 
@@ -389,7 +372,7 @@ def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kw
     return _gcode(http, f"G1 X{x} Y{y} Z{z} F3000", "set_position", x=x, y=y, z=z)
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_extrude)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_extrude)
 def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
     """Extrude filament via G1 E{length}. Requires nozzle >= 170C.
 
@@ -422,7 +405,7 @@ def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwarg
     return {"status": "success", "action": "extrude", "length_mm": length_mm, "feedrate": feedrate}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_retract)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_retract)
 def retract(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
     """Retract filament via G1 E-{length}. Requires nozzle >= 170C.
 

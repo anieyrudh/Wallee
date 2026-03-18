@@ -41,9 +41,10 @@ DECISION_SCHEMA = {
 
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview"):
+    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview", enable_web_search: bool = True):
         self.api_key = api_key
         self.model = model
+        self.enable_web_search = enable_web_search
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def call(self, prompt: str, messages: list | None = None) -> str:
@@ -66,6 +67,10 @@ class LLMClient:
             if isinstance(messages[0].get("content"), str):
                 messages[0]["cache_control"] = {"type": "ephemeral"}
 
+        plugins = [{"id": "response-healing"}]
+        if self.enable_web_search:
+            plugins.insert(0, {"id": "web", "max_results": 3})
+
         payload = {
             "model": self.model,
             "messages": messages,
@@ -73,10 +78,7 @@ class LLMClient:
                 "type": "json_schema",
                 "json_schema": DECISION_SCHEMA,
             },
-            "plugins": [
-                {"id": "web", "max_results": 3},
-                {"id": "response-healing"},
-            ],
+            "plugins": plugins,
             "max_tokens": 2048,
         }
 

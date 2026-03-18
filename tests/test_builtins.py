@@ -2,6 +2,7 @@
 
 import fakeredis
 import pytest
+from unittest.mock import patch
 
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.builtins.trends import trends
@@ -9,8 +10,6 @@ from wallee.tools.builtins.differential import differential
 from wallee.tools.builtins.sensor_history import get_sensor_history
 from wallee.tools.builtins.call_human_tool import call_human
 from wallee.tools.builtins.discover import discover_hardware
-from wallee.tools.builtins.web_search import web_search
-from wallee.tools.builtins.git_pull import git_pull
 from wallee.tools.registry import ToolRegistry
 
 
@@ -20,7 +19,14 @@ def wb():
     w = Whiteboard(_redis=r)
     # Populate some history with known timestamps: newest-oldest span = 4s
     values = iter([100.0, 101.0, 102.0, 103.0, 104.0])
-    w._now = lambda: next(values)
+
+    def fake_now():
+        try:
+            return next(values)
+        except StopIteration:
+            return 104.0
+
+    w._now = fake_now
     for val in [20.0, 20.5, 21.0, 21.5, 22.0]:
         w.publish("env.temperature", val, history_depth=10)
     return w
@@ -93,24 +99,16 @@ class TestCallHumanTool:
 
 
 class TestPlaceholders:
-    def test_discover_hardware(self, wb):
+    @patch("wallee.device_packs.pi_cameras.sensors.discover_buddy_cameras", return_value=["192.168.0.194"])
+    @patch("wallee.device_packs.pi_cameras.sensors.discover_nozzle_camera_port", return_value="8083")
+    @patch("wallee.device_packs.prusa_serial.actuators._find_prusa_port", return_value="/dev/ttyACM0")
+    def test_discover_hardware(self, mock_serial, mock_nozzle, mock_buddies, wb):
         result = discover_hardware(whiteboard=wb)
         assert result["status"] == "success"
-
-    def test_web_search(self, wb):
-        result = web_search(query="BME280 datasheet", whiteboard=wb)
-        assert result["status"] == "not_implemented"
-
-    def test_web_search_no_query(self, wb):
-        result = web_search(query="", whiteboard=wb)
-        assert "error" in result
-
-    def test_git_pull(self, wb):
-        result = git_pull(repo_url="https://example.com/repo", whiteboard=wb)
-        assert result["status"] == "not_implemented"
-
-    def test_git_pull_requires_approval(self):
-        assert git_pull._tool_meta["requires_approval"] is True
+        assert result["findings"]["camera.nozzle_port"] == "8083"
+        assert result["findings"]["camera.buddy_ips"] == ["192.168.0.194"]
+        assert result["findings"]["printer.serial_port"] == "/dev/ttyACM0"
+        assert wb.read("camera.nozzle_port") == "8083"
 
 
 class TestRegistryLoadBuiltins:
@@ -122,8 +120,6 @@ class TestRegistryLoadBuiltins:
         assert "get_sensor_history" in reg
         assert "call_human" in reg
         assert "discover_hardware" in reg
-        assert "web_search" in reg
-        assert "git_pull" in reg
 
     def test_builtins_are_actuators(self):
         reg = ToolRegistry()
@@ -137,4 +133,4 @@ class TestRegistryLoadBuiltins:
         llm_tools = reg.list_for_llm()
         names = [t["name"] for t in llm_tools]
         assert "trends" in names
-        assert "git_pull" in names
+        assert "discover_hardware" in names

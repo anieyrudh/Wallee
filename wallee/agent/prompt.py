@@ -78,7 +78,8 @@ def build_prompt(
     _SKIP_KEYS = frozenset({
         "host.usb_devices", "host.network_interfaces", "printer.files",
         "printer.firmware", "printer.serial", "printer.model",
-        "printer.nozzle_diameter",
+        "printer.nozzle_diameter", "agent.last_decision",
+        "agent.heartbeat", "engine.heartbeat",
     })
     sections.append("=== WHITEBOARD STATE ===")
     if state:

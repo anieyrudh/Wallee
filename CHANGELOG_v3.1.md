@@ -146,3 +146,24 @@
 - **What was wrong:** The last two failing tests lagged behind current behavior: the LLM client test still expected the old `json_object` response format, and the serial bus reported `pyserial not installed` before surfacing the clearer no-port condition.
 - **What you changed:** Updated the LLM test to assert the current `json_schema` payload shape and reordered serial no-port detection so missing hardware is reported before import-related failures.
 - **Risk:** If future serial behavior intentionally depends on import validation before port discovery, this error ordering will need to be revisited along with its tests.
+
+## P2-7
+- **Bug ID:** `P2-7`
+- **File(s) changed:** `wallee/tools/builtins/discover.py`, `wallee/device_packs/pi_cameras/sensors.py`, `wallee/device_packs/pi_cameras/tests/test_cameras.py`, `tests/test_builtins.py`
+- **What was wrong:** The built-in `discover_hardware` tool was still a placeholder, and the nozzle camera path depended on a hardcoded/default localhost port instead of actually probing for the live streamer.
+- **What you changed:** Replaced discovery with real local probing for the Prusa serial port, nozzle camera port, and buddy camera IPs, then published the discovered values back to the whiteboard with regression tests.
+- **Risk:** Port probing now performs extra localhost HTTP checks during discovery, so unusually slow or non-camera services on the scanned ports could slightly delay discovery or produce false positives if they mimic JPEG responses.
+
+## P2-8
+- **Bug ID:** `P2-8`
+- **File(s) changed:** `wallee/agent/prompt.py`, `tests/test_prompt.py`
+- **What was wrong:** The prompt builder included self-referential runtime keys like `agent.last_decision`, which let the LLM read its own prior summaries back from the whiteboard and fixate on stale narratives.
+- **What you changed:** Added internal heartbeat and self-summary keys to the prompt skip list and covered the exclusion with a regression test.
+- **Risk:** If an operator or future subsystem expected those internal agent meta-keys to remain visible in the raw prompt text, that debugging workflow now has to read them directly from Redis or the dashboard instead.
+
+## P3-6
+- **Bug ID:** `P3-6`
+- **File(s) changed:** `wallee/config.py`, `wallee/agent/llm_client.py`, `wallee/main.py`, `.env.example`, `tests/test_config.py`, `tests/test_llm_client.py`
+- **What was wrong:** The default OpenRouter model and client wiring still targeted the older Gemini setup, and web grounding was not configurable from central config.
+- **What you changed:** Switched the default model to `openai/gpt-5.4`, added `OPENROUTER_ENABLE_WEB_SEARCH`, and made the LLM client inject the OpenRouter web plugin when enabled.
+- **Risk:** Model behavior, cost, latency, and tool-grounding characteristics may differ from the previous Gemini configuration, so prompts and operational thresholds may need retuning in production.

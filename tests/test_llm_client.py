@@ -10,7 +10,7 @@ from wallee.agent.llm_client import LLMClient, MAX_RETRIES
 
 @pytest.fixture
 def client():
-    return LLMClient(api_key="test-key", model="test/model")
+    return LLMClient(api_key="test-key", model="test/model", enable_web_search=True)
 
 
 class TestLLMClient:
@@ -33,6 +33,8 @@ class TestLLMClient:
         assert body["response_format"]["type"] == "json_schema"
         assert body["response_format"]["json_schema"]["name"] == "agent_decision"
         assert body["response_format"]["json_schema"]["strict"] is True
+        assert body["plugins"][0] == {"id": "web", "max_results": 3}
+        assert body["plugins"][1] == {"id": "response-healing"}
 
     def test_custom_messages(self, client):
         """Support vision content blocks via messages parameter."""
@@ -64,6 +66,18 @@ class TestLLMClient:
 
         headers = mock_post.call_args.kwargs["headers"]
         assert headers["Authorization"] == "Bearer test-key"
+
+    def test_disables_web_plugin(self):
+        client = LLMClient(api_key="test-key", model="test/model", enable_web_search=False)
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"choices": [{"message": {"content": "{}"}}]}
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("wallee.agent.llm_client.httpx.post", return_value=mock_response) as mock_post:
+            client.call("prompt")
+
+        body = mock_post.call_args.kwargs["json"]
+        assert body["plugins"] == [{"id": "response-healing"}]
 
 
 class TestRetryLogic:

@@ -3,7 +3,7 @@
 **Status:** Normative. If implementation conflicts with this document, this document wins.
 **Audience:** Coding agents (Claude Code) and developers.
 **Hardware:** Raspberry Pi 5 (8GB), Raspberry Pi OS Bookworm.
-**LLM Provider:** OpenRouter → anthropic/claude-opus-4-6.
+**LLM Provider:** OpenRouter → openai/gpt-5.4.
 
 > If anything is ambiguous, implement the safer interpretation and surface the ambiguity as an issue.
 
@@ -329,7 +329,7 @@ The LLM must return JSON:
 import httpx
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "anthropic/claude-opus-4-6"):
+    def __init__(self, api_key: str, model: str = "openai/gpt-5.4"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -849,7 +849,7 @@ PI_SSH_KEY_PATH=~/.ssh/id_rsa     # Or use PI_PASSWORD
 
 # === LLM (agent on Pi calls this) ===
 OPENROUTER_API_KEY=               # OpenRouter API key
-OPENROUTER_MODEL=anthropic/claude-opus-4-6
+OPENROUTER_MODEL=openai/gpt-5.4
 
 # === Redis (whiteboard) ===
 REDIS_URL=redis://localhost:6379

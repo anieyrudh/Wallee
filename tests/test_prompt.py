@@ -2,7 +2,9 @@
 
 import json
 import time
+
 import pytest
+
 from wallee.agent.prompt import build_prompt, build_messages
 
 
@@ -150,14 +152,21 @@ class TestBuildPrompt:
         assert soul_pos < hw_pos
 
     def test_camera_frames_excluded_from_text(self):
-        """Camera base64 data should not appear in text prompt — sent as vision blocks."""
         state = {
             "camera.nozzle_frame": "AAAA" * 1000,
             "printer.state": "IDLE",
         }
-        prompt = build_prompt(state=state, episode=[], intent=None,
-                              knowledge={}, tools=[], current_time=time.time())
+        prompt = build_prompt(state=state, episode=[], intent=None, knowledge={}, tools=[], current_time=time.time())
         assert "A" * 180 not in prompt
+
+    def test_agent_last_decision_is_excluded_from_text(self):
+        state = {
+            "agent.last_decision": "CALL_HUMAN: ask about weather",
+            "printer.state": "IDLE",
+        }
+        prompt = build_prompt(state=state, episode=[], intent=None, knowledge={}, tools=[], current_time=time.time())
+        assert "ask about weather" not in prompt
+        assert "printer.state: IDLE" in prompt
 
     def test_episode_payloads_are_summarized(self, sample_state, sample_tools, sample_knowledge):
         long_reason = "check " * 40
@@ -235,7 +244,7 @@ class TestBuildMessages:
         user_msg = msgs[1]
         assert isinstance(user_msg["content"], list)
         image_blocks = [b for b in user_msg["content"] if b.get("type") == "image_url"]
-        assert len(image_blocks) == 3  # 2 cameras (max) + human image
+        assert len(image_blocks) == 3
         text_blocks = [b for b in user_msg["content"] if b.get("type") == "text"]
         assert any("Nozzle" in t["text"] for t in text_blocks)
         assert any("Buddy" in t["text"] for t in text_blocks)

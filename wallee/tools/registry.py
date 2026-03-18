@@ -128,8 +128,6 @@ class ToolRegistry:
             "wallee.tools.builtins.sensor_history",
             "wallee.tools.builtins.call_human_tool",
             "wallee.tools.builtins.discover",
-            "wallee.tools.builtins.web_search",
-            "wallee.tools.builtins.git_pull",
         ]
         for mod_path in builtin_modules:
             try:

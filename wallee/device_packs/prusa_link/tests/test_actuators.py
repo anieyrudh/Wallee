@@ -63,16 +63,16 @@ def _inject(handler=None):
 class TestPausePrint:
     def test_success(self, wb):
         def handler(r):
-            assert r.method == "PUT"
-            assert "/api/v1/job" in str(r.url)
+            assert r.method == "POST"
+            assert "/api/v1/gcode" in str(r.url)
             body = json.loads(r.content)
-            assert body["command"] == "PAUSE"
+            assert body["command"] == "M25"
             return httpx.Response(204, headers={"content-type": "text/plain"})
         _inject(handler)
         wb.publish("printer.job_state", "PRINTING")
         result = pause_print(whiteboard=wb)
         assert result["status"] == "success"
-        assert "auto-resumes" in result["note"]
+        assert result["gcode"] == "M25"
 
     def test_rejects_not_printing(self, wb):
         _inject()
@@ -87,15 +87,17 @@ class TestPausePrint:
 class TestResumePrint:
     def test_success(self, wb):
         def handler(r):
-            assert r.method == "PUT"
+            assert r.method == "POST"
+            assert "/api/v1/gcode" in str(r.url)
             body = json.loads(r.content)
-            assert body["command"] == "RESUME"
+            assert body["command"] == "M24"
             return httpx.Response(204, headers={"content-type": "text/plain"})
         _inject(handler)
         wb.publish("printer.job_state", "PAUSED")
         wb.publish("printer.state", "PAUSED")
         result = resume_print(whiteboard=wb)
         assert result["status"] == "success"
+        assert result["gcode"] == "M24"
 
     def test_rejects_not_paused(self, wb):
         _inject()
@@ -111,7 +113,7 @@ class TestResumePrint:
         assert "error" in result
 
     def test_requires_approval(self):
-        assert resume_print._tool_meta["requires_approval"] is True
+        assert resume_print._tool_meta["requires_approval"] is False
 
 
 class TestCancelPrint:
@@ -251,7 +253,7 @@ class TestHomeAxes:
         assert "error" in result
 
     def test_requires_approval(self):
-        assert home_axes._tool_meta["requires_approval"] is True
+        assert home_axes._tool_meta["requires_approval"] is False
 
 
 class TestDisableMotors:
@@ -354,7 +356,7 @@ class TestSetPosition:
         assert "destroy" in result["error"]
 
     def test_requires_approval(self):
-        assert set_position._tool_meta["requires_approval"] is True
+        assert set_position._tool_meta["requires_approval"] is False
 
 
 class TestExtrude:
@@ -386,7 +388,7 @@ class TestExtrude:
         assert "error" in result
 
     def test_requires_approval(self):
-        assert extrude._tool_meta["requires_approval"] is True
+        assert extrude._tool_meta["requires_approval"] is False
 
 
 class TestRetract:

@@ -11,3 +11,8 @@ logs/
 *.db
 *.db-shm
 *.db-wal
+*.rtf
+*.png
+*.jpeg
+*.jpg
+wallee-audit/
