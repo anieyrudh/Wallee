@@ -52,11 +52,11 @@ class Engine:
                 logger.error(f"Engine heartbeat failed: {e}")
             time.sleep(self.heartbeat_interval)
 
-    def _notify_approval_request(self, action_id: str, tool_name: str, params: dict):
+    def _notify_approval_request(self, action_id: str, tool_name: str, params: dict, reason: str = ""):
         if self.approval_notifier is None:
             return
         try:
-            self.approval_notifier(action_id, tool_name, params)
+            self.approval_notifier(action_id, tool_name, params, reason=reason)
         except Exception as e:
             logger.error(f"Approval notification failed for {action_id}: {e}")
 
@@ -98,7 +98,7 @@ class Engine:
             if approval is None:
                 if proposal.get("status") != "WAITING_APPROVAL":
                     self.ledger.set_status(action_id, "WAITING_APPROVAL")
-                    self._notify_approval_request(action_id, tool_name, params)
+                    self._notify_approval_request(action_id, tool_name, params, reason=proposal.get("reason", ""))
                 logger.info(f"Waiting for approval: {action_id} ({tool_name})")
                 return "WAITING_APPROVAL"
             if approval["decision"] != "APPROVE":

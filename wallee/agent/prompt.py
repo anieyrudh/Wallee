@@ -1,7 +1,13 @@
-"""Builds the system prompt and message list for each agent cycle.
+"""Builds the system prompt (cached) and user message (dynamic) for each agent cycle.
 
-Supports vision: camera frames and human photos are included as
-image_url content blocks in the OpenRouter messages format.
+Architecture: two-part message array for optimal prompt caching.
+
+CACHED PREFIX (system message — static within a job):
+  SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md + thumbnail
+
+DYNAMIC SUFFIX (user message — changes every cycle):
+  Phase banner, pending callout, external changes, whiteboard state,
+  episode, camera frames (vision), final instruction
 """
 
 import json
@@ -12,6 +18,13 @@ from pathlib import Path
 MAX_PROMPT_EPISODE_CHARS = 160
 MAX_PROMPT_REASON_CHARS = 120
 MAX_PROMPT_STATE_JSON_CHARS = 80
+
+_SKIP_KEYS = frozenset({
+    "host.usb_devices", "host.network_interfaces", "printer.files",
+    "printer.firmware", "printer.serial", "printer.model",
+    "printer.nozzle_diameter", "agent.last_decision",
+    "agent.heartbeat", "engine.heartbeat",
+})
 
 
 def _trim_text(value, limit: int) -> str:
@@ -40,52 +53,91 @@ def _summarize_payload(payload, limit: int = MAX_PROMPT_EPISODE_CHARS) -> str:
     return _trim_text(text, limit)
 
 
-def build_prompt(
-    state: dict,
-    episode: list[dict],
-    intent: str | None,
+# ── CACHED PREFIX (system message) ──────────────────────────────────
+
+
+def build_system_prompt(
     knowledge: dict[str, str],
     tools: list[dict],
-    current_time: float,
-    external_changes: list[str] | None = None,
 ) -> str:
-    """Assemble the full system prompt for one LLM call.
+    """Build the system message — static within a job, cacheable.
 
-    Args:
-        state: Whiteboard snapshot with trend annotations.
-        episode: Recent actions from ledger (since last WAIT/CALL_HUMAN).
-        intent: Current human intent string, or None.
-        knowledge: Dict of filename → content (SOUL.md, HARDWARE.md, LEARNED.md).
-        tools: Tool descriptions from registry.list_for_llm().
-        current_time: time.time() for the prompt.
-        external_changes: List of detected external changes (from ExternalChangeDetector).
+    Contains: SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md.
     """
     sections = []
 
-    # 0. External changes (TOP of prompt, before everything else)
-    if external_changes:
-        from wallee.agent.change_detector import ExternalChangeDetector
-        detector = ExternalChangeDetector()
-        sections.append(detector.format_for_prompt(external_changes))
-
-    # 1. Knowledge files (SOUL.md comes first — it's the mission briefing)
-    for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md", "OBSERVATIONS.md"]:
+    # 1. Knowledge files in order
+    for name in ["SOUL.md", "LEARNED.md", "OBSERVATIONS.md"]:
         content = knowledge.get(name, "")
         if content:
             sections.append(f"=== {name} ===\n{content}")
 
-    # 2. Current whiteboard state (stripped — skip verbose/binary keys)
-    _SKIP_KEYS = frozenset({
-        "host.usb_devices", "host.network_interfaces", "printer.files",
-        "printer.firmware", "printer.serial", "printer.model",
-        "printer.nozzle_diameter", "agent.last_decision",
-        "agent.heartbeat", "engine.heartbeat",
-    })
+    # 2. Available tools
+    sections.append("=== AVAILABLE TOOLS ===")
+    if tools:
+        for t in tools:
+            approval = " [REQUIRES APPROVAL]" if t.get("requires_approval") else ""
+            sections.append(f"  {t['name']}: {t['description']}{approval}")
+    else:
+        sections.append("  (no actuator tools available)")
+
+    # 3. JOB_CONTEXT.md — only if a job is active
+    job_ctx = knowledge.get("JOB_CONTEXT.md", "")
+    if job_ctx:
+        sections.append(f"=== JOB_CONTEXT.md ===\n{job_ctx}")
+
+    return "\n\n".join(sections)
+
+
+# ── DYNAMIC SUFFIX (user message) ──────────────────────────────────
+
+
+def build_user_message(
+    state: dict,
+    episode: list[dict],
+    intent: str | None,
+    current_time: float,
+    external_changes: list[str] | None = None,
+    pending_callout: dict | None = None,
+) -> str:
+    """Build the dynamic user message text — changes every cycle.
+
+    Contains: phase banner, pending callout, external changes,
+    whiteboard state, human intent, episode, final instruction.
+    """
+    sections = []
+
+    # 0. Phase banner
+    phase = state.get("job.phase", "IDLE")
+    detail = state.get("job.phase_detail", "")
+    time_in_phase = state.get("job.time_in_phase_s", 0)
+    sections.append(f"=== PHASE: {phase} ({detail}) — {time_in_phase}s ===")
+
+    # 1. Pending callout status
+    if pending_callout and pending_callout.get("status") == "PENDING":
+        age = int(current_time - pending_callout.get("time", current_time))
+        sections.append(
+            f"=== PENDING CALLOUT: PENDING — '{pending_callout.get('message', '')[:200]}' "
+            f"(sent {age}s ago) ==="
+        )
+    elif pending_callout and pending_callout.get("status") == "ACKNOWLEDGED":
+        sections.append("=== PENDING CALLOUT: ACKNOWLEDGED ===")
+    else:
+        sections.append("=== PENDING CALLOUT: NONE ===")
+
+    # 2. External changes
+    if external_changes:
+        lines = ["!!! EXTERNAL CHANGES (not caused by Wallee) !!!"]
+        for change in external_changes:
+            lines.append(f"  - {change}")
+        sections.append("\n".join(lines))
+
+    # 3. Whiteboard sensor data (no images — just numbers and states)
     sections.append("=== WHITEBOARD STATE ===")
     if state:
         for key in sorted(state.keys()):
             if key.startswith("camera.") and key.endswith("_frame"):
-                continue  # images sent as vision blocks, not text
+                continue
             if key == "human.image":
                 continue
             if key in _SKIP_KEYS:
@@ -94,7 +146,7 @@ def build_prompt(
                 continue
             val = state[key]
             if isinstance(val, str) and len(val) > 100:
-                continue  # skip long strings
+                continue
             elif isinstance(val, (dict, list)):
                 sections.append(f"  {key}: {_summarize_payload(val, MAX_PROMPT_STATE_JSON_CHARS)}")
             else:
@@ -102,11 +154,11 @@ def build_prompt(
     else:
         sections.append("  (no data)")
 
-    # 3. Human intent
+    # 4. Human intent
     if intent:
         sections.append(f"=== HUMAN INTENT ===\n{intent}")
 
-    # 4. Episode context (recent actions)
+    # 5. Episode context (recent actions)
     sections.append("=== RECENT ACTIONS (this episode) ===")
     if episode:
         for action in episode:
@@ -126,67 +178,73 @@ def build_prompt(
     else:
         sections.append("  (no actions yet this episode)")
 
-    # 5. Available tools
-    sections.append("=== AVAILABLE TOOLS ===")
-    if tools:
-        for t in tools:
-            approval = " [REQUIRES APPROVAL]" if t.get("requires_approval") else ""
-            sections.append(f"  {t['name']}: {t['description']}{approval}")
-    else:
-        sections.append("  (no actuator tools available)")
-
-    # 6. Instructions
-    sections.append("=== INSTRUCTIONS ===")
+    # 6. Timestamp + final instruction
+    sections.append(f"=== TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))} ===")
     sections.append(
-        "You are an autonomous agent controlling hardware. "
-        "Respond with exactly one JSON object.\n"
-        "Options:\n"
-        '  {"type": "ACTION", "tool": "<name>", "params": {}, "reason": "<why>"}\n'
-        '  {"type": "WAIT", "reason": "<why>", "check_after_s": <seconds>}\n'
-        '  {"type": "CALL_HUMAN", "message": "<what>", "severity": "info|warning|critical"}\n'
-        "\nRules:\n"
-        "- Propose ONE action per response.\n"
-        "- Use WAIT when nothing needs to change.\n"
-        "- WAIT reason must be 1-2 sentences MAX. Only mention changes or anomalies.\n"
-        "- Use CALL_HUMAN when uncertain or when something needs human judgment.\n"
-        "- Your proposal will be checked by safety gates before execution.\n"
-        "- Respond ONLY with JSON. No commentary. Be concise."
+        "Respond with JSON. One sentence observation, one sentence reasoning."
     )
-
-    sections.append(f"=== CURRENT TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))} ===")
 
     return "\n\n".join(sections)
 
 
-def build_messages(system_prompt: str, state: dict) -> list[dict]:
+# ── MESSAGE BUILDER ─────────────────────────────────────────────────
+
+
+def build_messages(
+    system_prompt: str,
+    user_text: str,
+    state: dict,
+    knowledge_dir: Path | None = None,
+) -> list[dict]:
     """Build the full messages list for the LLM, including vision content.
 
-    If camera frames or human images are present on the whiteboard,
-    they're included as image_url content blocks in the user message.
-
     Args:
-        system_prompt: The text system prompt from build_prompt().
-        state: Whiteboard snapshot (for reading image keys).
+        system_prompt: Cached system message from build_system_prompt().
+        user_text: Dynamic user message from build_user_message().
+        state: Whiteboard snapshot (for camera frame keys).
+        knowledge_dir: Path to knowledge/ dir (for job thumbnail).
 
     Returns:
         List of message dicts for the LLM client.
     """
-    messages = [{"role": "system", "content": system_prompt}]
+    # System message — may include job thumbnail as vision block
+    system_content = [{"type": "text", "text": system_prompt}]
 
-    # Build user message with optional vision content blocks
+    # Job thumbnail — include in system message if it exists
+    if knowledge_dir:
+        thumb_path = knowledge_dir / "job_thumbnail.png"
+        if thumb_path.exists():
+            try:
+                import base64
+                thumb_data = base64.b64encode(thumb_path.read_bytes()).decode("ascii")
+                system_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{thumb_data}"},
+                })
+                system_content.append({
+                    "type": "text",
+                    "text": "Above: the model being printed in this job.",
+                })
+            except Exception:
+                pass
+
+    if len(system_content) > 1:
+        messages = [{"role": "system", "content": system_content}]
+    else:
+        messages = [{"role": "system", "content": system_prompt}]
+
+    # User message — dynamic text + live camera frames + human photo
     user_content = []
 
-    # Camera frames — include up to 2 to keep token budget manageable.
-    # Priority: nozzle (most useful for print inspection) > buddy1 > thermal > buddy2
+    # Camera frames — max 2, priority: nozzle > buddy1 > buddy2
     camera_sources = [
-        ("camera.nozzle_frame", "Nozzle camera (close-up of print head and surface)"),
-        ("camera.buddy1_frame", "Buddy camera 1 (wide-angle enclosure view)"),
-        ("camera.buddy2_frame", "Buddy camera 2 (wide-angle enclosure view)"),
+        ("camera.nozzle_frame", "Live camera: Nozzle (close-up of print head and surface)"),
+        ("camera.buddy1_frame", "Live camera: Buddy 1 (wide-angle enclosure view)"),
+        ("camera.buddy2_frame", "Live camera: Buddy 2 (wide-angle enclosure view)"),
     ]
     cameras_included = 0
-    max_cameras = 2  # Limit to avoid blowing token budget (~200KB base64 per frame)
     for cam_key, cam_label in camera_sources:
-        if cameras_included >= max_cameras:
+        if cameras_included >= 2:
             break
         frame = state.get(cam_key)
         if frame and isinstance(frame, str):
@@ -197,7 +255,7 @@ def build_messages(system_prompt: str, state: dict) -> list[dict]:
             user_content.append({"type": "text", "text": cam_label})
             cameras_included += 1
 
-    # Human photo (if operator sent one via Telegram)
+    # Human photo
     human_image = state.get("human.image")
     if human_image and isinstance(human_image, str):
         user_content.append({
@@ -206,19 +264,39 @@ def build_messages(system_prompt: str, state: dict) -> list[dict]:
         })
         user_content.append({
             "type": "text",
-            "text": "The operator sent this image via Telegram. Analyze it in context of the current printer state.",
+            "text": "Operator sent this image via Telegram. Analyze in context.",
         })
 
-    # Always include the action prompt
-    user_content.append({
-        "type": "text",
-        "text": "Decide your next action.",
-    })
+    # Dynamic text goes last
+    user_content.append({"type": "text", "text": user_text})
 
-    # If we have images, use content blocks; otherwise simple string
     if len(user_content) > 1:
         messages.append({"role": "user", "content": user_content})
     else:
-        messages.append({"role": "user", "content": "Decide your next action."})
+        messages.append({"role": "user", "content": user_text})
 
     return messages
+
+
+# ── BACKWARD COMPAT ─────────────────────────────────────────────────
+
+
+def build_prompt(
+    state: dict,
+    episode: list[dict],
+    intent: str | None,
+    knowledge: dict[str, str],
+    tools: list[dict],
+    current_time: float,
+    external_changes: list[str] | None = None,
+    pending_callout: dict | None = None,
+) -> str:
+    """Legacy single-string prompt builder. Used by tests.
+
+    In production, loop.py calls build_system_prompt + build_user_message
+    + build_messages separately for caching.
+    """
+    sys = build_system_prompt(knowledge, tools)
+    usr = build_user_message(state, episode, intent, current_time,
+                             external_changes, pending_callout)
+    return sys + "\n\n" + usr

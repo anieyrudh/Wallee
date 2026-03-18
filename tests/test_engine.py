@@ -197,7 +197,7 @@ class TestGate4Approval:
             tools=registry,
             data_dir=str(tmp_path),
             poll_interval=0.1,
-            approval_notifier=lambda action_id, tool, params: notifications.append((action_id, tool, params)),
+            approval_notifier=lambda action_id, tool, params, reason="": notifications.append((action_id, tool, params)),
         )
 
         aid = ledger.propose("approval_action", {"speed": 42}, "test", "test_group", requires_approval=True)

@@ -142,7 +142,7 @@ img.cam { display: block; width: 100%; min-height: 210px; object-fit: cover; }
 
     <div class="summary-grid">
       <div class="stat-card">
-        <div class="stat-label">Printer State</div>
+        <div class="stat-label">Phase</div>
         <div id="summary-state" class="stat-value">--</div>
         <div id="summary-state-meta" class="stat-meta"></div>
       </div>
@@ -236,9 +236,9 @@ function update(s) {
 }
 
 function updateSummary(s) {
-  var state = s['printer.state'] || 'UNKNOWN';
-  var job = s['printer.job_state'] || 'No active job';
-  setStat('summary-state', state, job);
+  var phase = s['job.phase'] || s['printer.state'] || 'UNKNOWN';
+  var detail = s['job.phase_detail'] || s['printer.job_state'] || '';
+  setStat('summary-state', phase, detail);
 
   var progress = s['printer.job_progress'];
   var remaining = s['printer.job_time_remaining_s'];

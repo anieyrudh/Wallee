@@ -143,6 +143,9 @@ def main():
     agent_thread.start()
     logger.info("Agent loop started")
 
+    # Store agent ref for wake wiring
+    _agent_loop = agent
+
     # Graceful shutdown
     def shutdown(signum, frame):
         logger.info(f"Received signal {signum}, shutting down...")
@@ -177,6 +180,7 @@ def main():
                 whiteboard=wb,
                 ledger=ledger,
                 safety_kernel=safety,
+                wake_agent_fn=_agent_loop.wake,
             )
             telegram_bot.start()
             engine.approval_notifier = telegram_bot.send_approval_request
@@ -200,7 +204,7 @@ def main():
     import sys
     if sys.stdin.isatty():
         logger.info("All systems running — starting CLI")
-        cli = CLI(wb, ledger, intent_ttl=cfg.human_intent_ttl_s, urgent_ttl=cfg.human_urgent_ttl_s, estop_ttl=cfg.human_estop_ttl_s)
+        cli = CLI(wb, ledger, intent_ttl=cfg.human_intent_ttl_s, urgent_ttl=cfg.human_urgent_ttl_s, estop_ttl=cfg.human_estop_ttl_s, wake_agent_fn=_agent_loop.wake)
         try:
             cli.run()
         except (EOFError, KeyboardInterrupt):

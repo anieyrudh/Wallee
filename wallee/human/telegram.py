@@ -64,6 +64,7 @@ class TelegramBot:
         whiteboard=None,
         ledger=None,
         safety_kernel=None,
+        wake_agent_fn=None,
     ):
         _ensure_telegram()
         self.token = token
@@ -82,6 +83,7 @@ class TelegramBot:
         self.wb = whiteboard
         self.ledger = ledger
         self.safety_kernel = safety_kernel
+        self._wake_agent = wake_agent_fn
         self._app = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -171,18 +173,20 @@ class TelegramBot:
             ),
             self._loop,
         )
-        future.result(timeout=10)
+        future.result(timeout=30)
 
-    def send_approval_request(self, action_id: str, tool: str, params: dict):
+    def send_approval_request(self, action_id: str, tool: str, params: dict, reason: str = ""):
         """Send an approval request with inline keyboard buttons."""
         if not self._loop or not self._running:
             return
 
+        reason_line = f"\nReasoning: {_escape_md(reason[:200])}" if reason else ""
         text = (
-            f"🔧 *Approval Required*\n"
+            f"🔧 *{_escape_md(tool.upper().replace('_', ' '))} requested*\n"
             f"Tool: `{_escape_md(tool)}`\n"
-            f"Params: `{_escape_md(json.dumps(params, default=str))}`\n"
-            f"Action ID: `{_escape_md(action_id[:8])}`"
+            f"Params: `{_escape_md(json.dumps(params, default=str))}`"
+            f"{reason_line}\n"
+            f"Reply APPROVE or REJECT\\."
         )
         keyboard = _telegram.InlineKeyboardMarkup([
             [
@@ -387,6 +391,8 @@ class TelegramBot:
 
         if self.wb:
             self.wb.publish("human.urgent", True, ttl=self.urgent_ttl)
+        if self._wake_agent:
+            self._wake_agent()
         await update.message.reply_text(f"🚨 Urgent flag set ({self.urgent_ttl}s TTL)")
 
     async def _cmd_estop(self, update, context):
@@ -395,6 +401,8 @@ class TelegramBot:
 
         if self.wb:
             self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
+        if self._wake_agent:
+            self._wake_agent()
         logger.critical("ESTOP triggered via Telegram")
         await update.message.reply_text("🛑 ESTOP triggered. All actions paused.")
 
@@ -515,6 +523,9 @@ class TelegramBot:
             else:
                 await update.message.reply_text("📸 Image received — LLM will analyze on next cycle")
 
+            if self._wake_agent:
+                self._wake_agent()
+
         except Exception as e:
             logger.error(f"Failed to process photo: {e}")
             await update.message.reply_text(f"Failed to process photo: {e}")
@@ -548,6 +559,18 @@ class TelegramBot:
             entry = _json.dumps({"ts": _time.strftime("%H:%M:%S"), "text": text})
             self.wb.r.lpush("human.intent_log", entry)
             self.wb.r.ltrim("human.intent_log", 0, 9)
+            # Acknowledge any pending callout when human responds
+            pending = self.wb.read("human.pending_callout")
+            if pending:
+                import json as _json2
+                try:
+                    data = _json2.loads(pending) if isinstance(pending, str) else pending
+                    data["status"] = "ACKNOWLEDGED"
+                    self.wb.publish("human.pending_callout", _json2.dumps(data), ttl=self.intent_ttl)
+                except Exception:
+                    pass
+        if self._wake_agent:
+            self._wake_agent()
         await update.message.reply_text(f"📝 Intent set: {text}")
 
     # --- Helpers ---

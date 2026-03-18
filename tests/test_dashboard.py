@@ -26,7 +26,7 @@ class TestDashboardHTML:
         assert "Nozzle Camera" in DASHBOARD_HTML
 
     def test_html_contains_summary_cards(self):
-        assert "Printer State" in DASHBOARD_HTML
+        assert "Phase" in DASHBOARD_HTML
         assert "Job Progress" in DASHBOARD_HTML
         assert "Operator Intent" in DASHBOARD_HTML
 

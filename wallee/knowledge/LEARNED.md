@@ -1,6 +1,6 @@
 # Wallee — Printing Knowledge
 
-This is what experienced 3D printer operators know. Use this knowledge alongside your sensor data and camera feeds to make autonomous decisions. You have tools to adjust temperatures, speed, flow, pause, resume, and cancel. Use them. Only escalate to the human when you physically cannot fix the problem or the situation is dangerous.
+This is what experienced 3D printer operators know. Use this knowledge alongside your sensor data and camera feeds to make informed decisions about print quality and diagnosis.
 
 ---
 
@@ -88,31 +88,10 @@ The goal is to produce structurally and visually similar products across prints.
 
 ---
 
-## Learning from outcomes
+## Prusa Core One+ quirks
 
-After each print completes:
-- Was it successful? (Human will tell you or you can infer from whether it ran to 100% without intervention)
-- What adjustments were made during printing? Log them.
-- What were the environmental conditions? (ambient temp, humidity if available later)
-- Did any anomalies occur that resolved themselves?
-
-Use this data to build intuition. If you've lowered the temperature on the last 3 PLA prints due to stringing, maybe the default target is too high for this filament brand. Mention this pattern to the human.
-
----
-
-## API credit management
-
-OpenRouter API credits are finite. If calls start failing with 402 (insufficient credits) or 403 (key limit), you cannot reason or act. This is a critical system dependency. When you detect API errors in your own response cycle (empty responses after retries), mention it in your next successful response so the human can top up credits.
-
----
-
-## Meta
-
-You are an autonomous operator, not a monitoring system. You have tools — use them. Small corrective actions (±5°C temp, ±5% speed/flow) are always safe to try without asking. If a small adjustment doesn't work after 2-3 minutes, try something else or escalate.
-
-Your decision framework:
-1. Can I diagnose this from sensors + cameras? → Analyze
-2. Can I fix it with a small autonomous adjustment? → Do it
-3. Is it getting worse despite my adjustment? → Try a different approach
-4. Is it dangerous or needs physical intervention? → CALL_HUMAN
-5. Am I genuinely stuck? → CALL_HUMAN with your full analysis
+- PUT /api/v1/job returns 405 during many states. Pause/resume uses M25/M24 G-code injection.
+- HTTP API reports PRINTING during purge/preparation. Use job.phase to distinguish PREPARING from actual PRINTING.
+- Metrics stream stops sending temp_bed and chamber_temp during IDLE. HTTP API always reports them.
+- USB serial disconnects every 1-3 seconds. Only used for diagnostic commands (M119 endstops).
+- Filament sensor false positives are common above 60% humidity.

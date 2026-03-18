@@ -1,13 +1,21 @@
-"""Agent loop — reads state, calls LLM, routes decisions."""
+"""Agent loop — reads state, calls LLM, routes decisions.
 
+v4 features: job context lifecycle, CALL_HUMAN dedup, event-driven wake.
+"""
+
+import hashlib
+import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
 
+import httpx
+
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.parser import parse_llm_output
-from wallee.agent.prompt import build_prompt, build_messages
+from wallee.agent.prompt import build_system_prompt, build_user_message, build_messages
 from wallee.agent.change_detector import ExternalChangeDetector
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.registry import ToolRegistry
@@ -26,7 +34,7 @@ class AgentLoop:
         heartbeat_interval: float = 1.0,
         heartbeat_ttl: int = 3,
         last_decision_ttl: int = 600,
-        ledger=None,  # Phase 2
+        ledger=None,
     ):
         self.wb = whiteboard
         self.llm = llm
@@ -43,13 +51,22 @@ class AgentLoop:
         self._change_detector = ExternalChangeDetector()
         self._last_responded_intent: str | None = None
         self._next_cycle_delay_s = poll_interval
+        # Change 8: event-driven wake
+        self._wake_event = threading.Event()
+        # Change 4: job context tracking
+        self._last_job_phase: str | None = None
+
+    def wake(self):
+        """Wake the agent from sleep immediately. Called by Telegram/CLI/sensors."""
+        self._wake_event.set()
+
+    # ── Knowledge loading ───────────────────────────────────────────
 
     def _load_knowledge(self) -> dict[str, str]:
         """Load knowledge files from disk.
 
-        Static files (SOUL.md, HARDWARE.md, LEARNED.md) are cached after
-        first load.  OBSERVATIONS.md is re-read every cycle because the
-        remember tool appends to it at runtime.
+        Static files (SOUL.md, LEARNED.md) are cached after first load.
+        OBSERVATIONS.md and JOB_CONTEXT.md are re-read every cycle.
         """
         if not self._knowledge_cache:
             for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md"]:
@@ -59,14 +76,170 @@ class AgentLoop:
                 else:
                     self._knowledge_cache[name] = ""
 
-        # Re-read every cycle — remember tool writes here at runtime
-        obs_path = self.knowledge_dir / "OBSERVATIONS.md"
-        if obs_path.exists():
-            self._knowledge_cache["OBSERVATIONS.md"] = obs_path.read_text()
-        else:
-            self._knowledge_cache.pop("OBSERVATIONS.md", None)
+        # Re-read every cycle — written at runtime
+        for name in ["OBSERVATIONS.md", "JOB_CONTEXT.md"]:
+            path = self.knowledge_dir / name
+            if path.exists():
+                self._knowledge_cache[name] = path.read_text()
+            else:
+                self._knowledge_cache.pop(name, None)
 
         return self._knowledge_cache
+
+    # ── Job context lifecycle (Change 4) ────────────────────────────
+
+    def _handle_job_phase_transition(self, state: dict):
+        """Track job.phase transitions and manage JOB_CONTEXT.md lifecycle."""
+        phase = state.get("job.phase")
+        if phase is None or phase == self._last_job_phase:
+            return
+
+        prev = self._last_job_phase
+        self._last_job_phase = phase
+
+        if prev is None:
+            # First cycle — just record, don't trigger transitions
+            return
+
+        # PREPARING from any other state → create JOB_CONTEXT.md
+        if phase == "PREPARING" and prev != "PREPARING":
+            self._create_job_context(state)
+
+        # FINISHED or IDLE from PRINTING/PAUSED → archive and clean up
+        if phase in ("FINISHED", "IDLE") and prev in ("PRINTING", "PAUSED"):
+            self._archive_job_context()
+
+    def _create_job_context(self, state: dict):
+        """Create JOB_CONTEXT.md when a new print starts."""
+        filename = state.get("printer.print_filename", "unknown")
+        material = state.get("printer.material", "unknown")
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        ctx = (
+            f"# Current Job\n"
+            f"File: {filename}\n"
+            f"Material: {material}\n"
+            f"Started: {ts}\n\n"
+            f"## Adjustments made\n(none yet)\n\n"
+            f"## Issues observed\n(none yet)\n"
+        )
+
+        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
+        try:
+            ctx_path.write_text(ctx)
+            logger.info(f"JOB_CONTEXT.md created for {filename}")
+        except Exception as e:
+            logger.error(f"Failed to create JOB_CONTEXT.md: {e}")
+
+        # Fetch thumbnail from PrusaLink
+        self._fetch_thumbnail(filename)
+
+    def _fetch_thumbnail(self, filename: str):
+        """Fetch print thumbnail from PrusaLink API."""
+        host = os.environ.get("PRUSALINK_HOST", "").strip()
+        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
+        if not host:
+            return
+
+        base = host if host.startswith("http") else f"http://{host}"
+        thumb_path = self.knowledge_dir / "job_thumbnail.png"
+
+        for size in ("l", "s"):
+            url = f"{base}/thumb/{size}/usb/{filename}"
+            try:
+                resp = httpx.get(url, headers={"X-Api-Key": api_key}, timeout=5.0)
+                if resp.status_code == 200 and len(resp.content) > 100:
+                    thumb_path.write_bytes(resp.content)
+                    logger.info(f"Thumbnail saved ({len(resp.content)} bytes)")
+                    return
+            except Exception as e:
+                logger.debug(f"Thumbnail fetch {size} failed: {e}")
+
+        logger.info("No thumbnail available for this print")
+
+    def _archive_job_context(self):
+        """Archive JOB_CONTEXT.md to OBSERVATIONS.md and clean up."""
+        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
+        thumb_path = self.knowledge_dir / "job_thumbnail.png"
+
+        if not ctx_path.exists():
+            return
+
+        try:
+            ctx = ctx_path.read_text()
+            # Extract key fields
+            lines = ctx.splitlines()
+            filename = "unknown"
+            material = "unknown"
+            adjustments = []
+            issues = []
+            section = None
+            for line in lines:
+                if line.startswith("File: "):
+                    filename = line[6:].strip()
+                elif line.startswith("Material: "):
+                    material = line[10:].strip()
+                elif line.startswith("## Adjustments"):
+                    section = "adj"
+                elif line.startswith("## Issues"):
+                    section = "iss"
+                elif line.startswith("- ") and section == "adj":
+                    adjustments.append(line[2:].strip())
+                elif line.startswith("- ") and section == "iss":
+                    issues.append(line[2:].strip())
+
+            adj_str = "; ".join(adjustments) if adjustments else "none"
+            iss_str = "; ".join(issues) if issues else "none"
+            summary = f"Job complete: {filename} ({material}). Adjustments: {adj_str}. Issues: {iss_str}."
+
+            # Append to OBSERVATIONS.md via remember tool pattern
+            from wallee.tools.builtins.remember import remember
+            remember(observation=summary)
+            logger.info(f"Archived job context: {filename}")
+        except Exception as e:
+            logger.error(f"Failed to archive job context: {e}")
+
+        # Clean up
+        try:
+            ctx_path.unlink(missing_ok=True)
+            thumb_path.unlink(missing_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to clean up job context files: {e}")
+
+    def _append_to_job_context(self, section: str, entry: str):
+        """Append an entry to a section in JOB_CONTEXT.md."""
+        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
+        if not ctx_path.exists():
+            return
+
+        try:
+            text = ctx_path.read_text()
+            ts = time.strftime("%H:%M:%S")
+            new_entry = f"- {ts}: {entry}"
+
+            marker = f"## {section}"
+            if marker in text:
+                # Replace "(none yet)" if present
+                text = text.replace(f"{marker}\n(none yet)", f"{marker}\n{new_entry}")
+                if new_entry not in text:
+                    # Append after last entry in section
+                    parts = text.split(marker, 1)
+                    if len(parts) == 2:
+                        after = parts[1]
+                        # Find next section or end
+                        next_section = after.find("\n## ")
+                        if next_section > 0:
+                            insert_at = next_section
+                        else:
+                            insert_at = len(after)
+                        after = after[:insert_at].rstrip() + "\n" + new_entry + "\n" + after[insert_at:]
+                        text = parts[0] + marker + after
+
+                ctx_path.write_text(text)
+        except Exception as e:
+            logger.error(f"Failed to append to JOB_CONTEXT.md: {e}")
+
+    # ── Helpers ─────────────────────────────────────────────────────
 
     def _heartbeat(self):
         """Background thread: publish heartbeat independently of main loop."""
@@ -78,7 +251,7 @@ class AgentLoop:
             time.sleep(self.heartbeat_interval)
 
     def _get_episode(self) -> list[dict]:
-        """Get current episode from ledger. Returns [] if no ledger (Phase 1)."""
+        """Get current episode from ledger."""
         if self.ledger and hasattr(self.ledger, "current_episode"):
             return self.ledger.current_episode()
         return []
@@ -91,16 +264,29 @@ class AgentLoop:
             self._next_cycle_delay_s = self.poll_interval
 
     def _sleep_until_next_cycle(self, delay_s: float):
-        """Sleep in short chunks so stop() remains responsive during long WAITs."""
-        remaining = max(0.0, float(delay_s))
-        while self._running and remaining > 0:
-            chunk = min(remaining, 0.5)
-            time.sleep(chunk)
-            remaining -= chunk
+        """Sleep until delay expires or wake() is called."""
+        self._wake_event.wait(timeout=max(0.0, float(delay_s)))
+        self._wake_event.clear()
 
-    def _route_decision(self, decision):
+    def _get_pending_callout(self) -> dict | None:
+        """Read the pending callout from whiteboard."""
+        raw = self.wb.read("human.pending_callout")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return raw if isinstance(raw, dict) else None
+
+    # ── Decision routing ────────────────────────────────────────────
+
+    def _route_decision(self, decision, state: dict):
         """Route a parsed decision to the appropriate handler."""
         summary = ""
+        observation = getattr(decision, "observation", "")
+        reasoning = getattr(decision, "reasoning", "")
 
         if decision.type == "ACTION":
             if decision.tool not in self.tools:
@@ -116,90 +302,134 @@ class AgentLoop:
                     requires_approval=tool.requires_approval,
                     max_proposal_age_ms=tool.max_proposal_age_ms,
                 )
-            summary = f"ACTION: {decision.tool} — {decision.reason}"
-            logger.info(f"Proposed: {decision.tool}({decision.params}) — {decision.reason}")
+            summary = f"ACTION: {decision.tool} — {reasoning}"
+            logger.info(f"Proposed: {decision.tool}({decision.params}) — {reasoning}")
+            # Job context: record adjustment
+            self._append_to_job_context(
+                "Adjustments made",
+                f"{decision.tool}({json.dumps(decision.params, default=str)}) — {reasoning}"
+            )
 
         elif decision.type == "WAIT":
-            summary = f"WAIT: {decision.reason}"
-            logger.info(f"WAIT: {decision.reason} (check after {decision.check_after_s}s)")
+            summary = f"WAIT: {reasoning}"
+            logger.info(f"WAIT: {reasoning} (check after {decision.check_after_s}s)")
             if self.ledger and hasattr(self.ledger, "record_wait"):
-                self.ledger.record_wait(decision.reason)
+                self.ledger.record_wait(reasoning)
+            # Job context: record notable observations
+            if observation and state.get("job.phase") in ("PRINTING", "PAUSED", "PREPARING"):
+                obs_lower = observation.lower()
+                if any(w in obs_lower for w in ("anomal", "issue", "error", "fail", "detach",
+                                                  "blob", "string", "warp", "gap")):
+                    self._append_to_job_context("Issues observed", observation)
 
         elif decision.type == "CALL_HUMAN":
-            summary = f"CALL_HUMAN [{decision.severity}]: {decision.message}"
-            logger.warning(f"CALL_HUMAN [{decision.severity}]: {decision.message}")
-            if self.ledger and hasattr(self.ledger, "record_call_human"):
-                self.ledger.record_call_human(decision.message)
-            if self.call_human_fn:
-                try:
-                    self.call_human_fn(decision.message, decision.severity)
-                except Exception as e:
-                    logger.error(f"call_human delivery failed: {e}")
+            # Change 7: CALL_HUMAN dedup
+            msg_hash = hashlib.md5(decision.message[:100].encode()).hexdigest()[:8]
+            pending = self._get_pending_callout()
 
-        # Publish to whiteboard so dashboard can show agent activity
+            if pending and pending.get("hash") == msg_hash and pending.get("status") == "PENDING":
+                logger.info(f"CALL_HUMAN suppressed (duplicate of pending callout)")
+                summary = f"WAIT: suppressed duplicate CALL_HUMAN"
+                if self.ledger and hasattr(self.ledger, "record_wait"):
+                    self.ledger.record_wait(f"suppressed duplicate: {decision.message[:80]}")
+            else:
+                summary = f"CALL_HUMAN [{decision.severity}]: {decision.message}"
+                logger.warning(f"CALL_HUMAN [{decision.severity}]: {decision.message}")
+                if self.ledger and hasattr(self.ledger, "record_call_human"):
+                    self.ledger.record_call_human(decision.message)
+                if self.call_human_fn:
+                    try:
+                        self.call_human_fn(decision.message, decision.severity)
+                    except Exception as e:
+                        logger.error(f"call_human delivery failed: {e}")
+
+                # Publish pending callout
+                self.wb.publish("human.pending_callout", json.dumps({
+                    "hash": msg_hash,
+                    "message": decision.message[:200],
+                    "time": time.time(),
+                    "status": "PENDING",
+                }), ttl=self.last_decision_ttl)
+
+                # Job context: record issue
+                self._append_to_job_context("Issues observed", decision.message[:200])
+
+        # Publish to whiteboard for dashboard
         if summary:
-            import json as _json
             self.wb.publish("agent.last_decision", summary, ttl=self.last_decision_ttl)
-            # Append to activity log (kept in Redis list, max 20 entries)
-            entry = _json.dumps({
+            entry = json.dumps({
                 "ts": time.strftime("%H:%M:%S"),
                 "type": decision.type,
                 "text": summary[:300],
+                "observation": observation[:200] if observation else "",
+                "reasoning": reasoning[:200] if reasoning else "",
             })
             self.wb.r.lpush("agent.activity_log", entry)
             self.wb.r.ltrim("agent.activity_log", 0, 19)
 
+    # ── Main cycle ──────────────────────────────────────────────────
+
     def run_once(self) -> str:
-        """Run a single agent cycle. Returns the raw LLM response. Useful for testing."""
+        """Run a single agent cycle. Returns the raw LLM response."""
         # 1. Read whiteboard with trends
         state = self.wb.read_all_with_trends()
 
-        # 2. Read episode
+        # 2. Handle job phase transitions (create/archive JOB_CONTEXT.md)
+        self._handle_job_phase_transition(state)
+
+        # 3. Read episode
         episode = self._get_episode()
 
-        # 3. Read human intent (skip if already responded to this exact intent)
+        # 4. Read human intent (skip if already responded)
         raw_intent = self.wb.read("human.intent")
         if raw_intent and raw_intent == self._last_responded_intent:
-            intent = None  # already handled, don't re-present to LLM
+            intent = None
         else:
             intent = raw_intent
 
-        # 4. Detect external changes
+        # 5. Detect external changes
         external_changes = self._change_detector.detect(state, episode)
 
-        # 5. Load knowledge
+        # 6. Load knowledge
         knowledge = self._load_knowledge()
 
-        # 6. Build prompt
-        prompt = build_prompt(
+        # 7. Read pending callout
+        pending_callout = self._get_pending_callout()
+
+        # 8. Build cached system prompt + dynamic user message
+        system_prompt = build_system_prompt(
+            knowledge=knowledge,
+            tools=self.tools.list_for_llm(),
+        )
+
+        user_text = build_user_message(
             state=state,
             episode=episode,
             intent=intent,
-            knowledge=knowledge,
-            tools=self.tools.list_for_llm(),
             current_time=time.time(),
             external_changes=external_changes,
+            pending_callout=pending_callout,
         )
 
-        # 6. Build messages with vision content (camera frames, human images)
-        messages = build_messages(prompt, state)
+        # 9. Build messages with vision content
+        messages = build_messages(system_prompt, user_text, state,
+                                  knowledge_dir=self.knowledge_dir)
 
-        # 7. Call LLM with full messages (includes image blocks if cameras are live)
-        raw_response = self.llm.call(prompt, messages=messages)
+        # 10. Call LLM
+        raw_response = self.llm.call(system_prompt, messages=messages)
 
-        # 8. Parse (pass printer state for interval clamping)
-        printer_state = state.get("printer.state")
-        decision = parse_llm_output(raw_response, printer_state=printer_state)
+        # 11. Parse (use job.phase for interval clamping, fallback to printer.state)
+        phase = state.get("job.phase", state.get("printer.state"))
+        decision = parse_llm_output(raw_response, printer_state=phase)
 
-        # 9. Route
-        self._route_decision(decision)
+        # 12. Route
+        self._route_decision(decision, state)
         self._set_next_cycle_delay(decision)
 
-        # 10. Mark intent as responded (so we don't re-present it next cycle)
+        # 13. Mark intent as responded
         if raw_intent and decision.type != "WAIT":
             self._last_responded_intent = raw_intent
         elif raw_intent and "no active human intent" not in decision.reason.lower():
-            # LLM acknowledged the intent in its response
             self._last_responded_intent = raw_intent
 
         return raw_response
@@ -208,7 +438,6 @@ class AgentLoop:
         """Main loop. Blocks until stop() is called."""
         self._running = True
 
-        # Start heartbeat thread
         hb_thread = threading.Thread(target=self._heartbeat, daemon=True, name="agent-heartbeat")
         hb_thread.start()
         logger.info("Agent loop started")
@@ -230,3 +459,4 @@ class AgentLoop:
     def stop(self):
         """Signal the loop to stop."""
         self._running = False
+        self._wake_event.set()  # unblock sleep immediately

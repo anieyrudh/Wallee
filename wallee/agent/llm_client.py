@@ -26,25 +26,25 @@ DECISION_SCHEMA = {
         "type": "object",
         "properties": {
             "type": {"type": "string", "enum": ["ACTION", "WAIT", "CALL_HUMAN"]},
-            "tool": {"type": "string", "description": "Tool name (ACTION only)"},
-            "params": {"type": "object", "description": "Tool parameters (ACTION only)"},
-            "reason": {"type": "string", "description": "1-2 sentence explanation"},
-            "check_after_s": {"type": "number", "description": "Seconds until next check (WAIT only)"},
-            "message": {"type": "string", "description": "Message for human (CALL_HUMAN only)"},
+            "observation": {"type": "string", "description": "One sentence: what you see right now"},
+            "reasoning": {"type": "string", "description": "One sentence: why you chose this decision"},
+            "tool": {"type": "string", "description": "Tool name. Required if type=ACTION"},
+            "params": {"type": "object", "description": "Tool parameters. Required if type=ACTION"},
+            "message": {"type": "string", "description": "Message to human. Required if type=CALL_HUMAN"},
             "severity": {"type": "string", "enum": ["info", "warning", "critical"],
-                         "description": "Alert severity (CALL_HUMAN only)"},
+                         "description": "Alert severity. Required if type=CALL_HUMAN"},
+            "check_after_s": {"type": "number", "description": "Seconds until next check. Required if type=WAIT"},
         },
-        "required": ["type", "reason"],
+        "required": ["type", "observation", "reasoning"],
         "additionalProperties": False,
     },
 }
 
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview", enable_web_search: bool = True):
+    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview", **kwargs):
         self.api_key = api_key
         self.model = model
-        self.enable_web_search = enable_web_search
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def call(self, prompt: str, messages: list | None = None) -> str:
@@ -53,7 +53,6 @@ class LLMClient:
         Features enabled via OpenRouter:
         - Structured outputs (json_schema) — guarantees valid decision JSON
         - Response healing plugin — fixes malformed JSON automatically
-        - Web search plugin (native engine) — real-time web access
         - Prompt caching — 90% discount on repeated system prompts
         """
         if messages is None:
@@ -62,14 +61,10 @@ class LLMClient:
                 {"role": "user", "content": "Decide your next action."},
             ]
 
-        # Prompt caching for system message (SOUL.md + LEARNED.md identical every cycle)
+        # Prompt caching for system message (static knowledge — identical between cycles)
         if messages and messages[0].get("role") == "system":
             if isinstance(messages[0].get("content"), str):
                 messages[0]["cache_control"] = {"type": "ephemeral"}
-
-        plugins = [{"id": "response-healing"}]
-        if self.enable_web_search:
-            plugins.insert(0, {"id": "web", "max_results": 3})
 
         payload = {
             "model": self.model,
@@ -78,7 +73,8 @@ class LLMClient:
                 "type": "json_schema",
                 "json_schema": DECISION_SCHEMA,
             },
-            "plugins": plugins,
+            "plugins": [{"id": "response-healing"}],
+            "stream": False,
             "max_tokens": 2048,
         }
 

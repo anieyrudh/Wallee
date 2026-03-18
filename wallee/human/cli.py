@@ -25,12 +25,14 @@ class CLI:
         intent_ttl: int = DEFAULT_HUMAN_INTENT_TTL_S,
         urgent_ttl: int = DEFAULT_HUMAN_URGENT_TTL_S,
         estop_ttl: int = DEFAULT_HUMAN_ESTOP_TTL_S,
+        wake_agent_fn=None,
     ):
         self.wb = whiteboard
         self.ledger = ledger
         self.intent_ttl = intent_ttl
         self.urgent_ttl = urgent_ttl
         self.estop_ttl = estop_ttl
+        self._wake_agent = wake_agent_fn
         self._running = False
 
     def _print_help(self):
@@ -53,10 +55,14 @@ Wallee CLI Commands:
             print("Usage: intent <message>")
             return
         self.wb.publish("human.intent", args, ttl=self.intent_ttl)
+        if self._wake_agent:
+            self._wake_agent()
         print(f"Intent set: {args}")
 
     def _handle_urgent(self):
         self.wb.publish("human.urgent", True, ttl=self.urgent_ttl)
+        if self._wake_agent:
+            self._wake_agent()
         print(f"Urgent flag set (expires in {self.urgent_ttl}s)")
 
     def _handle_approve(self, args: str):

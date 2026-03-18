@@ -10,6 +10,7 @@ HTTP sensors provide:
 
 import logging
 import os
+import time as _time
 
 from wallee.tools.decorator import tool
 
@@ -143,3 +144,86 @@ def read_file_list() -> dict:
         file_list.append(entry)
 
     return {"printer.files": file_list}
+
+
+# Module-level state for phase tracking
+_phase_state = {"phase": "IDLE", "entered": 0.0}
+
+
+@tool(kind="sensor", refresh_hz=1.0, history_depth=10)
+def read_job_phase() -> dict:
+    """Derive high-level print phase from PrusaLink status.
+
+    Publishes: job.phase, job.phase_detail, job.time_in_phase_s
+
+    Phases: IDLE, PREPARING, PRINTING, PAUSED, FINISHED, ERROR
+    PREPARING = printer says PRINTING but temps not at target or z < 0.5mm or progress == 0
+    """
+    global _phase_state
+
+    http = _get_http()
+    if http is None:
+        return {"error": "PrusaLink not configured"}
+
+    status = http.get("/api/v1/status")
+    if "error" in status:
+        return {"error": status["error"]}
+
+    printer = status.get("printer", {})
+    job = status.get("job", {})
+
+    state = printer.get("state", "IDLE")
+    progress = float(job.get("progress", 0) or 0)
+    temp_nozzle = float(printer.get("temp_nozzle", 0) or 0)
+    target_nozzle = float(printer.get("target_nozzle", 0) or 0)
+    temp_bed = float(printer.get("temp_bed", 0) or 0)
+    target_bed = float(printer.get("target_bed", 0) or 0)
+
+    def temp_ok(cur, tgt):
+        return tgt == 0 or abs(cur - tgt) <= 3
+
+    any_heating = not temp_ok(temp_nozzle, target_nozzle) or not temp_ok(temp_bed, target_bed)
+    has_job = state in ("PRINTING", "PAUSED") or progress > 0
+
+    if state in ("ERROR", "ATTENTION"):
+        phase = "ERROR"
+    elif state == "PAUSED":
+        phase = "PAUSED"
+    elif state == "FINISHED":
+        phase = "FINISHED"
+    elif not has_job and state in ("IDLE", "READY"):
+        phase = "IDLE"
+    elif has_job and (any_heating or progress == 0):
+        phase = "PREPARING"
+    elif has_job and temp_ok(temp_nozzle, target_nozzle) and temp_ok(temp_bed, target_bed):
+        phase = "PRINTING"
+    else:
+        phase = "IDLE"
+
+    # Track time in phase
+    now = _time.time()
+    if _phase_state["entered"] == 0.0:
+        _phase_state = {"phase": phase, "entered": now}
+    elif phase != _phase_state["phase"]:
+        _phase_state = {"phase": phase, "entered": now}
+    time_in_phase = int(now - _phase_state["entered"])
+
+    # Detail string
+    if phase == "PREPARING":
+        detail = f"Heating nozzle ({temp_nozzle:.0f}/{target_nozzle:.0f}C)"
+    elif phase == "PRINTING":
+        detail = f"Printing at {progress:.0f}%"
+    elif phase == "FINISHED":
+        detail = "Print complete, cooling"
+    elif phase == "PAUSED":
+        detail = f"Paused at {progress:.0f}%"
+    elif phase == "ERROR":
+        detail = state
+    else:
+        detail = "No active job"
+
+    return {
+        "job.phase": phase,
+        "job.phase_detail": detail,
+        "job.time_in_phase_s": time_in_phase,
+    }

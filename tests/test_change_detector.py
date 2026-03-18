@@ -105,8 +105,8 @@ class TestPromptIntegration:
             current_time=1710000000,
             external_changes=["printer.state changed: IDLE -> PRINTING"],
         )
-        assert "EXTERNAL CHANGES DETECTED" in prompt
-        # Should be at the very top (before WHITEBOARD)
+        assert "EXTERNAL CHANGES" in prompt
+        # Should be before WHITEBOARD in the user message portion
         ext_pos = prompt.index("EXTERNAL")
         wb_pos = prompt.index("WHITEBOARD")
         assert ext_pos < wb_pos

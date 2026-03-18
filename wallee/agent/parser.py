@@ -39,9 +39,11 @@ def configure_check_intervals(
 @dataclass
 class Decision:
     type: str  # ACTION, WAIT, CALL_HUMAN
+    observation: str = ""
+    reasoning: str = ""
     tool: str = ""
     params: dict = None
-    reason: str = ""
+    reason: str = ""  # kept for backward compat — populated from reasoning
     check_after_s: float = 60.0
     message: str = ""
     severity: str = "info"
@@ -49,11 +51,15 @@ class Decision:
     def __post_init__(self):
         if self.params is None:
             self.params = {}
+        # Backward compat: if reason is empty, use reasoning
+        if not self.reason and self.reasoning:
+            self.reason = self.reasoning
 
 
 def _default_wait(reason: str) -> Decision:
     """Return a safe WAIT decision with the given reason."""
-    return Decision(type="WAIT", reason=reason, check_after_s=DEFAULT_CHECK_INTERVAL)
+    return Decision(type="WAIT", reason=reason, reasoning=reason,
+                    check_after_s=DEFAULT_CHECK_INTERVAL)
 
 
 def _strip_markdown_fences(raw: str) -> str:
@@ -68,16 +74,8 @@ def _strip_markdown_fences(raw: str) -> str:
 
 
 def clamp_check_interval(raw_interval: float, printer_state: str | None = None) -> float:
-    """Clamp check_after_s to a safe range based on printer state.
-
-    Args:
-        raw_interval: The LLM's requested interval.
-        printer_state: Current printer.state from whiteboard (or None).
-
-    Returns:
-        Clamped interval in seconds.
-    """
-    active_states = {"PRINTING", "PAUSED", "ATTENTION"}
+    """Clamp check_after_s to a safe range based on printer state."""
+    active_states = {"PRINTING", "PAUSED", "ATTENTION", "PREPARING"}
     if printer_state and printer_state.upper() in active_states:
         max_interval = MAX_CHECK_INTERVAL
     else:
@@ -94,11 +92,7 @@ def clamp_check_interval(raw_interval: float, printer_state: str | None = None) 
 def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
     """Parse LLM response JSON into a Decision. Never raises.
 
-    Args:
-        raw: Raw LLM response string.
-        printer_state: Current printer.state for interval clamping.
-
-    Rules from spec:
+    Rules:
     - Invalid JSON → WAIT
     - Unknown type → WAIT
     - Missing required fields → WAIT
@@ -121,6 +115,11 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
         return _default_wait("LLM response is not a JSON object")
 
     decision_type = data.get("type", "").upper()
+    observation = data.get("observation", "")
+    reasoning = data.get("reasoning", "")
+    # Fallback: old-style "reason" field
+    if not reasoning:
+        reasoning = data.get("reason", "")
 
     if decision_type not in VALID_TYPES:
         logger.warning(f"Unknown decision type: {data.get('type')}")
@@ -133,9 +132,10 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
             return _default_wait("ACTION missing tool")
         return Decision(
             type="ACTION",
+            observation=observation,
+            reasoning=reasoning,
             tool=tool,
             params=data.get("params", {}),
-            reason=data.get("reason", ""),
         )
 
     if decision_type == "WAIT":
@@ -143,7 +143,8 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
         clamped = clamp_check_interval(raw_interval, printer_state)
         return Decision(
             type="WAIT",
-            reason=data.get("reason", ""),
+            observation=observation,
+            reasoning=reasoning,
             check_after_s=clamped,
         )
 
@@ -154,9 +155,10 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
             return _default_wait("CALL_HUMAN missing message")
         return Decision(
             type="CALL_HUMAN",
+            observation=observation,
+            reasoning=reasoning,
             message=message,
             severity=data.get("severity", "info"),
-            reason=data.get("reason", ""),
         )
 
     return _default_wait("parser fallthrough")
