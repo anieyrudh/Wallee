@@ -95,13 +95,26 @@ class Ledger:
             logger.warning(f"Proposal insert race for {tool} with same params, skipping")
             return ""
 
-    def record_wait(self, reason: str):
+    def record_wait(self, reason: str, observation: str = "", reasoning: str = ""):
         """Record a WAIT event (marks episode boundary)."""
-        self._record_event("agent", "INFO", "WAIT", reason)
+        self._record_agent_event("WAIT", "INFO", reason, observation=observation, reasoning=reasoning)
 
-    def record_call_human(self, message: str):
+    def record_call_human(self, message: str, observation: str = "", reasoning: str = ""):
         """Record a CALL_HUMAN event (marks episode boundary)."""
-        self._record_event("agent", "WARN", "CALL_HUMAN", message)
+        self._record_agent_event("CALL_HUMAN", "WARN", message, observation=observation, reasoning=reasoning)
+
+    def _record_agent_event(self, message: str, level: str, details: str,
+                            observation: str = "", reasoning: str = ""):
+        """Record an agent event with structured observation/reasoning in details_json."""
+        details_obj = {}
+        if observation:
+            details_obj["observation"] = observation
+        if reasoning:
+            details_obj["reasoning"] = reasoning
+        if details:
+            details_obj["details"] = details
+        details_json = json.dumps(details_obj) if details_obj else details
+        self._record_event("agent", level, message, details_json)
 
     def _record_event(self, component: str, level: str, message: str, details: str = ""):
         with self._lock:

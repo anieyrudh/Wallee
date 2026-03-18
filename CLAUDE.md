@@ -217,17 +217,22 @@ def get_sensor_history(key: str = "", depth: int = 30, whiteboard=None, **kwargs
 
 @tool(kind="actuator", requires_approval=False)
 def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
-    """Persist an observation to knowledge/OBSERVATIONS.md.
+    """Persist an observation to {WALLEE_DATA_DIR}/OBSERVATIONS.md.
     Use to record patterns, operator instructions, or visual observations
     that should persist across restarts. Capped at 50 most recent entries."""
+
+@tool(kind="actuator", requires_approval=False)
+def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
+    """Search the web for 3D printing troubleshooting, datasheets, or technical info.
+    Makes a separate OpenRouter call with the Exa web search plugin enabled.
+    Returns a summarized answer capped at 2000 characters."""
 ```
 
 `trends()` returns direction + magnitude ("rising +0.4 over 10 readings").
 `differential()` returns rate of change using real timestamps ("changing at +0.04/s").
 `get_sensor_history()` returns raw values from the ring buffer.
-`remember()` appends a timestamped observation to `knowledge/OBSERVATIONS.md` (newest first, max 50).
-
-**Note:** `web_search` and `git_pull` are NOT implemented. Do not reference them.
+`remember()` appends a timestamped observation to `{WALLEE_DATA_DIR}/OBSERVATIONS.md` (newest first, max 50).
+`web_search()` queries the web via a separate OpenRouter call with the Exa plugin enabled.
 
 ---
 
@@ -278,7 +283,8 @@ def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
 | `trends` | builtin | No | No | 30000 | Trend analysis for a whiteboard key |
 | `differential` | builtin | No | No | 30000 | Rate of change for a whiteboard key |
 | `get_sensor_history` | builtin | No | No | 30000 | Raw ring buffer values |
-| `remember` | builtin | No | No | 30000 | Persist observation to knowledge/OBSERVATIONS.md |
+| `remember` | builtin | No | No | 30000 | Persist observation to OBSERVATIONS.md |
+| `web_search` | builtin | No | No | 30000 | Search the web via OpenRouter Exa plugin |
 
 ### 6.3 Precheck summary
 
@@ -350,6 +356,11 @@ The LLM must return JSON (enforced by json_schema response_format):
 ```json
 {"type": "CALL_HUMAN", "message": "humidity at 72%, unsure if filament is safe", "severity": "warning"}
 ```
+```json
+{"type": "ACTION_CHAIN", "observation": "stringing + blob", "reasoning": "pause and lower temp", "actions": [{"tool": "pause_print", "params": {}}, {"tool": "set_temperature", "params": {"heater": "nozzle", "target": 205}}]}
+```
+
+**Required fields:** `observation` and `reasoning` are required for ACTION_CHAIN. Each entry in `actions` must have `tool` and `params`.
 
 **Output parser rules:**
 - Invalid JSON → default to WAIT, log parse error
@@ -368,7 +379,7 @@ Configurable via `.env`. Enforced by the parser (code, not LLM):
 | Printing / Paused / Attention | 30 – 120s | 60s |
 | Idle / other | 30 – 300s | 60s |
 
-The LLM requests a `check_after_s` value; the parser clamps it to the configured range. The agent sleeps in 0.5s chunks so `stop()` remains responsive.
+The LLM requests a `check_after_s` value; the parser clamps it to the configured range. The agent sleep can be interrupted (woken early) by: Telegram intent/urgent/estop, CLI intent/estop, or printer state changes detected by sensor threads. Uses `threading.Event.wait(timeout)` instead of fixed sleep.
 
 ### 7.3 External change detector
 
@@ -410,7 +421,6 @@ class LLMClient:
                 "json_schema": DECISION_SCHEMA,  # strict structured output
             },
             "plugins": [
-                {"id": "web", "max_results": 3},  # Exa web search
                 {"id": "response-healing"},         # auto-fix malformed JSON
             ],
             "max_tokens": 2048,
@@ -420,24 +430,30 @@ class LLMClient:
 **Features enabled via OpenRouter:**
 - Structured outputs (json_schema) — guarantees valid decision JSON
 - Response healing plugin — fixes malformed JSON automatically
-- Web search plugin (Exa) — real-time web access for troubleshooting
+- Web search — available as separate `web_search` built-in tool
 - Prompt caching — system message marked `cache_control: ephemeral` for 90% discount on repeated prompts
 - Retry with exponential backoff (3 retries, 2s base)
 
 ### 7.6 Prompt structure
 
-The system prompt is assembled in this order:
+The prompt is split into a cached prefix (system message) and a dynamic suffix (user message) for efficient prompt caching.
 
-1. **External changes** (if any) — `!!! EXTERNAL CHANGES DETECTED !!!`
-2. **SOUL.md** — mission briefing and decision heuristics
-3. **HARDWARE.md** — auto-generated hardware inventory (if exists)
-4. **LEARNED.md** — printing knowledge and troubleshooting playbook
-5. **Whiteboard state** — all keys except skipped verbose/binary ones
-6. **Human intent** — current operator intent (if active and not already handled)
-7. **Recent actions** — episode context from ledger (max 12 actions, or 5 fallback)
-8. **Available tools** — actuator tool names + descriptions + approval requirement
-9. **Instructions** — JSON output format, rules, timing guidance
-10. **Current time**
+**System message (CACHED PREFIX):**
+1. **SOUL.md** — mission briefing and decision heuristics
+2. **LEARNED.md** — printing knowledge and troubleshooting playbook
+3. **OBSERVATIONS.md** — agent-recorded observations from `{WALLEE_DATA_DIR}/OBSERVATIONS.md`
+4. **Available tools** — actuator tool names + descriptions + approval requirement
+5. **JOB_CONTEXT.md** — current print job context (if mid-print)
+6. **Instructions** — JSON output format, rules, timing guidance (static)
+
+**User message (DYNAMIC SUFFIX):**
+1. **Phase banner** — current printer phase (e.g., PRINTING, IDLE)
+2. **Pending callout** (if any) — unanswered `call_human` awaiting acknowledgement
+3. **External changes** (if any) — `!!! EXTERNAL CHANGES DETECTED !!!`
+4. **Whiteboard state** — all keys except skipped verbose/binary ones
+5. **Human intent** — current operator intent (if active and not already handled)
+6. **Recent actions** — episode context from ledger (max 12 actions, or 5 fallback)
+7. **Current time**
 
 Skipped from whiteboard state: `host.usb_devices`, `host.network_interfaces`, `printer.files`, `printer.firmware`, `printer.serial`, `printer.model`, `printer.nozzle_diameter`, `agent.last_decision`, `agent.heartbeat`, `engine.heartbeat`, all `camera.*_frame` keys (sent as vision blocks), `camera.*_frame_size`, `human.image`, and any string values > 100 chars.
 
@@ -450,6 +466,9 @@ The engine is a separate thread (started in `main.py`). It polls the ledger for 
 ### 8.1 Gate sequence (as implemented in dispatch.py)
 
 ```
+Gate -1: Chain check    — if chain_seq > 0, check all predecessors:
+                          If any FAILED/REJECTED → REJECT with "chain_skipped"
+                          If any still pending → SKIP (retry next poll)
 Gate 0: ESTOP check     — if safety.estop is set on whiteboard, REJECT immediately
 Gate 1: Queue guard     — if device_group has DISPATCHED action, SKIP (retry next poll)
 Gate 2: Deadline        — if age_ms > max_proposal_age_ms, REJECT as expired
@@ -575,6 +594,7 @@ human.intent_log           list    (Redis LIST, max 10 entries, from Telegram)
 human.urgent               bool    TTL 600s
 human.image                str     base64 JPEG from Telegram, TTL 600s
 safety.estop               bool    TTL 600s
+human.pending_callout      str     JSON: {hash, message, time, status} — PENDING or ACKNOWLEDGED
 ```
 
 ### 9.2 Whiteboard client
@@ -632,7 +652,10 @@ CREATE TABLE IF NOT EXISTS actions (
     created_mono REAL NOT NULL,
     updated_ts REAL NOT NULL,
     requires_approval INTEGER NOT NULL DEFAULT 0,
-    max_proposal_age_ms INTEGER NOT NULL DEFAULT 30000
+    max_proposal_age_ms INTEGER NOT NULL DEFAULT 30000,
+    observation TEXT DEFAULT '',
+    chain_id TEXT DEFAULT NULL,
+    chain_seq INTEGER DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS approvals (
@@ -764,6 +787,12 @@ Auto-generated by `discover_hardware()`. Lists all connected devices, buses, ava
 
 ### 13.3 LEARNED.md
 Printing knowledge and troubleshooting playbook. Covers: printing fundamentals by material, autonomous fixes (stringing, over/underextrusion, temp issues, speed artifacts, chamber, first layer, door), when to escalate, consistency guidance, API credit management.
+
+### 13.4 JOB_CONTEXT.md
+Auto-created when job.phase transitions to PREPARING (or on restart if mid-print). Includes filename, material (detected from filename regex or PrusaLink API), timestamps. Adjustments and issues are appended during the print. Archived to OBSERVATIONS.md on FINISHED, then deleted. Stored in WALLEE_DATA_DIR.
+
+### 13.5 OBSERVATIONS.md
+Auto-recorded by the agent's `remember` tool. Stored in WALLEE_DATA_DIR (not knowledge/). Capped at 50 most recent entries.
 
 ---
 

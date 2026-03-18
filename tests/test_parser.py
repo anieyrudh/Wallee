@@ -261,3 +261,17 @@ class TestParseActionChain:
         })
         d = parse_llm_output(raw)
         assert d.type == "WAIT"
+
+    def test_chain_truncated_to_max_length(self):
+        from wallee.agent.parser import MAX_CHAIN_LENGTH
+        actions = [{"tool": f"tool_{i}", "params": {}} for i in range(8)]
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "lots of steps",
+            "reasoning": "trying everything",
+            "actions": actions,
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION_CHAIN"
+        assert len(d.actions) == MAX_CHAIN_LENGTH
+        assert d.actions[-1]["tool"] == f"tool_{MAX_CHAIN_LENGTH - 1}"

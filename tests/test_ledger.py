@@ -229,3 +229,34 @@ class TestGetByStatus:
 
     def test_empty_result(self, ledger):
         assert ledger.get_by_status("UNKNOWN") == []
+
+
+class TestEventObservation:
+    def test_record_wait_stores_observation_and_reasoning(self, ledger):
+        ledger.record_wait("all good", observation="temps stable", reasoning="nothing to do")
+        event = ledger.conn.execute(
+            "SELECT details_json FROM events ORDER BY event_id DESC LIMIT 1"
+        ).fetchone()
+        import json
+        details = json.loads(event["details_json"])
+        assert details["observation"] == "temps stable"
+        assert details["reasoning"] == "nothing to do"
+        assert details["details"] == "all good"
+
+    def test_record_call_human_stores_observation(self, ledger):
+        ledger.record_call_human("help!", observation="blob on nozzle", reasoning="escalating")
+        event = ledger.conn.execute(
+            "SELECT details_json FROM events ORDER BY event_id DESC LIMIT 1"
+        ).fetchone()
+        import json
+        details = json.loads(event["details_json"])
+        assert details["observation"] == "blob on nozzle"
+        assert details["reasoning"] == "escalating"
+
+    def test_record_wait_without_observation(self, ledger):
+        ledger.record_wait("idle")
+        event = ledger.conn.execute(
+            "SELECT details_json FROM events ORDER BY event_id DESC LIMIT 1"
+        ).fetchone()
+        # Should still work — details only
+        assert "idle" in event["details_json"]

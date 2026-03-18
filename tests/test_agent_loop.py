@@ -167,7 +167,10 @@ class TestRunOnce:
             "SELECT message, details_json FROM events ORDER BY event_id DESC LIMIT 1"
         ).fetchone()
         assert event["message"] == "CALL_HUMAN"
-        assert event["details_json"] == "need operator"
+        details = json.loads(event["details_json"])
+        assert details["details"] == "need operator"
+        assert details["observation"] == "issue"
+        assert details["reasoning"] == "escalating"
 
     def test_handles_empty_llm_response(self, agent, mock_llm):
         mock_llm.call.return_value = ""

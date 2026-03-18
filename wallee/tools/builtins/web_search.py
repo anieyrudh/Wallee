@@ -36,6 +36,7 @@ def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
         "plugins": [
             {"id": "web", "max_results": 3},
         ],
+        "stream": False,
         "max_tokens": 1024,
     }
 

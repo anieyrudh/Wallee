@@ -14,6 +14,7 @@ from wallee.config import (
 logger = logging.getLogger(__name__)
 
 VALID_TYPES = {"ACTION", "WAIT", "CALL_HUMAN", "ACTION_CHAIN"}
+MAX_CHAIN_LENGTH = 5
 
 # Interval clamping — enforced in code, not by the LLM
 MIN_CHECK_INTERVAL = DEFAULT_MIN_CHECK_INTERVAL_S
@@ -156,6 +157,9 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
         if not isinstance(actions, list) or len(actions) == 0:
             logger.warning("ACTION_CHAIN missing or empty actions array")
             return _default_wait("ACTION_CHAIN missing actions")
+        if len(actions) > MAX_CHAIN_LENGTH:
+            logger.warning(f"ACTION_CHAIN has {len(actions)} actions, truncating to {MAX_CHAIN_LENGTH}")
+            actions = actions[:MAX_CHAIN_LENGTH]
         # Validate each action has a tool
         for i, act in enumerate(actions):
             if not isinstance(act, dict) or not act.get("tool"):

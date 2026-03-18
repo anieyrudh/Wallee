@@ -292,7 +292,7 @@ class TestChainExecution:
         # Step 2 should be rejected
         result = engine.process_proposal(ledger.get_action(aid2))
         assert result == "REJECTED"
-        assert "chain_predecessor_failed" in ledger.get_action(aid2)["error_json"]
+        assert "chain_skipped" in ledger.get_action(aid2)["error_json"]
 
     def test_first_step_no_chain_check(self, engine, ledger, registry):
         """First step (seq=0) should not check for predecessors."""

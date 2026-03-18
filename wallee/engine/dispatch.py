@@ -92,7 +92,10 @@ class Engine:
             predecessors = self._get_chain_predecessors(chain_id, chain_seq)
             for pred in predecessors:
                 if pred["status"] in ("FAILED", "REJECTED"):
-                    self.ledger.reject(action_id, "chain_predecessor_failed")
+                    self.ledger.reject(
+                        action_id,
+                        f"chain_skipped: predecessor {pred['action_id'][:8]} was {pred['status']}",
+                    )
                     return "REJECTED"
                 if pred["status"] in ("PROPOSED", "WAITING_APPROVAL", "DISPATCHED", "UNKNOWN"):
                     # Predecessor still pending — skip, retry later

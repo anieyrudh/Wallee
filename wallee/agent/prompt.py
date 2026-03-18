@@ -108,7 +108,7 @@ def build_user_message(
     """Build the dynamic user message text — changes every cycle.
 
     Contains: phase banner, pending callout, external changes,
-    whiteboard state, human intent, episode, final instruction.
+    whiteboard state, human intent, episode, timestamp.
     """
     sections = []
 

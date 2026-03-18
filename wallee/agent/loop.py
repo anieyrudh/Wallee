@@ -384,7 +384,7 @@ class AgentLoop:
             summary = f"WAIT: {reasoning}"
             logger.info(f"WAIT: {reasoning} (check after {decision.check_after_s}s)")
             if self.ledger and hasattr(self.ledger, "record_wait"):
-                self.ledger.record_wait(reasoning)
+                self.ledger.record_wait(reasoning, observation=observation, reasoning=reasoning)
             # Job context: record notable observations
             if observation and state.get("job.phase") in ("PRINTING", "PAUSED", "PREPARING"):
                 obs_lower = observation.lower()
@@ -401,12 +401,14 @@ class AgentLoop:
                 logger.info(f"CALL_HUMAN suppressed (duplicate of pending callout)")
                 summary = f"WAIT: suppressed duplicate CALL_HUMAN"
                 if self.ledger and hasattr(self.ledger, "record_wait"):
-                    self.ledger.record_wait(f"suppressed duplicate: {decision.message[:80]}")
+                    self.ledger.record_wait(f"suppressed duplicate: {decision.message[:80]}",
+                                            observation=observation, reasoning=reasoning)
             else:
                 summary = f"CALL_HUMAN [{decision.severity}]: {decision.message}"
                 logger.warning(f"CALL_HUMAN [{decision.severity}]: {decision.message}")
                 if self.ledger and hasattr(self.ledger, "record_call_human"):
-                    self.ledger.record_call_human(decision.message)
+                    self.ledger.record_call_human(decision.message,
+                                                  observation=observation, reasoning=reasoning)
                 if self.call_human_fn:
                     try:
                         self.call_human_fn(decision.message, decision.severity)
