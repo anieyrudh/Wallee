@@ -128,6 +128,7 @@ class ToolRegistry:
             "wallee.tools.builtins.sensor_history",
             "wallee.tools.builtins.call_human_tool",
             "wallee.tools.builtins.discover",
+            "wallee.tools.builtins.remember",
         ]
         for mod_path in builtin_modules:
             try:
