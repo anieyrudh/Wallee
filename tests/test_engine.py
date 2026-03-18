@@ -197,17 +197,24 @@ class TestGate4Approval:
             tools=registry,
             data_dir=str(tmp_path),
             poll_interval=0.1,
-            approval_notifier=lambda action_id, tool, params, reason="": notifications.append((action_id, tool, params)),
+            approval_notifier=lambda action_id, tool, params, reason="", observation="": notifications.append(
+                (action_id, tool, params, reason, observation)),
         )
 
-        aid = ledger.propose("approval_action", {"speed": 42}, "test", "test_group", requires_approval=True)
+        aid = ledger.propose("approval_action", {"speed": 42}, "test reason", "test_group",
+                             requires_approval=True, observation="test obs")
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "WAITING_APPROVAL"
-        assert notifications == [(aid, "approval_action", {"speed": 42})]
+        assert len(notifications) == 1
+        assert notifications[0][0] == aid
+        assert notifications[0][1] == "approval_action"
+        assert notifications[0][2] == {"speed": 42}
+        assert notifications[0][3] == "test reason"
+        assert notifications[0][4] == "test obs"
 
         result = engine.process_proposal(ledger.get_action(aid))
         assert result == "WAITING_APPROVAL"
-        assert notifications == [(aid, "approval_action", {"speed": 42})]
+        assert len(notifications) == 1  # not sent again
 
     def test_waiting_approval_survives_notifier_failure(self, wb, ledger, registry, tmp_path):
         engine = Engine(
@@ -216,7 +223,7 @@ class TestGate4Approval:
             tools=registry,
             data_dir=str(tmp_path),
             poll_interval=0.1,
-            approval_notifier=lambda *args: (_ for _ in ()).throw(RuntimeError("telegram down")),
+            approval_notifier=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("telegram down")),
         )
 
         aid = ledger.propose("approval_action", {}, "test", "test_group", requires_approval=True)
@@ -249,6 +256,50 @@ class TestGate5Dispatch:
         action = ledger.get_action(aid)
         status = diary.lookup(action["idempotency_key"])
         assert status == "SUCCESS"
+
+
+class TestChainExecution:
+    def test_chain_second_step_waits_for_first(self, engine, ledger, registry):
+        """Second step in chain should SKIP while first is still PROPOSED."""
+        aid1 = ledger.propose("simple_action", {}, "step 1", "test_group",
+                              chain_id="chain-1", chain_seq=0)
+        aid2 = ledger.propose("simple_action", {"x": 1}, "step 2", "test_group",
+                              chain_id="chain-1", chain_seq=1)
+        # Process step 2 first — should skip
+        result = engine.process_proposal(ledger.get_action(aid2))
+        assert result == "SKIPPED"
+
+    def test_chain_second_step_proceeds_after_first_done(self, engine, ledger, registry):
+        aid1 = ledger.propose("simple_action", {}, "step 1", "test_group",
+                              chain_id="chain-2", chain_seq=0)
+        aid2 = ledger.propose("simple_action", {"x": 1}, "step 2", "test_group",
+                              chain_id="chain-2", chain_seq=1)
+        # Process step 1 — DONE
+        engine.process_proposal(ledger.get_action(aid1))
+        assert ledger.get_action(aid1)["status"] == "DONE"
+        # Now step 2 should proceed
+        result = engine.process_proposal(ledger.get_action(aid2))
+        assert result == "DONE"
+
+    def test_chain_second_step_rejected_on_predecessor_failure(self, engine, ledger, registry):
+        aid1 = ledger.propose("failing_action", {}, "step 1", "test_group",
+                              chain_id="chain-3", chain_seq=0)
+        aid2 = ledger.propose("simple_action", {"x": 1}, "step 2", "test_group",
+                              chain_id="chain-3", chain_seq=1)
+        # Process step 1 — FAILED
+        engine.process_proposal(ledger.get_action(aid1))
+        assert ledger.get_action(aid1)["status"] == "FAILED"
+        # Step 2 should be rejected
+        result = engine.process_proposal(ledger.get_action(aid2))
+        assert result == "REJECTED"
+        assert "chain_predecessor_failed" in ledger.get_action(aid2)["error_json"]
+
+    def test_first_step_no_chain_check(self, engine, ledger, registry):
+        """First step (seq=0) should not check for predecessors."""
+        aid = ledger.propose("simple_action", {}, "step 0", "test_group",
+                             chain_id="chain-4", chain_seq=0)
+        result = engine.process_proposal(ledger.get_action(aid))
+        assert result == "DONE"
 
 
 class TestPollOnce:

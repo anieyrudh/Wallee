@@ -25,7 +25,7 @@ DECISION_SCHEMA = {
     "schema": {
         "type": "object",
         "properties": {
-            "type": {"type": "string", "enum": ["ACTION", "WAIT", "CALL_HUMAN"]},
+            "type": {"type": "string", "enum": ["ACTION", "WAIT", "CALL_HUMAN", "ACTION_CHAIN"]},
             "observation": {"type": "string", "description": "One sentence: what you see right now"},
             "reasoning": {"type": "string", "description": "One sentence: why you chose this decision"},
             "tool": {"type": "string", "description": "Tool name. Required if type=ACTION"},
@@ -34,6 +34,8 @@ DECISION_SCHEMA = {
             "severity": {"type": "string", "enum": ["info", "warning", "critical"],
                          "description": "Alert severity. Required if type=CALL_HUMAN"},
             "check_after_s": {"type": "number", "description": "Seconds until next check. Required if type=WAIT"},
+            "actions": {"type": "array", "items": {"type": "object"},
+                        "description": "Ordered list of {tool, params} for ACTION_CHAIN"},
         },
         "required": ["type", "observation", "reasoning"],
         "additionalProperties": False,
@@ -63,8 +65,15 @@ class LLMClient:
 
         # Prompt caching for system message (static knowledge — identical between cycles)
         if messages and messages[0].get("role") == "system":
-            if isinstance(messages[0].get("content"), str):
+            content = messages[0].get("content")
+            if isinstance(content, str):
                 messages[0]["cache_control"] = {"type": "ephemeral"}
+            elif isinstance(content, list):
+                # List content (with vision blocks) — add cache_control to last text block
+                for block in reversed(content):
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        block["cache_control"] = {"type": "ephemeral"}
+                        break
 
         payload = {
             "model": self.model,

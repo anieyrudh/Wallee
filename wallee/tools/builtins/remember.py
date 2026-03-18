@@ -12,6 +12,12 @@ MAX_ENTRIES = 50
 _OBSERVATIONS_PATH = Path(__file__).parent.parent.parent / "knowledge" / "OBSERVATIONS.md"
 
 
+def configure_observations_dir(path: Path):
+    """Update the observations file path at runtime (e.g., to WALLEE_DATA_DIR)."""
+    global _OBSERVATIONS_PATH
+    _OBSERVATIONS_PATH = path / "OBSERVATIONS.md"
+
+
 @tool(kind="actuator", requires_approval=False)
 def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
     """Persist an observation to knowledge/OBSERVATIONS.md.

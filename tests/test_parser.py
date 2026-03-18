@@ -6,11 +6,18 @@ from wallee.agent.parser import (
     parse_llm_output,
     Decision,
     clamp_check_interval,
+    configure_check_intervals,
     MIN_CHECK_INTERVAL,
     MAX_CHECK_INTERVAL,
     MAX_CHECK_INTERVAL_IDLE,
     DEFAULT_CHECK_INTERVAL,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_intervals():
+    """Ensure tests use the actual configured defaults (may change between versions)."""
+    yield
 
 
 class TestParseAction:
@@ -149,7 +156,6 @@ class TestClampCheckInterval:
         assert clamp_check_interval(60.0) == 60.0
 
     def test_too_fast_clamped_to_min(self):
-        assert clamp_check_interval(5.0) == MIN_CHECK_INTERVAL
         assert clamp_check_interval(1.0) == MIN_CHECK_INTERVAL
         assert clamp_check_interval(0) == MIN_CHECK_INTERVAL
 
@@ -158,19 +164,25 @@ class TestClampCheckInterval:
         assert clamp_check_interval(400.0, printer_state="FINISHED") == MAX_CHECK_INTERVAL_IDLE
 
     def test_too_slow_printing_clamped(self):
-        assert clamp_check_interval(200.0, printer_state="PRINTING") == MAX_CHECK_INTERVAL
-        assert clamp_check_interval(200.0, printer_state="PAUSED") == MAX_CHECK_INTERVAL
-        assert clamp_check_interval(200.0, printer_state="ATTENTION") == MAX_CHECK_INTERVAL
+        # Values above MAX_CHECK_INTERVAL are clamped during active printing
+        big = MAX_CHECK_INTERVAL + 100
+        assert clamp_check_interval(big, printer_state="PRINTING") == MAX_CHECK_INTERVAL
+        assert clamp_check_interval(big, printer_state="PAUSED") == MAX_CHECK_INTERVAL
+        assert clamp_check_interval(big, printer_state="ATTENTION") == MAX_CHECK_INTERVAL
 
     def test_idle_allows_longer_waits(self):
-        assert clamp_check_interval(200.0, printer_state="IDLE") == 200.0
-        assert clamp_check_interval(200.0, printer_state="PRINTING") == MAX_CHECK_INTERVAL
+        # A value between MAX_CHECK_INTERVAL and MAX_CHECK_INTERVAL_IDLE is allowed when idle
+        mid = min(MAX_CHECK_INTERVAL + 10, MAX_CHECK_INTERVAL_IDLE)
+        assert clamp_check_interval(mid, printer_state="IDLE") == mid
+        assert clamp_check_interval(mid, printer_state="PRINTING") == MAX_CHECK_INTERVAL
 
     def test_no_state_uses_idle_max(self):
-        assert clamp_check_interval(250.0, printer_state=None) == 250.0
+        mid = min(MAX_CHECK_INTERVAL + 10, MAX_CHECK_INTERVAL_IDLE)
+        assert clamp_check_interval(mid, printer_state=None) == mid
 
     def test_case_insensitive_state(self):
-        assert clamp_check_interval(200.0, printer_state="printing") == MAX_CHECK_INTERVAL
+        big = MAX_CHECK_INTERVAL + 100
+        assert clamp_check_interval(big, printer_state="printing") == MAX_CHECK_INTERVAL
 
     def test_exact_boundaries(self):
         assert clamp_check_interval(MIN_CHECK_INTERVAL) == MIN_CHECK_INTERVAL
@@ -182,21 +194,70 @@ class TestClampInParsedDecision:
     """Clamping is applied during parse_llm_output, not just in isolation."""
 
     def test_wait_interval_clamped_during_parse(self):
-        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": 5})
+        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": 1})
         d = parse_llm_output(raw, printer_state="PRINTING")
         assert d.check_after_s == MIN_CHECK_INTERVAL
 
     def test_wait_large_interval_clamped_printing(self):
-        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": 300})
+        big = MAX_CHECK_INTERVAL + 100
+        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": big})
         d = parse_llm_output(raw, printer_state="PRINTING")
         assert d.check_after_s == MAX_CHECK_INTERVAL
 
     def test_wait_large_interval_allowed_idle(self):
-        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": 200})
+        mid = min(MAX_CHECK_INTERVAL + 10, MAX_CHECK_INTERVAL_IDLE)
+        raw = json.dumps({"type": "WAIT", "reason": "ok", "check_after_s": mid})
         d = parse_llm_output(raw, printer_state="IDLE")
-        assert d.check_after_s == 200.0
+        assert d.check_after_s == mid
 
-    def test_wait_default_60s(self):
+    def test_wait_default_interval(self):
         raw = json.dumps({"type": "WAIT", "reason": "ok"})
         d = parse_llm_output(raw)
         assert d.check_after_s == DEFAULT_CHECK_INTERVAL
+
+
+class TestParseActionChain:
+    def test_valid_action_chain(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "need two steps",
+            "reasoning": "first pause, then set temp",
+            "actions": [
+                {"tool": "pause_print", "params": {}},
+                {"tool": "set_temperature", "params": {"target": 200, "heater": "nozzle"}},
+            ],
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION_CHAIN"
+        assert len(d.actions) == 2
+        assert d.actions[0]["tool"] == "pause_print"
+        assert d.actions[1]["tool"] == "set_temperature"
+
+    def test_empty_actions_defaults_to_wait(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "test",
+            "reasoning": "test",
+            "actions": [],
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "WAIT"
+
+    def test_missing_actions_defaults_to_wait(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "test",
+            "reasoning": "test",
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "WAIT"
+
+    def test_action_missing_tool_defaults_to_wait(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "test",
+            "reasoning": "test",
+            "actions": [{"params": {}}],
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "WAIT"

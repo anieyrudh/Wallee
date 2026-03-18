@@ -10,8 +10,8 @@ Quick-start reference for developers and AI agents working on the Wallee codebas
                           ┌────────────────────┐
                           │  OpenRouter (LLM)   │
                           │  Gemini 3.1 Pro     │
-                          │  + Exa web search   │
                           │  + response healing │
+                          │  + prompt caching    │
                           └─────────▲──────────┘
                                     │ HTTPS (structured JSON output)
                                     │
@@ -99,7 +99,8 @@ wallee/
 │   ├── db.py                # SQLite WAL — proposals, approvals, episodes, events
 │   ├── diary.py             # Per-device-group idempotency DB for crash recovery
 │   └── migrations/
-│       └── 001_init.sql     # Schema: actions, approvals, events tables
+│       ├── 001_init.sql     # Schema: actions, approvals, events tables
+│       └── 002_add_observation.sql  # Add observation column to actions
 ├── whiteboard/
 │   └── client.py            # Redis wrapper — TTL, ring buffers, timestamps, trends
 ├── bus/
@@ -343,6 +344,17 @@ PROPOSED action arrives in ledger
 - **Observe-only by default.** Agent does NOT propose actions unless there is an active `human.intent` or a safety emergency. This is enforced by SOUL.md, not code.
 - **Intent deduplication.** Once the agent responds to an intent, it marks it as handled and won't re-present it to the LLM on subsequent cycles.
 - **LLM errors → silent WAIT.** If the LLM returns empty/invalid JSON, the parser defaults to a WAIT decision. No crash, no action.
+- **CALL_HUMAN dedup.** Hashes first 100 chars of each CALL_HUMAN message. If a pending callout with the same hash is still PENDING on the whiteboard, subsequent identical escalations are suppressed (agent returns WAIT instead).
+- **Event-driven wake.** Agent sleep can be interrupted by Telegram intent/urgent/estop, CLI intent/estop, or printer state changes from sensors. Uses `threading.Event.wait(timeout)` instead of fixed `time.sleep()`.
+- **JOB_CONTEXT.md lifecycle.** Created on PREPARING transition (or on restart if mid-print). Material detected from filename regex then PrusaLink API fallback. Archived to OBSERVATIONS.md on FINISHED. Adjustments and issues appended during the print.
+- **Observation + reasoning schema.** LLM returns `observation` (what it sees) and `reasoning` (why it chose this action). Both are persisted to the ledger and shown in Telegram approval requests.
+
+### Prompt architecture
+- **Cached prefix / dynamic suffix.** System message contains static knowledge (SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md, instruction) — marked with `cache_control: ephemeral` for 90% cost reduction. User message contains dynamic per-cycle data (phase banner, whiteboard state, episode, cameras, timestamp).
+- **Vision blocks.** Camera frames (max 2) and human photos are sent as `image_url` content blocks in the user message. Job thumbnail sent in the system message.
+
+### Data directory separation
+- **Generated files in WALLEE_DATA_DIR.** JOB_CONTEXT.md, OBSERVATIONS.md, job_thumbnail.png, ledger.db, diary DBs, and outbox all live in the configured data directory (default `/var/lib/wallee`), not in the source tree's `knowledge/` directory.
 
 ### System
 - **All components run as threads in one process** (not separate OS processes as originally specced). Single `main.py` manages everything. If the main process crashes, the safety kernel dies with it. For production hardening, extract the safety kernel to a separate systemd-managed process.

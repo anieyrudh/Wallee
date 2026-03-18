@@ -109,6 +109,31 @@ class TestTelegramAuth:
 
         assert bot._is_authorized(self._make_update(99999, 12345)) is False
 
+    def test_approval_acknowledges_pending_callout(self):
+        """Approving an action should ack any pending callout."""
+        import json
+        wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))
+        ledger_mock = MagicMock()
+
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(
+                token="token",
+                chat_id="12345",
+                allowed_user_ids=["12345"],
+                whiteboard=wb,
+                ledger=ledger_mock,
+            )
+
+        wb.publish("human.pending_callout", json.dumps({
+            "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
+        }), ttl=60)
+
+        bot._record_approval("action-123", "APPROVE", "12345")
+        bot._acknowledge_pending_callout()
+
+        pending = json.loads(wb.read("human.pending_callout"))
+        assert pending["status"] == "ACKNOWLEDGED"
+
     def test_estop_command_publishes_safety_key(self):
         wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))
         with patch("wallee.human.telegram._ensure_telegram", return_value=None):

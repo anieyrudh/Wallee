@@ -27,6 +27,7 @@ from wallee.tools.registry import ToolRegistry
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.loop import AgentLoop
 from wallee.agent.parser import configure_check_intervals
+from wallee.tools.builtins.remember import configure_observations_dir
 from wallee.human.call_human import call_human
 from wallee.human.cli import CLI
 from wallee.ui.dashboard import DashboardServer
@@ -57,6 +58,7 @@ def main():
         cfg.agent_max_check_interval_idle_s,
         cfg.agent_default_check_interval_s,
     )
+    configure_observations_dir(cfg.data_dir)
 
     # Ensure data directory exists (fall back to local dir if system dir not writable)
     try:
@@ -107,10 +109,6 @@ def main():
         logger.info(f"Loaded device pack: {pack_name}")
     logger.info(f"Loaded {len(registry.list_sensors())} sensors, {len(registry.list_actuators())} actuators")
 
-    # Start sensor background threads
-    registry.start_sensors(wb)
-    logger.info("Sensor publishers started")
-
     # 6. Engine
     engine = Engine(
         whiteboard=wb,
@@ -125,7 +123,7 @@ def main():
     logger.info("Engine started (polling ledger)")
 
     # 7. Agent (starts LAST)
-    llm = LLMClient(api_key=cfg.openrouter_api_key, model=cfg.openrouter_model, enable_web_search=cfg.openrouter_enable_web_search)
+    llm = LLMClient(api_key=cfg.openrouter_api_key, model=cfg.openrouter_model)
     knowledge_dir = Path(__file__).parent / "knowledge"
 
     agent = AgentLoop(
@@ -138,13 +136,19 @@ def main():
         heartbeat_ttl=cfg.agent_heartbeat_ttl_s,
         last_decision_ttl=cfg.agent_last_decision_ttl_s,
         ledger=ledger,
+        data_dir=cfg.data_dir,
     )
+
+    # Store agent ref for wake wiring — before starting sensors
+    _agent_loop = agent
+
+    # Start sensor background threads (after agent, so wake_fn is available)
+    registry.start_sensors(wb, wake_fn=_agent_loop.wake)
+    logger.info("Sensor publishers started")
+
     agent_thread = threading.Thread(target=agent.run, daemon=True, name="agent-loop")
     agent_thread.start()
     logger.info("Agent loop started")
-
-    # Store agent ref for wake wiring
-    _agent_loop = agent
 
     # Graceful shutdown
     def shutdown(signum, frame):

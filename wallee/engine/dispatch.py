@@ -37,6 +37,16 @@ class Engine:
         self._running = False
         self._diaries: dict[str, Diary] = {}
 
+    def _get_chain_predecessors(self, chain_id: str, chain_seq: int) -> list[dict]:
+        """Get all actions in the same chain with lower sequence numbers."""
+        with self.ledger._lock:
+            rows = self.ledger.conn.execute(
+                """SELECT * FROM actions WHERE chain_id = ? AND chain_seq < ?
+                   ORDER BY chain_seq ASC""",
+                (chain_id, chain_seq),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def _get_diary(self, device_group: str) -> Diary:
         """Get or create diary for a device group."""
         if device_group not in self._diaries:
@@ -52,11 +62,12 @@ class Engine:
                 logger.error(f"Engine heartbeat failed: {e}")
             time.sleep(self.heartbeat_interval)
 
-    def _notify_approval_request(self, action_id: str, tool_name: str, params: dict, reason: str = ""):
+    def _notify_approval_request(self, action_id: str, tool_name: str, params: dict,
+                                    reason: str = "", observation: str = ""):
         if self.approval_notifier is None:
             return
         try:
-            self.approval_notifier(action_id, tool_name, params, reason=reason)
+            self.approval_notifier(action_id, tool_name, params, reason=reason, observation=observation)
         except Exception as e:
             logger.error(f"Approval notification failed for {action_id}: {e}")
 
@@ -72,6 +83,20 @@ class Engine:
             return "REJECTED"
 
         params = __import__("json").loads(proposal["params_json"])
+
+        # Chain predecessor check — if this action is part of a chain,
+        # ensure all predecessors completed successfully
+        chain_id = proposal.get("chain_id")
+        chain_seq = proposal.get("chain_seq")
+        if chain_id is not None and chain_seq is not None and chain_seq > 0:
+            predecessors = self._get_chain_predecessors(chain_id, chain_seq)
+            for pred in predecessors:
+                if pred["status"] in ("FAILED", "REJECTED"):
+                    self.ledger.reject(action_id, "chain_predecessor_failed")
+                    return "REJECTED"
+                if pred["status"] in ("PROPOSED", "WAITING_APPROVAL", "DISPATCHED", "UNKNOWN"):
+                    # Predecessor still pending — skip, retry later
+                    return "SKIPPED"
 
         if self.wb.read("safety.estop"):
             logger.critical(f"REJECTED {tool_name}: safety.estop active")
@@ -98,7 +123,11 @@ class Engine:
             if approval is None:
                 if proposal.get("status") != "WAITING_APPROVAL":
                     self.ledger.set_status(action_id, "WAITING_APPROVAL")
-                    self._notify_approval_request(action_id, tool_name, params, reason=proposal.get("reason", ""))
+                    self._notify_approval_request(
+                        action_id, tool_name, params,
+                        reason=proposal.get("reason", ""),
+                        observation=proposal.get("observation", ""),
+                    )
                 logger.info(f"Waiting for approval: {action_id} ({tool_name})")
                 return "WAITING_APPROVAL"
             if approval["decision"] != "APPROVE":

@@ -175,17 +175,19 @@ class TelegramBot:
         )
         future.result(timeout=30)
 
-    def send_approval_request(self, action_id: str, tool: str, params: dict, reason: str = ""):
+    def send_approval_request(self, action_id: str, tool: str, params: dict,
+                              reason: str = "", observation: str = ""):
         """Send an approval request with inline keyboard buttons."""
         if not self._loop or not self._running:
             return
 
+        obs_line = f"\nObservation: {_escape_md(observation[:200])}" if observation else ""
         reason_line = f"\nReasoning: {_escape_md(reason[:200])}" if reason else ""
         text = (
             f"🔧 *{_escape_md(tool.upper().replace('_', ' '))} requested*\n"
             f"Tool: `{_escape_md(tool)}`\n"
             f"Params: `{_escape_md(json.dumps(params, default=str))}`"
-            f"{reason_line}\n"
+            f"{obs_line}{reason_line}\n"
             f"Reply APPROVE or REJECT\\."
         )
         keyboard = _telegram.InlineKeyboardMarkup([
@@ -205,7 +207,7 @@ class TelegramBot:
             self._loop,
         )
         try:
-            future.result(timeout=10)
+            future.result(timeout=30)
         except Exception as e:
             logger.error(f"Failed to send approval request: {e}")
 
@@ -448,6 +450,7 @@ class TelegramBot:
             return
         action_id = context.args[0]
         self._record_approval(action_id, "APPROVE", str(update.effective_user.id))
+        self._acknowledge_pending_callout()
         await update.message.reply_text(f"✅ Approved {action_id[:8]}")
 
     async def _cmd_reject(self, update, context):
@@ -459,6 +462,7 @@ class TelegramBot:
             return
         action_id = context.args[0]
         self._record_approval(action_id, "REJECT", str(update.effective_user.id))
+        self._acknowledge_pending_callout()
         await update.message.reply_text(f"❌ Rejected {action_id[:8]}")
 
     async def _callback_handler(self, update, context):
@@ -478,6 +482,7 @@ class TelegramBot:
         user = str(query.from_user.id)
 
         self._record_approval(action_id, decision, user)
+        self._acknowledge_pending_callout()
 
         emoji = "✅" if decision == "APPROVE" else "❌"
         await query.edit_message_text(f"{emoji} {decision.title()}d: {action_id[:8]}")
@@ -572,6 +577,21 @@ class TelegramBot:
         if self._wake_agent:
             self._wake_agent()
         await update.message.reply_text(f"📝 Intent set: {text}")
+
+    def _acknowledge_pending_callout(self):
+        """Mark any pending callout as ACKNOWLEDGED on the whiteboard."""
+        if not self.wb:
+            return
+        pending = self.wb.read("human.pending_callout")
+        if not pending:
+            return
+        try:
+            data = json.loads(pending) if isinstance(pending, str) else pending
+            if isinstance(data, dict) and data.get("status") == "PENDING":
+                data["status"] = "ACKNOWLEDGED"
+                self.wb.publish("human.pending_callout", json.dumps(data), ttl=self.intent_ttl)
+        except Exception:
+            pass
 
     # --- Helpers ---
 

@@ -48,6 +48,9 @@ class Ledger:
         device_group: str,
         requires_approval: bool = False,
         max_proposal_age_ms: int = 30000,
+        observation: str = "",
+        chain_id: str | None = None,
+        chain_seq: int | None = None,
     ) -> str:
         """Create a new PROPOSED action. Returns action_id."""
         action_id = str(uuid.uuid4())
@@ -76,12 +79,14 @@ class Ledger:
                 self.conn.execute(
                     """INSERT INTO actions
                        (action_id, tool, params_json, params_hash, idempotency_key,
-                        device_group, status, reason, created_ts, created_mono,
-                        updated_ts, requires_approval, max_proposal_age_ms)
-                       VALUES (?, ?, ?, ?, ?, ?, 'PROPOSED', ?, ?, ?, ?, ?, ?)""",
+                        device_group, status, reason, observation, created_ts, created_mono,
+                        updated_ts, requires_approval, max_proposal_age_ms,
+                        chain_id, chain_seq)
+                       VALUES (?, ?, ?, ?, ?, ?, 'PROPOSED', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (action_id, tool, params_json, params_hash, idempotency_key,
-                     device_group, reason, now, mono, now,
-                     int(requires_approval), max_proposal_age_ms),
+                     device_group, reason, observation, now, mono, now,
+                     int(requires_approval), max_proposal_age_ms,
+                     chain_id, chain_seq),
                 )
                 self.conn.commit()
             logger.info(f"Proposed: {action_id} ({tool})")

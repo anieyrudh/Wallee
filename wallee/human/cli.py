@@ -50,11 +50,26 @@ Wallee CLI Commands:
   quit                 — Exit CLI
 """)
 
+    def _acknowledge_pending_callout(self):
+        """Mark any pending callout as ACKNOWLEDGED on the whiteboard."""
+        pending = self.wb.read("human.pending_callout")
+        if not pending:
+            return
+        try:
+            import json as _json
+            data = _json.loads(pending) if isinstance(pending, str) else pending
+            if isinstance(data, dict) and data.get("status") == "PENDING":
+                data["status"] = "ACKNOWLEDGED"
+                self.wb.publish("human.pending_callout", _json.dumps(data), ttl=self.intent_ttl)
+        except Exception:
+            pass
+
     def _handle_intent(self, args: str):
         if not args:
             print("Usage: intent <message>")
             return
         self.wb.publish("human.intent", args, ttl=self.intent_ttl)
+        self._acknowledge_pending_callout()
         if self._wake_agent:
             self._wake_agent()
         print(f"Intent set: {args}")
@@ -78,6 +93,7 @@ Wallee CLI Commands:
             print(f"Action is {action['status']}, not WAITING_APPROVAL")
             return
         self.ledger.record_approval(action_id, "APPROVE", "cli_operator")
+        self._acknowledge_pending_callout()
         print(f"Approved: {action_id}")
 
     def _handle_reject(self, args: str):
@@ -90,6 +106,7 @@ Wallee CLI Commands:
             print(f"Action {action_id} not found")
             return
         self.ledger.record_approval(action_id, "REJECT", "cli_operator")
+        self._acknowledge_pending_callout()
         print(f"Rejected: {action_id}")
 
     def _handle_status(self):
@@ -132,6 +149,8 @@ Wallee CLI Commands:
     def _handle_estop(self):
         # v1: just flag it on whiteboard and call human
         self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
+        if self._wake_agent:
+            self._wake_agent()
         print("ESTOP ACTIVATED — safety.estop published to whiteboard")
         print("(v1: no GPIO relay. Future: cut power to actuators.)")
 

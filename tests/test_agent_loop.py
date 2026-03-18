@@ -311,6 +311,109 @@ class TestRunLoop:
         assert not t.is_alive()
 
 
+class TestJobPhaseLifecycle:
+    def test_preparing_creates_job_context(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        wb.publish("printer.print_filename", "widget_PLA.gcode")
+        # First call records initial phase
+        agent._handle_job_phase_transition({"job.phase": "IDLE"})
+        # Transition to PREPARING
+        agent._handle_job_phase_transition({"job.phase": "PREPARING",
+                                             "printer.print_filename": "widget_PLA.gcode"})
+        ctx_path = knowledge_dir / "JOB_CONTEXT.md"
+        assert ctx_path.exists()
+        assert "widget_PLA.gcode" in ctx_path.read_text()
+
+    def test_finished_archives_job_context(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        # Create a JOB_CONTEXT.md
+        ctx_path = knowledge_dir / "JOB_CONTEXT.md"
+        ctx_path.write_text("# Current Job\nFile: test.gcode\nMaterial: PLA\nStarted: now\n\n"
+                            "## Adjustments made\n(none yet)\n\n## Issues observed\n(none yet)\n")
+        # Simulate phase transitions
+        agent._handle_job_phase_transition({"job.phase": "PRINTING"})
+        agent._handle_job_phase_transition({"job.phase": "FINISHED"})
+        assert not ctx_path.exists()
+
+    def test_adjustments_appended_to_context(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        ctx_path = knowledge_dir / "JOB_CONTEXT.md"
+        ctx_path.write_text("# Current Job\nFile: test.gcode\nMaterial: PLA\nStarted: now\n\n"
+                            "## Adjustments made\n(none yet)\n\n## Issues observed\n(none yet)\n")
+        agent._append_to_job_context("Adjustments made", "set_temperature(215)")
+        content = ctx_path.read_text()
+        assert "set_temperature(215)" in content
+        assert "(none yet)" not in content.split("## Adjustments")[1].split("## Issues")[0]
+
+
+class TestMidPrintRestart:
+    def test_restart_mid_print_creates_job_context(self, wb, mock_llm, registry, knowledge_dir):
+        """If agent starts and printer is already PRINTING, recover JOB_CONTEXT.md."""
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        wb.publish("printer.print_filename", "benchy_PLA_0.2mm.gcode")
+        state = {"job.phase": "PRINTING", "printer.print_filename": "benchy_PLA_0.2mm.gcode"}
+        agent._handle_job_phase_transition(state)
+
+        ctx_path = knowledge_dir / "JOB_CONTEXT.md"
+        assert ctx_path.exists()
+        content = ctx_path.read_text()
+        assert "benchy_PLA_0.2mm.gcode" in content
+        assert "PLA" in content
+
+    def test_restart_idle_does_not_create_job_context(self, wb, mock_llm, registry, knowledge_dir):
+        """If agent starts and printer is IDLE, no JOB_CONTEXT.md."""
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        state = {"job.phase": "IDLE"}
+        agent._handle_job_phase_transition(state)
+        ctx_path = knowledge_dir / "JOB_CONTEXT.md"
+        assert not ctx_path.exists()
+
+
+class TestMaterialDetection:
+    def test_regex_detects_pla(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        assert agent._detect_material("benchy_PLA_0.2mm.gcode", {}) == "PLA"
+
+    def test_regex_detects_petg(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        assert agent._detect_material("part_PETG_fast.gcode", {}) == "PETG"
+
+    def test_regex_case_insensitive(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        assert agent._detect_material("widget_asa_0.15mm.gcode", {}) == "ASA"
+
+    def test_unknown_when_no_match(self, wb, mock_llm, registry, knowledge_dir):
+        agent = AgentLoop(
+            whiteboard=wb, llm=mock_llm, tools=registry,
+            knowledge_dir=knowledge_dir,
+        )
+        assert agent._detect_material("mystery_file.gcode", {}) == "unknown"
+
+
 class TestKnowledge:
     def test_loads_knowledge_files(self, agent):
         k = agent._load_knowledge()

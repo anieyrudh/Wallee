@@ -129,6 +129,7 @@ class ToolRegistry:
             "wallee.tools.builtins.call_human_tool",
             "wallee.tools.builtins.discover",
             "wallee.tools.builtins.remember",
+            "wallee.tools.builtins.web_search",
         ]
         for mod_path in builtin_modules:
             try:
@@ -140,9 +141,10 @@ class ToolRegistry:
             except ImportError as e:
                 logger.error(f"Failed to load builtin {mod_path}: {e}")
 
-    def start_sensors(self, whiteboard: Whiteboard):
+    def start_sensors(self, whiteboard: Whiteboard, wake_fn=None):
         """Start background threads for all sensor tools."""
         self._running = True
+        self._wake_fn = wake_fn
         for tool in self.list_sensors():
             t = threading.Thread(
                 target=self._sensor_loop,
@@ -162,6 +164,7 @@ class ToolRegistry:
         # Convert TTL to int seconds for Redis (minimum 1)
         ttl_redis = max(1, int(ttl_s)) if ttl_s else None
         history_depth = tool.meta["history_depth"]
+        prev_printer_state = None
 
         while self._running:
             try:
@@ -174,6 +177,13 @@ class ToolRegistry:
                             ttl=ttl_redis,
                             history_depth=history_depth,
                         )
+                    # Wake agent on printer.state change
+                    new_state = payload.get("printer.state")
+                    if new_state is not None and self._wake_fn:
+                        if prev_printer_state is not None and new_state != prev_printer_state:
+                            logger.info(f"Printer state changed: {prev_printer_state} → {new_state}, waking agent")
+                            self._wake_fn()
+                        prev_printer_state = new_state
             except Exception as e:
                 logger.error(f"Sensor {tool.name} error: {e}")
             time.sleep(interval)

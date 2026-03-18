@@ -86,6 +86,11 @@ def build_system_prompt(
     if job_ctx:
         sections.append(f"=== JOB_CONTEXT.md ===\n{job_ctx}")
 
+    # Static instruction at end of system prompt (cached with it)
+    sections.append(
+        "Respond with JSON. One sentence observation, one sentence reasoning."
+    )
+
     return "\n\n".join(sections)
 
 
@@ -178,11 +183,8 @@ def build_user_message(
     else:
         sections.append("  (no actions yet this episode)")
 
-    # 6. Timestamp + final instruction
+    # 6. Timestamp
     sections.append(f"=== TIME: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))} ===")
-    sections.append(
-        "Respond with JSON. One sentence observation, one sentence reasoning."
-    )
 
     return "\n\n".join(sections)
 
@@ -195,6 +197,7 @@ def build_messages(
     user_text: str,
     state: dict,
     knowledge_dir: Path | None = None,
+    data_dir: Path | None = None,
 ) -> list[dict]:
     """Build the full messages list for the LLM, including vision content.
 
@@ -202,7 +205,8 @@ def build_messages(
         system_prompt: Cached system message from build_system_prompt().
         user_text: Dynamic user message from build_user_message().
         state: Whiteboard snapshot (for camera frame keys).
-        knowledge_dir: Path to knowledge/ dir (for job thumbnail).
+        knowledge_dir: Path to knowledge/ dir (legacy fallback for thumbnail).
+        data_dir: Path to data directory (preferred for thumbnail).
 
     Returns:
         List of message dicts for the LLM client.
@@ -210,9 +214,10 @@ def build_messages(
     # System message — may include job thumbnail as vision block
     system_content = [{"type": "text", "text": system_prompt}]
 
-    # Job thumbnail — include in system message if it exists
-    if knowledge_dir:
-        thumb_path = knowledge_dir / "job_thumbnail.png"
+    # Job thumbnail — check data_dir first, then knowledge_dir
+    thumb_dir = data_dir or knowledge_dir
+    if thumb_dir:
+        thumb_path = thumb_dir / "job_thumbnail.png"
         if thumb_path.exists():
             try:
                 import base64

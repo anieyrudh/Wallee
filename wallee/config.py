@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 
 
 DEFAULT_OPENROUTER_MODEL = "google/gemini-3.1-pro-preview"
-DEFAULT_MIN_CHECK_INTERVAL_S = 30
-DEFAULT_MAX_CHECK_INTERVAL_S = 120
-DEFAULT_MAX_CHECK_INTERVAL_IDLE_S = 300
-DEFAULT_CHECK_INTERVAL_S = 60
+DEFAULT_MIN_CHECK_INTERVAL_S = 10
+DEFAULT_MAX_CHECK_INTERVAL_S = 30
+DEFAULT_MAX_CHECK_INTERVAL_IDLE_S = 120
+DEFAULT_CHECK_INTERVAL_S = 15
 DEFAULT_HUMAN_INTENT_TTL_S = 600
 DEFAULT_HUMAN_URGENT_TTL_S = 600
 DEFAULT_HUMAN_IMAGE_TTL_S = 600
@@ -49,7 +49,6 @@ class Config:
     # LLM
     openrouter_api_key: str = ""
     openrouter_model: str = DEFAULT_OPENROUTER_MODEL
-    openrouter_enable_web_search: bool = True
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -101,7 +100,6 @@ def load_config(env_path: Path | None = None) -> Config:
     return Config(
         openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         openrouter_model=os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL),
-        openrouter_enable_web_search=os.environ.get("OPENROUTER_ENABLE_WEB_SEARCH", "true").strip().lower() not in {"0", "false", "no", "off"},
         redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
         prusalink_host=os.environ.get("PRUSALINK_HOST", ""),
         prusalink_api_key=os.environ.get("PRUSALINK_API_KEY", ""),

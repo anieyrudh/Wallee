@@ -2,7 +2,7 @@
 
 import fakeredis
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.builtins.trends import trends
@@ -10,6 +10,7 @@ from wallee.tools.builtins.differential import differential
 from wallee.tools.builtins.sensor_history import get_sensor_history
 from wallee.tools.builtins.call_human_tool import call_human
 from wallee.tools.builtins.discover import discover_hardware
+from wallee.tools.builtins.web_search import web_search
 from wallee.tools.registry import ToolRegistry
 
 
@@ -111,6 +112,37 @@ class TestPlaceholders:
         assert wb.read("camera.nozzle_port") == "8083"
 
 
+class TestWebSearch:
+    def test_no_query(self):
+        result = web_search(query="")
+        assert "error" in result
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": ""})
+    def test_no_api_key(self):
+        result = web_search(query="test query")
+        assert "error" in result
+        assert "not configured" in result["error"]
+
+    @patch("wallee.tools.builtins.web_search.httpx.post")
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
+    def test_successful_search(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": "PLA prints best at 200-215C"}}]
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_post.return_value = mock_resp
+
+        result = web_search(query="PLA temperature")
+        assert result["status"] == "success"
+        assert "PLA" in result["answer"]
+
+    def test_has_tool_metadata(self):
+        assert web_search._tool_meta["kind"] == "actuator"
+        assert web_search._tool_meta["requires_approval"] is False
+
+
 class TestRegistryLoadBuiltins:
     def test_loads_all_builtins(self):
         reg = ToolRegistry()
@@ -120,6 +152,7 @@ class TestRegistryLoadBuiltins:
         assert "get_sensor_history" in reg
         assert "call_human" in reg
         assert "discover_hardware" in reg
+        assert "web_search" in reg
 
     def test_builtins_are_actuators(self):
         reg = ToolRegistry()

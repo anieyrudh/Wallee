@@ -13,7 +13,7 @@ from wallee.config import (
 
 logger = logging.getLogger(__name__)
 
-VALID_TYPES = {"ACTION", "WAIT", "CALL_HUMAN"}
+VALID_TYPES = {"ACTION", "WAIT", "CALL_HUMAN", "ACTION_CHAIN"}
 
 # Interval clamping — enforced in code, not by the LLM
 MIN_CHECK_INTERVAL = DEFAULT_MIN_CHECK_INTERVAL_S
@@ -38,7 +38,7 @@ def configure_check_intervals(
 
 @dataclass
 class Decision:
-    type: str  # ACTION, WAIT, CALL_HUMAN
+    type: str  # ACTION, WAIT, CALL_HUMAN, ACTION_CHAIN
     observation: str = ""
     reasoning: str = ""
     tool: str = ""
@@ -47,10 +47,13 @@ class Decision:
     check_after_s: float = 60.0
     message: str = ""
     severity: str = "info"
+    actions: list = None  # For ACTION_CHAIN: list of {tool, params} dicts
 
     def __post_init__(self):
         if self.params is None:
             self.params = {}
+        if self.actions is None:
+            self.actions = []
         # Backward compat: if reason is empty, use reasoning
         if not self.reason and self.reasoning:
             self.reason = self.reasoning
@@ -146,6 +149,23 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
             observation=observation,
             reasoning=reasoning,
             check_after_s=clamped,
+        )
+
+    if decision_type == "ACTION_CHAIN":
+        actions = data.get("actions", [])
+        if not isinstance(actions, list) or len(actions) == 0:
+            logger.warning("ACTION_CHAIN missing or empty actions array")
+            return _default_wait("ACTION_CHAIN missing actions")
+        # Validate each action has a tool
+        for i, act in enumerate(actions):
+            if not isinstance(act, dict) or not act.get("tool"):
+                logger.warning(f"ACTION_CHAIN action[{i}] missing tool")
+                return _default_wait(f"ACTION_CHAIN action[{i}] missing tool")
+        return Decision(
+            type="ACTION_CHAIN",
+            observation=observation,
+            reasoning=reasoning,
+            actions=actions,
         )
 
     if decision_type == "CALL_HUMAN":

@@ -92,10 +92,49 @@ class TestPending:
         assert "No actions" in capsys.readouterr().out
 
 
+class TestPendingCalloutAck:
+    def test_approve_acknowledges_pending_callout(self, cli, wb, ledger):
+        import json
+        wb.publish("human.pending_callout", json.dumps({
+            "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
+        }), ttl=60)
+        aid = ledger.propose("tool_a", {}, "test", "grp", requires_approval=True)
+        ledger.set_status(aid, "WAITING_APPROVAL")
+        cli.process_command(f"approve {aid}")
+        pending = json.loads(wb.read("human.pending_callout"))
+        assert pending["status"] == "ACKNOWLEDGED"
+
+    def test_reject_acknowledges_pending_callout(self, cli, wb, ledger):
+        import json
+        wb.publish("human.pending_callout", json.dumps({
+            "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
+        }), ttl=60)
+        aid = ledger.propose("tool_a", {}, "test", "grp", requires_approval=True)
+        ledger.set_status(aid, "WAITING_APPROVAL")
+        cli.process_command(f"reject {aid}")
+        pending = json.loads(wb.read("human.pending_callout"))
+        assert pending["status"] == "ACKNOWLEDGED"
+
+    def test_intent_acknowledges_pending_callout(self, cli, wb):
+        import json
+        wb.publish("human.pending_callout", json.dumps({
+            "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
+        }), ttl=60)
+        cli.process_command("intent fix the issue")
+        pending = json.loads(wb.read("human.pending_callout"))
+        assert pending["status"] == "ACKNOWLEDGED"
+
+
 class TestESTOP:
     def test_estop_sets_flag(self, cli, wb):
         cli.process_command("estop")
         assert wb.read("safety.estop") is True
+
+    def test_estop_wakes_agent(self, wb, ledger):
+        wakes = []
+        cli = CLI(wb, ledger, wake_agent_fn=lambda: wakes.append(1))
+        cli.process_command("estop")
+        assert len(wakes) == 1
 
 
 class TestMisc:

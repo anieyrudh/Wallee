@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -35,11 +36,13 @@ class AgentLoop:
         heartbeat_ttl: int = 3,
         last_decision_ttl: int = 600,
         ledger=None,
+        data_dir: Path | None = None,
     ):
         self.wb = whiteboard
         self.llm = llm
         self.tools = tools
         self.knowledge_dir = knowledge_dir
+        self.data_dir = data_dir or knowledge_dir
         self.poll_interval = poll_interval
         self.heartbeat_interval = heartbeat_interval
         self.heartbeat_ttl = heartbeat_ttl
@@ -76,9 +79,9 @@ class AgentLoop:
                 else:
                     self._knowledge_cache[name] = ""
 
-        # Re-read every cycle — written at runtime
+        # Re-read every cycle — written at runtime to data_dir
         for name in ["OBSERVATIONS.md", "JOB_CONTEXT.md"]:
-            path = self.knowledge_dir / name
+            path = self.data_dir / name
             if path.exists():
                 self._knowledge_cache[name] = path.read_text()
             else:
@@ -98,7 +101,12 @@ class AgentLoop:
         self._last_job_phase = phase
 
         if prev is None:
-            # First cycle — just record, don't trigger transitions
+            # First cycle — recover job context if we restarted mid-print
+            if phase in ("PRINTING", "PAUSED", "PREPARING"):
+                ctx_path = self.data_dir / "JOB_CONTEXT.md"
+                if not ctx_path.exists():
+                    self._create_job_context(state)
+                    logger.info("Recovered job context after restart")
             return
 
         # PREPARING from any other state → create JOB_CONTEXT.md
@@ -109,10 +117,40 @@ class AgentLoop:
         if phase in ("FINISHED", "IDLE") and prev in ("PRINTING", "PAUSED"):
             self._archive_job_context()
 
+    _MATERIAL_RE = re.compile(
+        r'(?:^|[_\-.\s/])(PLA|PETG|ASA|ABS|TPU|PC|PA|PP|PVB|HIPS)(?:$|[_\-.\s/\d])',
+        re.IGNORECASE,
+    )
+
+    def _detect_material(self, filename: str, state: dict) -> str:
+        """Detect material from filename regex, PrusaLink API fallback, or 'unknown'."""
+        # Primary: regex match in filename
+        m = self._MATERIAL_RE.search(filename)
+        if m:
+            return m.group(1).upper()
+
+        # Fallback: PrusaLink GET /api/v1/job
+        host = os.environ.get("PRUSALINK_HOST", "").strip()
+        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
+        if host:
+            base = host if host.startswith("http") else f"http://{host}"
+            try:
+                resp = httpx.get(f"{base}/api/v1/job",
+                                 headers={"X-Api-Key": api_key}, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    mat = data.get("file", {}).get("material", "")
+                    if mat:
+                        return mat.upper()
+            except Exception as e:
+                logger.debug(f"PrusaLink /api/v1/job material lookup failed: {e}")
+
+        return "unknown"
+
     def _create_job_context(self, state: dict):
         """Create JOB_CONTEXT.md when a new print starts."""
         filename = state.get("printer.print_filename", "unknown")
-        material = state.get("printer.material", "unknown")
+        material = self._detect_material(filename, state)
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
 
         ctx = (
@@ -124,7 +162,7 @@ class AgentLoop:
             f"## Issues observed\n(none yet)\n"
         )
 
-        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
+        ctx_path = self.data_dir / "JOB_CONTEXT.md"
         try:
             ctx_path.write_text(ctx)
             logger.info(f"JOB_CONTEXT.md created for {filename}")
@@ -142,7 +180,7 @@ class AgentLoop:
             return
 
         base = host if host.startswith("http") else f"http://{host}"
-        thumb_path = self.knowledge_dir / "job_thumbnail.png"
+        thumb_path = self.data_dir / "job_thumbnail.png"
 
         for size in ("l", "s"):
             url = f"{base}/thumb/{size}/usb/{filename}"
@@ -159,8 +197,8 @@ class AgentLoop:
 
     def _archive_job_context(self):
         """Archive JOB_CONTEXT.md to OBSERVATIONS.md and clean up."""
-        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
-        thumb_path = self.knowledge_dir / "job_thumbnail.png"
+        ctx_path = self.data_dir / "JOB_CONTEXT.md"
+        thumb_path = self.data_dir / "job_thumbnail.png"
 
         if not ctx_path.exists():
             return
@@ -192,7 +230,9 @@ class AgentLoop:
             iss_str = "; ".join(issues) if issues else "none"
             summary = f"Job complete: {filename} ({material}). Adjustments: {adj_str}. Issues: {iss_str}."
 
-            # Append to OBSERVATIONS.md via remember tool pattern
+            # Direct call to remember() for internal bookkeeping — not LLM-proposed.
+            # Archives the completed job's summary to OBSERVATIONS.md so future
+            # cycles can reference past print outcomes.
             from wallee.tools.builtins.remember import remember
             remember(observation=summary)
             logger.info(f"Archived job context: {filename}")
@@ -208,7 +248,7 @@ class AgentLoop:
 
     def _append_to_job_context(self, section: str, entry: str):
         """Append an entry to a section in JOB_CONTEXT.md."""
-        ctx_path = self.knowledge_dir / "JOB_CONTEXT.md"
+        ctx_path = self.data_dir / "JOB_CONTEXT.md"
         if not ctx_path.exists():
             return
 
@@ -301,6 +341,7 @@ class AgentLoop:
                     device_group=tool.device_group,
                     requires_approval=tool.requires_approval,
                     max_proposal_age_ms=tool.max_proposal_age_ms,
+                    observation=observation,
                 )
             summary = f"ACTION: {decision.tool} — {reasoning}"
             logger.info(f"Proposed: {decision.tool}({decision.params}) — {reasoning}")
@@ -309,6 +350,35 @@ class AgentLoop:
                 "Adjustments made",
                 f"{decision.tool}({json.dumps(decision.params, default=str)}) — {reasoning}"
             )
+
+        elif decision.type == "ACTION_CHAIN":
+            import uuid as _uuid
+            chain_id = str(_uuid.uuid4())
+            tools_in_chain = []
+            for seq, act in enumerate(decision.actions):
+                tool_name = act.get("tool", "")
+                if tool_name not in self.tools:
+                    logger.warning(f"ACTION_CHAIN: unknown tool '{tool_name}' at seq {seq}, skipping chain")
+                    return
+                tools_in_chain.append(tool_name)
+            for seq, act in enumerate(decision.actions):
+                tool_name = act["tool"]
+                tool = self.tools.get(tool_name)
+                params = act.get("params", {})
+                if self.ledger and hasattr(self.ledger, "propose"):
+                    self.ledger.propose(
+                        tool=tool_name,
+                        params=params,
+                        reason=decision.reason,
+                        device_group=tool.device_group,
+                        requires_approval=tool.requires_approval,
+                        max_proposal_age_ms=tool.max_proposal_age_ms,
+                        observation=observation,
+                        chain_id=chain_id,
+                        chain_seq=seq,
+                    )
+            summary = f"ACTION_CHAIN ({len(decision.actions)} steps): {' → '.join(tools_in_chain)} — {reasoning}"
+            logger.info(summary)
 
         elif decision.type == "WAIT":
             summary = f"WAIT: {reasoning}"
@@ -413,7 +483,8 @@ class AgentLoop:
 
         # 9. Build messages with vision content
         messages = build_messages(system_prompt, user_text, state,
-                                  knowledge_dir=self.knowledge_dir)
+                                  knowledge_dir=self.knowledge_dir,
+                                  data_dir=self.data_dir)
 
         # 10. Call LLM
         raw_response = self.llm.call(system_prompt, messages=messages)

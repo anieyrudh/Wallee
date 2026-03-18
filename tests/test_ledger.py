@@ -59,6 +59,23 @@ class TestPropose:
         action = ledger.get_action(aid)
         assert action["max_proposal_age_ms"] == 60000
 
+    def test_stores_observation(self, ledger):
+        aid = ledger.propose("tool_a", {}, "reason", "grp", observation="nozzle looks clean")
+        action = ledger.get_action(aid)
+        assert action["observation"] == "nozzle looks clean"
+
+    def test_observation_defaults_to_empty(self, ledger):
+        aid = ledger.propose("tool_a", {}, "reason", "grp")
+        action = ledger.get_action(aid)
+        assert action["observation"] == ""
+
+    def test_stores_chain_id_and_seq(self, ledger):
+        aid = ledger.propose("tool_a", {}, "r", "grp", chain_id="chain-1", chain_seq=0)
+        action = ledger.get_action(aid)
+        assert action["chain_id"] == "chain-1"
+        assert action["chain_seq"] == 0
+
+
 
 class TestGetProposals:
     def test_returns_proposed_only(self, ledger):
