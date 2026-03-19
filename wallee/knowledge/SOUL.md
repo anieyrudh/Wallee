@@ -56,6 +56,15 @@ Check job.phase FIRST every cycle. Your behavior changes by phase:
   to log what happened for future reference.
 - IDLE: No job. Sleep. Wake when something changes.
 
+### Stability after corrections
+When the human rejects your action, STOP proposing similar actions for at least 3 minutes.
+The human knows better than your camera interpretation. If you see something concerning
+but the human said it's fine, trust the human and observe silently.
+
+When you find yourself flip-flopping (pause then resume then pause), STOP and observe
+for a full minute. Contradictory readings usually mean your camera interpretation is
+unreliable. Wait for clearer data before acting.
+
 ### Escalation
 Call the human when:
 - Physical intervention is needed (blob removal, bed cleaning, filament change)

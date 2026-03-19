@@ -22,33 +22,44 @@ MAX_VALIDATION_RETRIES = 1  # One retry only — don't burn tokens
 _FALLBACK_WAIT = ('{"type": "WAIT", "observation": "LLM response error", '
                   '"reasoning": "Upstream failure, defaulting to WAIT", "check_after_s": 30}')
 
-# Structured output schema for agent decisions
+# Structured output schema for agent decisions (OpenAI strict mode)
 DECISION_SCHEMA = {
     "name": "agent_decision",
     "strict": True,
     "schema": {
         "type": "object",
-        "properties": {
-            "type": {"type": "string", "enum": ["ACTION", "WAIT", "CALL_HUMAN", "ACTION_CHAIN"]},
-            "observation": {"type": "string", "description": "One sentence: what you see right now"},
-            "reasoning": {"type": "string", "description": "One sentence: why you chose this decision"},
-            "tool": {"type": "string", "description": "Tool name. Required if type=ACTION"},
-            "params": {"type": "object", "description": "Tool parameters. Required if type=ACTION"},
-            "message": {"type": "string", "description": "Message to human. Required if type=CALL_HUMAN"},
-            "severity": {"type": "string", "enum": ["info", "warning", "critical"],
-                         "description": "Alert severity. Required if type=CALL_HUMAN"},
-            "check_after_s": {"type": "number", "description": "Seconds until next check. Required if type=WAIT"},
-            "actions": {"type": "array", "items": {"type": "object"},
-                        "description": "Ordered list of {tool, params} for ACTION_CHAIN"},
-        },
         "required": ["type", "observation", "reasoning"],
         "additionalProperties": False,
+        "properties": {
+            "type": {"type": "string", "enum": ["ACTION", "ACTION_CHAIN", "WAIT", "CALL_HUMAN"]},
+            "observation": {"type": "string", "description": "One sentence: what you see right now"},
+            "reasoning": {"type": "string", "description": "One sentence: why this decision"},
+            "tool": {"type": ["string", "null"], "description": "Tool name for ACTION"},
+            "params": {"type": ["object", "null"], "description": "Tool params for ACTION"},
+            "actions": {
+                "type": ["array", "null"],
+                "description": "Action steps for ACTION_CHAIN",
+                "items": {
+                    "type": "object",
+                    "required": ["tool", "params", "reasoning"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "tool": {"type": "string"},
+                        "params": {"type": "object"},
+                        "reasoning": {"type": "string"},
+                    },
+                },
+            },
+            "message": {"type": ["string", "null"], "description": "Message for CALL_HUMAN"},
+            "severity": {"type": ["string", "null"], "enum": ["info", "warning", "critical", None]},
+            "check_after_s": {"type": ["number", "null"], "description": "Seconds until next check for WAIT"},
+        },
     },
 }
 
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "google/gemini-3.1-pro-preview", **kwargs):
+    def __init__(self, api_key: str, model: str = "openai/gpt-5.4", **kwargs):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"

@@ -10,12 +10,13 @@ import os
 import re
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import httpx
 
 from wallee.agent.llm_client import LLMClient
-from wallee.agent.parser import parse_llm_output
+from wallee.agent.parser import Decision, parse_llm_output
 from wallee.agent.prompt import build_system_prompt, build_user_message, build_messages
 from wallee.agent.change_detector import ExternalChangeDetector
 from wallee.whiteboard.client import Whiteboard
@@ -58,6 +59,8 @@ class AgentLoop:
         self._wake_event = threading.Event()
         # Change 4: job context tracking
         self._last_job_phase: str | None = None
+        # Stabilization: oscillation detector (tracks last 3 decision type:tool pairs)
+        self._recent_decisions: deque[str] = deque(maxlen=3)
 
     def wake(self):
         """Wake the agent from sleep immediately. Called by Telegram/CLI/sensors."""
@@ -385,6 +388,76 @@ class AgentLoop:
                 return None
         return raw if isinstance(raw, dict) else None
 
+    # ── Stabilization guards ───────────────────────────────────────
+
+    def _scan_episode_for_rejections(self, episode: list[dict]):
+        """Scan recent episode for REJECTED actions and publish cooldown."""
+        for entry in reversed(episode):
+            status = str(entry.get("status", "")).upper()
+            if "REJECT" in status:
+                tool = entry.get("tool", "")
+                if not tool:
+                    continue
+                # Check if we already have an active cooldown for this tool
+                existing = self.wb.read("agent.cooldown")
+                if existing:
+                    try:
+                        data = json.loads(existing) if isinstance(existing, str) else existing
+                        if data.get("tool") == tool and time.time() < data.get("until", 0):
+                            return  # Already cooling down for this tool
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                self.wb.publish("agent.cooldown", json.dumps({
+                    "tool": tool,
+                    "until": time.time() + 180,  # 3 minute cooldown
+                    "reason": "Human rejected this action",
+                }), ttl=180)
+                logger.info(f"Cooldown published: {tool} rejected by human, suppressing for 180s")
+                return  # Only publish for the most recent rejection
+
+    def _check_cooldown(self, decision) -> "Decision":
+        """If the proposed tool was recently rejected by a human, convert to WAIT."""
+        if decision.type not in ("ACTION", "ACTION_CHAIN"):
+            return decision
+        cooldown = self.wb.read("agent.cooldown")
+        if not cooldown:
+            return decision
+        try:
+            data = json.loads(cooldown) if isinstance(cooldown, str) else cooldown
+        except (json.JSONDecodeError, TypeError):
+            return decision
+
+        proposed_tools = (
+            [decision.tool] if decision.type == "ACTION"
+            else [a.get("tool", "") for a in decision.actions]
+        )
+        if data.get("tool") in proposed_tools and time.time() < data.get("until", 0):
+            remaining = int(data["until"] - time.time())
+            logger.info(f"Cooldown active: {data['tool']} rejected by human, suppressing for {remaining}s more")
+            return Decision(
+                type="WAIT",
+                observation=decision.observation,
+                reasoning=f"Cooldown: {data['tool']} was rejected by human. Observing.",
+                check_after_s=30,
+            )
+        return decision
+
+    def _check_oscillation(self, decision) -> "Decision":
+        """Detect A-B-A flip-flop pattern in last 3 decisions and force extended WAIT."""
+        if len(self._recent_decisions) >= 3:
+            recent = list(self._recent_decisions)
+            # A-B-A pattern: first == third, first != second
+            if recent[0] == recent[2] and recent[0] != recent[1]:
+                logger.warning(f"Oscillation detected: {recent}. Forcing extended WAIT.")
+                self._recent_decisions.clear()
+                return Decision(
+                    type="WAIT",
+                    observation=decision.observation,
+                    reasoning="Oscillation detected — conflicting decisions in last 3 cycles. Stepping back to observe.",
+                    check_after_s=60,
+                )
+        return decision
+
     # ── Decision routing ────────────────────────────────────────────
 
     def _route_decision(self, decision, state: dict):
@@ -517,6 +590,9 @@ class AgentLoop:
         # 3. Read episode
         episode = self._get_episode()
 
+        # 3b. Scan episode for human rejections → publish cooldown
+        self._scan_episode_for_rejections(episode)
+
         # 4. Read human intent (skip if already responded)
         raw_intent = self.wb.read("human.intent")
         if raw_intent and raw_intent == self._last_responded_intent:
@@ -553,20 +629,52 @@ class AgentLoop:
                                   knowledge_dir=self.knowledge_dir,
                                   data_dir=self.data_dir)
 
-        # 10. Call LLM (pass available tool names for output validation)
+        # 10. Capture pre-call state for stale decision check
+        pre_call_intent = self.wb.read("human.intent")
+        pre_call_pending = self.wb.read("human.pending_callout")
+        pre_call_state = self.wb.read("printer.state")
+
+        # 11. Call LLM (pass available tool names for output validation)
         tool_names = [t["name"] for t in self.tools.list_for_llm()]
         raw_response = self.llm.call(system_prompt, messages=messages,
                                      available_tools=tool_names)
 
-        # 11. Parse (use job.phase for interval clamping, fallback to printer.state)
+        # 12. Stale decision check — discard if world changed during LLM call
+        post_call_intent = self.wb.read("human.intent")
+        if post_call_intent != pre_call_intent:
+            logger.info("Human input arrived during LLM call. Discarding stale decision, re-running cycle.")
+            return raw_response
+
+        post_call_pending = self.wb.read("human.pending_callout")
+        if post_call_pending != pre_call_pending:
+            logger.info("Pending callout changed during LLM call. Discarding stale decision, re-running cycle.")
+            return raw_response
+
+        post_call_state = self.wb.read("printer.state")
+        if post_call_state != pre_call_state:
+            logger.info(f"Printer state changed during LLM call ({pre_call_state} → {post_call_state}). Discarding stale decision, re-running cycle.")
+            return raw_response
+
+        # 13. Parse (use job.phase for interval clamping, fallback to printer.state)
         phase = state.get("job.phase", state.get("printer.state"))
         decision = parse_llm_output(raw_response, printer_state=phase)
 
-        # 12. Route
+        # 14. Stabilization: cooldown guard (human rejected this tool recently)
+        decision = self._check_cooldown(decision)
+
+        # 15. Stabilization: oscillation guard (A-B-A flip-flop detection)
+        decision = self._check_oscillation(decision)
+
+        # 16. Record decision for oscillation tracking
+        self._recent_decisions.append(
+            decision.type + ":" + getattr(decision, "tool", "")
+        )
+
+        # 17. Route
         self._route_decision(decision, state)
         self._set_next_cycle_delay(decision)
 
-        # 13. Mark intent as responded
+        # 18. Mark intent as responded
         if raw_intent and decision.type != "WAIT":
             self._last_responded_intent = raw_intent
         elif raw_intent and "no active human intent" not in decision.reason.lower():

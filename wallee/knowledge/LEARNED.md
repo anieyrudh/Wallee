@@ -4,6 +4,27 @@ This is what experienced 3D printer operators know. Use this knowledge alongside
 
 ---
 
+## Quick visual diagnosis from camera
+
+What you see on nozzle camera → What it means → What to do:
+- Thin strings between features → Stringing/ooze → Reduce nozzle temp 5°C
+- Rough/bumpy top surface → Over-extrusion → Reduce flow 3-5%
+- Gaps in top surface → Under-extrusion → Increase flow 3-5% or check filament
+- First layer not sticking → Bed adhesion failure → Increase bed temp 5°C or reduce speed
+- Curling corners → Warping → Increase bed temp 5°C, reduce speed 10%
+- Spaghetti (loose filament everywhere) → Print detached from bed → PAUSE immediately, call human
+- Blob on nozzle → Filament buildup → PAUSE, call human for cleanup
+- Normal extrusion bead → Print is fine → WAIT and observe
+- Filament oozing during pause → Normal → Don't panic, minor ooze during pause is expected
+
+IMPORTANT: Camera images are low resolution and often foggy/blurry.
+If you're not confident in what you see (< 0.7 confidence), say so and WAIT.
+Do NOT take destructive actions (pause/cancel) on uncertain visual readings.
+The cost of a false alarm (unnecessary pause) is higher than the cost of
+one more observation cycle. When in doubt, observe again next cycle.
+
+---
+
 ## Printing fundamentals
 
 A good print has: consistent layer lines, no gaps, no excess material, no warping, and dimensional accuracy. The key variables you can control are nozzle temperature, bed temperature, chamber temperature, print speed, and flow rate. Small adjustments (5-10°C, 5-10% speed/flow) are safe to try. Large adjustments need more caution.
