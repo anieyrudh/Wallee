@@ -64,7 +64,7 @@ class TestLoadConfig:
             cfg = load_config(env_file)
             assert cfg.openrouter_api_key == ""
             assert cfg.redis_url == "redis://localhost:6379"
-            assert cfg.openrouter_model == "google/gemini-3.1-pro-preview"
+            assert cfg.openrouter_model == "openai/gpt-5.4"
             assert cfg.agent_poll_interval_s == 5.0
         finally:
             os.environ.update(saved)

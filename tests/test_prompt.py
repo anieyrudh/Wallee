@@ -179,16 +179,17 @@ class TestBuildMessages:
         assert msgs[1]["role"] == "user"
         assert msgs[1]["content"] == "user text"
 
-    def test_nozzle_camera_included(self):
+    def test_no_images_with_camera_state(self):
+        """build_messages is now text-only — camera frames are ignored."""
         state = {"camera.nozzle_frame": "abc123base64"}
         msgs = build_messages("sys", "decide", state)
         user_msg = msgs[1]
-        assert isinstance(user_msg["content"], list)
-        image_blocks = [b for b in user_msg["content"] if b.get("type") == "image_url"]
-        assert len(image_blocks) == 1
-        assert "abc123base64" in image_blocks[0]["image_url"]["url"]
+        # Text only — no image blocks
+        assert isinstance(user_msg["content"], str)
+        assert user_msg["content"] == "decide"
 
-    def test_cameras_and_human_image(self):
+    def test_text_only_with_all_image_state(self):
+        """Vision handled by Gemini Flash Lite sensor, not main LLM."""
         state = {
             "camera.nozzle_frame": "nozzle_b64",
             "camera.buddy1_frame": "buddy1_b64",
@@ -196,6 +197,4 @@ class TestBuildMessages:
         }
         msgs = build_messages("sys", "decide", state)
         user_msg = msgs[1]
-        assert isinstance(user_msg["content"], list)
-        image_blocks = [b for b in user_msg["content"] if b.get("type") == "image_url"]
-        assert len(image_blocks) == 3
+        assert isinstance(user_msg["content"], str)

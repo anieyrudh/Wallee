@@ -3,7 +3,7 @@
 from wallee.tools.decorator import tool
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def get_sensor_history(key: str = "", depth: int = 30, whiteboard=None, **kwargs) -> dict:
     """Raw ring buffer values for deeper analysis."""
     if not key:

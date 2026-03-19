@@ -5,7 +5,7 @@ import os
 from wallee.tools.decorator import tool
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def discover_hardware(whiteboard=None, **kwargs) -> dict:
     """Run lightweight local discovery for camera and printer-related hardware."""
     findings = {

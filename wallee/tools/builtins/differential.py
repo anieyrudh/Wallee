@@ -4,7 +4,7 @@ from wallee.tools.decorator import tool
 from wallee.whiteboard.client import compute_differential
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def differential(key: str = "", whiteboard=None, **kwargs) -> dict:
     """Rate of change for a numerical whiteboard key (units per second)."""
     if not key:

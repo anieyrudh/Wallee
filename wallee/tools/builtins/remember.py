@@ -18,7 +18,7 @@ def configure_observations_dir(path: Path):
     _OBSERVATIONS_PATH = path / "OBSERVATIONS.md"
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
     """Persist an observation to knowledge/OBSERVATIONS.md.
 

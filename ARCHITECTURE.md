@@ -9,11 +9,12 @@ Quick-start reference for developers and AI agents working on the Wallee codebas
 ```
                           ┌────────────────────┐
                           │  OpenRouter (LLM)   │
-                          │  Gemini 3.1 Pro     │
-                          │  + response healing │
+                          │  GPT 5.4 (strict)   │
+                          │  max_tokens=512      │
+                          │  text only, no images│
                           │  + prompt caching    │
                           └─────────▲──────────┘
-                                    │ HTTPS (structured JSON output)
+                                    │ HTTPS (strict JSON schema)
                                     │
 ┌───────────────────────────────────┼─────────────────────────────────┐
 │  Raspberry Pi 5                   │                                 │
@@ -23,7 +24,8 @@ Quick-start reference for developers and AI agents working on the Wallee codebas
 │  │  prompt.py → llm_client.py  │                                    │
 │  │  parser.py → loop.py        │                                    │
 │  │  change_detector.py         │                                    │
-│  │  + vision (camera frames)   │                                    │
+│  │  + stale decision check     │                                    │
+│  │  + cooldown + oscillation   │                                    │
 │  └─────────┬───────────────────┘                                    │
 │            │ propose                                                │
 │            ▼                                                        │
@@ -59,6 +61,8 @@ Quick-start reference for developers and AI agents working on the Wallee codebas
 │  │  prusa_serial     USB   → endstops (M119), diagnostic gcode  │   │
 │  │  pi_cameras       HTTP  → nozzle cam (ustreamer), buddy cams │   │
 │  │                           (RTSP via ffmpeg, auto-discovered)  │   │
+│  │                   LLM   → vision_analysis (Gemini Flash Lite, │   │
+│  │                           defect scores every 10s)             │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  ┌─────────────────────────────┐  ┌──────────────────────────────┐ │
@@ -113,7 +117,7 @@ wallee/
 │   ├── prusa_link/          # 3 sensors + 12 actuators via PrusaLink HTTP API
 │   ├── prusa_metrics/       # 8 sensors via UDP metrics stream (port 8514)
 │   ├── prusa_serial/        # 2 actuators via USB serial (endstops + diagnostic gcode)
-│   └── pi_cameras/          # 2 sensors: nozzle camera + buddy cameras (auto-discovered)
+│   └── pi_cameras/          # 3 sensors: nozzle cam, buddy cams, vision analysis (Gemini Flash Lite)
 ├── tools/
 │   ├── registry.py          # Discovers packs, registers tools, runs sensor background threads
 │   ├── decorator.py         # @tool decorator — attaches metadata (kind, refresh_hz, etc.)
@@ -152,26 +156,34 @@ wallee/
    └── change_detector.detect(state, episode)
        Compare to previous snapshot, flag changes not caused by Wallee
 
-5. BUILD PROMPT
-   └── prompt.build_prompt(state, episode, intent, knowledge, tools, time, changes)
-       Assembles: changes → SOUL.md → LEARNED.md → whiteboard → intent → episode → tools → instructions
+5. BUILD PROMPT (text only — no images)
+   └── prompt.build_system_prompt(knowledge, tools)  ← cached
+       prompt.build_user_message(state, episode, intent, ...)  ← dynamic
+       Includes: vision status banner, phase banner, whiteboard state, episode
 
-6. BUILD MESSAGES (with vision)
-   └── prompt.build_messages(system_prompt, state)
-       Adds camera frames (max 2) + human photo as image_url content blocks
+6. SNAPSHOT PRE-CALL STATE
+   └── Record human.intent, printer.state, pending_callout before LLM call
 
-7. CALL LLM
+7. CALL LLM (GPT 5.4, strict JSON, max_tokens=512)
    └── llm_client.call(prompt, messages)
-       POST to OpenRouter with structured output schema + plugins
+       POST to OpenRouter with strict JSON schema
        Retries 3x on network errors with 2s backoff
 
-8. PARSE RESPONSE
+8. STALE DECISION CHECK
+   └── Compare pre-call vs post-call whiteboard state
+       If intent/state/callout changed during inference → discard, re-run cycle
+
+9. PARSE RESPONSE
    └── parser.parse_llm_output(raw, printer_state)
        JSON → Decision(type, tool, params, reason, check_after_s, message, severity)
-       Clamps check_after_s: 30-120s (active), 30-300s (idle)
+       Clamps check_after_s: 10-30s (active), 10-120s (idle)
        Bad JSON → WAIT with default interval
 
-9. ROUTE DECISION
+10. STABILIZATION GUARDS
+    ├── Cooldown: tool recently rejected by human → WAIT (3 min cooldown)
+    └── Oscillation: A-B-A flip-flop in last 3 decisions → WAIT (60s)
+
+11. ROUTE DECISION
    ├── ACTION → ledger.propose(tool, params, reason, device_group, ...)
    │            Engine picks it up on next poll (0.5s)
    ├── WAIT   → ledger.record_wait(reason)
@@ -179,7 +191,7 @@ wallee/
    └── CALL_HUMAN → ledger.record_call_human(message)
                      call_human_fn(message, severity) → Telegram/CLI/outbox
 
-10. PUBLISH ACTIVITY
+12. PUBLISH ACTIVITY
     └── whiteboard.publish("agent.last_decision", summary)
         whiteboard.r.lpush("agent.activity_log", entry)
 ```
@@ -352,8 +364,8 @@ PROPOSED action arrives in ledger
 - **Observation + reasoning schema.** LLM returns `observation` (what it sees) and `reasoning` (why it chose this action). Both are persisted to the ledger and shown in Telegram approval requests.
 
 ### Prompt architecture
-- **Cached prefix / dynamic suffix.** System message contains static knowledge (SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md, instruction) — marked with `cache_control: ephemeral` for 90% cost reduction. User message contains dynamic per-cycle data (phase banner, whiteboard state, episode, cameras, timestamp).
-- **Vision blocks.** Camera frames (max 2) and human photos are sent as `image_url` content blocks in the user message. Job thumbnail sent in the system message.
+- **Text only — no images.** Main LLM (GPT 5.4) receives only text. Vision is preprocessed by Gemini Flash Lite sensor (`read_vision_analysis`) which publishes structured `vision.*` scores to the whiteboard. The agent reads these as text like any other sensor data.
+- **Cached prefix / dynamic suffix.** System message contains static knowledge (SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md, instruction) — marked with `cache_control: ephemeral` for 90% cost reduction. User message contains dynamic per-cycle data (vision status, phase banner, whiteboard state, episode, timestamp).
 
 ### Data directory separation
 - **Generated files in WALLEE_DATA_DIR.** JOB_CONTEXT.md, OBSERVATIONS.md, job_thumbnail.png, ledger.db, diary DBs, and outbox all live in the configured data directory (default `/var/lib/wallee`), not in the source tree's `knowledge/` directory.

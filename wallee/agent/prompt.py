@@ -1,13 +1,15 @@
 """Builds the system prompt (cached) and user message (dynamic) for each agent cycle.
 
-Architecture: two-part message array for optimal prompt caching.
+Architecture: two-part message array for optimal prompt caching. Text only — no images.
+Vision is handled by the Gemini Flash Lite sensor; the main LLM reads structured
+vision.* keys from the whiteboard.
 
 CACHED PREFIX (system message — static within a job):
-  SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md + thumbnail
+  SOUL.md, LEARNED.md, OBSERVATIONS.md, tool list, JOB_CONTEXT.md
 
 DYNAMIC SUFFIX (user message — changes every cycle):
-  Phase banner, pending callout, external changes, whiteboard state,
-  episode, camera frames (vision), final instruction
+  Pending callout, phase banner, vision status, external changes,
+  whiteboard state, human intent, episode, timestamp
 """
 
 import json
@@ -132,6 +134,13 @@ def build_user_message(
     time_in_phase = state.get("job.time_in_phase_s", 0)
     sections.append(f"=== PHASE: {phase} ({detail}) — {time_in_phase}s ===")
 
+    # 1b. Vision analysis (from Gemini Flash Lite sensor)
+    vision_status = state.get("vision.status", "NO_DATA")
+    vision_desc = state.get("vision.description", "")
+    vision_conf = state.get("vision.confidence", "")
+    if vision_status != "NO_DATA":
+        sections.append(f"=== VISION: {vision_status} (conf: {vision_conf}) — {vision_desc} ===")
+
     # 2. External changes
     if external_changes:
         lines = ["!!! EXTERNAL CHANGES (not caused by Wallee) !!!"]
@@ -201,88 +210,26 @@ def build_messages(
     knowledge_dir: Path | None = None,
     data_dir: Path | None = None,
 ) -> list[dict]:
-    """Build the full messages list for the LLM, including vision content.
+    """Build the full messages list for the LLM — text only, no images.
+
+    Vision is handled by the Gemini Flash Lite sensor (vision_analysis.py).
+    The main LLM reads structured vision.* keys from the whiteboard instead
+    of interpreting raw camera frames directly. This makes calls faster and cheaper.
 
     Args:
         system_prompt: Cached system message from build_system_prompt().
         user_text: Dynamic user message from build_user_message().
-        state: Whiteboard snapshot (for camera frame keys).
-        knowledge_dir: Path to knowledge/ dir (legacy fallback for thumbnail).
-        data_dir: Path to data directory (preferred for thumbnail).
+        state: Whiteboard snapshot (unused for images, kept for signature compat).
+        knowledge_dir: Path to knowledge/ dir (unused, kept for signature compat).
+        data_dir: Path to data directory (unused, kept for signature compat).
 
     Returns:
         List of message dicts for the LLM client.
     """
-    # System message — may include job thumbnail as vision block
-    system_content = [{"type": "text", "text": system_prompt}]
-
-    # Job thumbnail — check data_dir first, then knowledge_dir
-    thumb_dir = data_dir or knowledge_dir
-    if thumb_dir:
-        thumb_path = thumb_dir / "job_thumbnail.png"
-        if thumb_path.exists():
-            try:
-                import base64
-                thumb_data = base64.b64encode(thumb_path.read_bytes()).decode("ascii")
-                system_content.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{thumb_data}"},
-                })
-                system_content.append({
-                    "type": "text",
-                    "text": "Above: the model being printed in this job.",
-                })
-            except Exception:
-                pass
-
-    if len(system_content) > 1:
-        messages = [{"role": "system", "content": system_content}]
-    else:
-        messages = [{"role": "system", "content": system_prompt}]
-
-    # User message — dynamic text + live camera frames + human photo
-    user_content = []
-
-    # Camera frames — max 2, priority: nozzle > buddy1 > buddy2
-    camera_sources = [
-        ("camera.nozzle_frame", "Live camera: Nozzle (close-up of print head and surface)"),
-        ("camera.buddy1_frame", "Live camera: Buddy 1 (wide-angle enclosure view)"),
-        ("camera.buddy2_frame", "Live camera: Buddy 2 (wide-angle enclosure view)"),
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_text},
     ]
-    cameras_included = 0
-    for cam_key, cam_label in camera_sources:
-        if cameras_included >= 2:
-            break
-        frame = state.get(cam_key)
-        if frame and isinstance(frame, str):
-            user_content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{frame}"},
-            })
-            user_content.append({"type": "text", "text": cam_label})
-            cameras_included += 1
-
-    # Human photo
-    human_image = state.get("human.image")
-    if human_image and isinstance(human_image, str):
-        user_content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{human_image}"},
-        })
-        user_content.append({
-            "type": "text",
-            "text": "Operator sent this image via Telegram. Analyze in context.",
-        })
-
-    # Dynamic text goes last
-    user_content.append({"type": "text", "text": user_text})
-
-    if len(user_content) > 1:
-        messages.append({"role": "user", "content": user_content})
-    else:
-        messages.append({"role": "user", "content": user_text})
-
-    return messages
 
 
 # ── BACKWARD COMPAT ─────────────────────────────────────────────────

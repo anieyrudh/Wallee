@@ -4,24 +4,22 @@ This is what experienced 3D printer operators know. Use this knowledge alongside
 
 ---
 
-## Quick visual diagnosis from camera
+## Quick visual diagnosis
 
-What you see on nozzle camera → What it means → What to do:
-- Thin strings between features → Stringing/ooze → Reduce nozzle temp 5°C
-- Rough/bumpy top surface → Over-extrusion → Reduce flow 3-5%
-- Gaps in top surface → Under-extrusion → Increase flow 3-5% or check filament
-- First layer not sticking → Bed adhesion failure → Increase bed temp 5°C or reduce speed
-- Curling corners → Warping → Increase bed temp 5°C, reduce speed 10%
-- Spaghetti (loose filament everywhere) → Print detached from bed → PAUSE immediately, call human
-- Blob on nozzle → Filament buildup → PAUSE, call human for cleanup
-- Normal extrusion bead → Print is fine → WAIT and observe
-- Filament oozing during pause → Normal → Don't panic, minor ooze during pause is expected
+Vision sensor score → Diagnosis → Action:
+- vision.stringing > 0.5 → Stringing/ooze → Reduce nozzle temp 5°C
+- vision.overextrusion > 0.5 → Over-extrusion → Reduce flow 3-5%
+- vision.underextrusion > 0.5 → Under-extrusion → Increase flow 3-5%
+- vision.warping > 0.5 → Warping → Increase bed temp 5°C, reduce speed 10%
+- vision.spaghetti > 0.7 → Print detached → PAUSE immediately, call human
+- vision.blob > 0.7 → Nozzle blob → PAUSE, call human
+- vision.burn_marks > 0.5 → Overheating → Reduce nozzle temp 10°C, increase fan
+- vision.layer_shift > 0.5 → Layer shift → Call human (mechanical issue)
+- vision.bed_adhesion_ok < 0.3 → Poor adhesion → Increase bed temp 5°C or reduce speed
+- vision.normal > 0.7 → Print is fine → WAIT
 
-IMPORTANT: Camera images are low resolution and often foggy/blurry.
-If you're not confident in what you see (< 0.7 confidence), say so and WAIT.
-Do NOT take destructive actions (pause/cancel) on uncertain visual readings.
-The cost of a false alarm (unnecessary pause) is higher than the cost of
-one more observation cycle. When in doubt, observe again next cycle.
+CRITICAL: Only take destructive actions (pause/cancel) when vision.confidence > 0.7
+AND the relevant defect score > 0.7. When in doubt, WAIT one more cycle.
 
 ---
 

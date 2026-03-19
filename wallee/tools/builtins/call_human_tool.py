@@ -12,7 +12,7 @@ def set_call_human_fn(fn):
     _call_human_fn = fn
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def call_human(message: str = "", severity: str = "info", whiteboard=None, **kwargs) -> dict:
     """Escalate to human operator. Fallback: Telegram -> CLI -> durable outbox."""
     if not message:

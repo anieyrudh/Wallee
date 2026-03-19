@@ -9,18 +9,27 @@ Hardware: Raspberry Pi 5 (8GB), Prusa Core One+, 3DO nozzle camera, Buddy WiFi c
 ## Architecture (read this first)
 
 ```
-LLM (OpenRouter, GPT 5.4)
-        ↓ proposes (JSON)
+Nozzle Camera ─→ Vision Sensor (Gemini Flash Lite, every 10s)
+                         ↓ publishes vision.* scores
+LLM (OpenRouter, GPT 5.4, strict JSON, max_tokens=512)
+        ↓ proposes (JSON, text only — no images)
 Agent Loop (thread) ─── reads ──→ Whiteboard (Redis, ~80 live keys)
+  ├─ stale decision check (discard if state changed during LLM call)
+  ├─ post-rejection cooldown (3 min)
+  ├─ oscillation detector (A-B-A → forced WAIT)
+  └─ auto-start from print queue (when bed cooled)
         ↓ writes proposal
 Ledger (SQLite WAL)
         ↓ polls
-Engine (thread) ── 6 gates ──→ Tool executes on hardware
+Engine (thread) ── 6 gates (or gate_bypass for builtins) ──→ Tool executes
         ↑ independent
 Safety Kernel (thread) ── heartbeats + overcurrent + ESTOP
 ```
 
+**Main LLM receives text only, no images.** Vision handled by separate Gemini Flash Lite sensor (`read_vision_analysis`, every 10s). Publishes structured defect scores (`vision.*` keys) to the whiteboard.
+
 **Gate sequence:** ESTOP → Queue guard → Deadline → Approval → TOCTOU precheck → Dispatch
+**Gate bypass:** Non-hardware builtins (remember, web_search, call_human, discover, trends, differential, sensor_history) skip all gates except ESTOP.
 
 **ESTOP bypasses the engine entirely.** Sends M25 directly to printer via `wallee/safety/estop.py`. Telegram, CLI, and safety kernel all use this shared helper.
 
@@ -87,7 +96,7 @@ wallee/
 │   ├── prusa_link/          # HTTP API: printer state, temps, job, files + actuators
 │   ├── prusa_metrics/       # UDP: 62 InfluxDB metrics at 50pkt/s
 │   ├── prusa_serial/        # USB serial: endstops, diagnostic G-code
-│   └── pi_cameras/          # Nozzle cam (ustreamer), buddy cams (RTSP auto-discovery)
+│   └── pi_cameras/          # Nozzle cam, buddy cams, vision analysis (Gemini Flash Lite)
 ├── human/
 │   ├── telegram.py          # Telegram bot: commands, approvals, intents, ESTOP
 │   ├── cli.py               # CLI REPL: intents, approvals, ESTOP
@@ -133,6 +142,7 @@ wallee/
 | read_print_state | prusa_metrics | 0.3 | printer.is_printing, print_filename, heater_enabled, pwm_* |
 | read_nozzle_camera | pi_cameras | 1.0 | camera.nozzle_frame, nozzle_status |
 | read_buddy_cameras | pi_cameras | 0.1 | camera.buddy_count, buddy{n}_status, buddy{n}_frame |
+| read_vision_analysis | pi_cameras | 0.1 | vision.* (defect scores, status, description, confidence) |
 
 ### Actuators (on-demand, go through engine gates)
 
@@ -152,17 +162,17 @@ wallee/
 | retract | prusa_link | Yes | length_mm |
 | read_endstops | prusa_serial | No | (none) |
 | send_gcode | prusa_serial | No | gcode (allowlisted) |
-| call_human | builtin | No | message |
-| discover_hardware | builtin | No | (none) |
-| remember | builtin | No | observation |
-| web_search | builtin | No | query |
-| trends | builtin | No | key |
-| differential | builtin | No | key |
-| get_sensor_history | builtin | No | key |
+| call_human | builtin | No (gate_bypass) | message |
+| discover_hardware | builtin | No (gate_bypass) | (none) |
+| remember | builtin | No (gate_bypass) | observation |
+| web_search | builtin | No (gate_bypass) | query |
+| trends | builtin | No (gate_bypass) | key |
+| differential | builtin | No (gate_bypass) | key |
+| get_sensor_history | builtin | No (gate_bypass) | key |
 
-All actuators have `requires_approval=False`.
+All actuators have `requires_approval=False`. Builtins marked `gate_bypass` skip engine gates (except ESTOP).
 
-## Prompt structure (caching)
+## Prompt structure (caching, text only)
 
 **System message (cached prefix — static within a job):**
 1. SOUL.md
@@ -170,16 +180,17 @@ All actuators have `requires_approval=False`.
 3. OBSERVATIONS.md (if exists)
 4. Tool list with parameter descriptions
 5. JOB_CONTEXT.md (if active job)
-6. Job thumbnail (if available) — "the model being printed"
-7. Static instruction: "Respond with JSON."
+6. Static instruction: "Respond with JSON."
 
 **User message (dynamic suffix — changes every cycle):**
 1. Pending callout status (FIRST — anti-hallucination)
 2. Phase banner: `PHASE: PRINTING (52%) — 340s`
-3. External changes (if any)
-4. Whiteboard sensor data (text, no images)
-5. Recent actions episode
-6. Live camera frames (vision blocks)
+3. Vision status: `VISION: NORMAL (conf: 0.85) — Clean extrusion bead`
+4. External changes (if any)
+5. Whiteboard sensor data (text, including vision.* scores)
+6. Recent actions episode
+
+No images are sent to the main LLM. Vision is preprocessed by Gemini Flash Lite.
 
 ## LLM output schema
 
@@ -197,7 +208,16 @@ All actuators have `requires_approval=False`.
 }
 ```
 
-Validation + self-healing retry: if malformed, client retries once with error as correction. If retry also fails, returns safe WAIT. ACTION_CHAIN max: 5 steps. Failed step → remaining steps SKIPPED.
+GPT 5.4 with `strict: true` JSON schema — model can only emit valid tokens. max_tokens=512. Validation + self-healing retry: if malformed, client retries once with error as correction. If retry also fails, returns safe WAIT. ACTION_CHAIN max: 5 steps. Failed step → remaining steps SKIPPED.
+
+## Stabilization guards
+
+- **Stale decision check:** Before routing, compare whiteboard state (intent, printer.state, pending callout) from before/after LLM call. If anything changed during inference, discard decision and re-run cycle.
+- **Post-rejection cooldown:** When a human rejects an action, the tool is suppressed for 3 minutes. Agent proposes the same tool → converted to WAIT.
+- **Oscillation detector:** Tracks last 3 decision type+tool pairs. A-B-A pattern (flip-flop) → forced 60s WAIT.
+- **Post-print feedback:** On FINISHED, Telegram asks "great/ok/failed". Response recorded in OBSERVATIONS.md.
+- **Print queue:** `/queue` in Telegram. Auto-starts next file when IDLE + bed < 35°C.
+- **Human TTLs:** Intent, urgent, image TTLs halved to 300s. ESTOP stays at 600s.
 
 ## Configuration
 

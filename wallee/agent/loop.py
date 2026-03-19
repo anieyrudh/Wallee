@@ -307,6 +307,21 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Failed to archive job context: {e}")
 
+        # Request feedback via Telegram
+        if self.call_human_fn:
+            try:
+                self.call_human_fn(
+                    f"Print complete: {filename}. How did it turn out? Reply: great, ok, or failed",
+                    "info",
+                )
+                self.wb.publish("agent.awaiting_feedback", json.dumps({
+                    "filename": filename,
+                    "completed_at": time.time(),
+                }), ttl=3600)  # Wait up to 1 hour for feedback
+                logger.info(f"Requested print feedback for {filename}")
+            except Exception as e:
+                logger.error(f"Failed to request print feedback: {e}")
+
         # Clean up
         try:
             ctx_path.unlink(missing_ok=True)
@@ -599,6 +614,46 @@ class AgentLoop:
             intent = None
         else:
             intent = raw_intent
+
+        # 4b. Process print feedback (great/ok/failed) if awaiting
+        intent_text = (raw_intent or "").lower().strip()
+        awaiting = self.wb.read("agent.awaiting_feedback")
+        if awaiting and intent_text in ("great", "ok", "failed"):
+            try:
+                data = json.loads(awaiting) if isinstance(awaiting, str) else awaiting
+                feedback_filename = data.get("filename", "unknown")
+                from wallee.tools.builtins.remember import remember
+                remember(observation=f"Print feedback: {feedback_filename} rated '{intent_text}' by human")
+                self.wb.r.delete("agent.awaiting_feedback")
+                self._last_responded_intent = raw_intent
+                logger.info(f"Recorded print feedback: {feedback_filename} = {intent_text}")
+            except Exception as e:
+                logger.error(f"Failed to process print feedback: {e}")
+
+        # 4c. Auto-start next queued print if IDLE + queue non-empty + bed cooled
+        current_phase = state.get("job.phase", "IDLE")
+        if current_phase == "IDLE":
+            queue_raw = self.wb.read("print.queue")
+            bed_temp = float(state.get("printer.temp_bed") or 100)
+            if queue_raw and bed_temp < 35:
+                try:
+                    items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
+                    if items and isinstance(items, list):
+                        next_file = items.pop(0)
+                        self.wb.publish("print.queue", json.dumps(items), ttl=86400)
+                        logger.info(f"Auto-starting next queued print: {next_file}")
+                        decision = Decision(
+                            type="ACTION",
+                            tool="start_print",
+                            params={"path": next_file},
+                            observation=f"Queue has {len(items) + 1} prints, bed cooled to {bed_temp:.0f}C",
+                            reasoning=f"Auto-starting next queued print: {next_file}",
+                        )
+                        self._route_decision(decision, state)
+                        self._set_next_cycle_delay(decision)
+                        return '{"type": "ACTION", "observation": "auto-start from queue"}'
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    logger.error(f"Failed to process print queue: {e}")
 
         # 5. Detect external changes
         external_changes = self._change_detector.detect(state, episode)

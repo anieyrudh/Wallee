@@ -118,6 +118,7 @@ class TelegramBot:
         self._app.add_handler(_telegram_ext.CommandHandler("approve", self._cmd_approve))
         self._app.add_handler(_telegram_ext.CommandHandler("reject", self._cmd_reject))
         self._app.add_handler(_telegram_ext.CommandHandler("help", self._cmd_help))
+        self._app.add_handler(_telegram_ext.CommandHandler("queue", self._cmd_queue))
         self._app.add_handler(_telegram_ext.CallbackQueryHandler(self._callback_handler))
         self._app.add_handler(_telegram_ext.MessageHandler(
             _telegram_ext.filters.PHOTO,
@@ -269,6 +270,7 @@ class TelegramBot:
             _telegram.BotCommand("estop", "Emergency stop"),
             _telegram.BotCommand("approve", "Approve pending action"),
             _telegram.BotCommand("reject", "Reject pending action"),
+            _telegram.BotCommand("queue", "Manage print queue"),
             _telegram.BotCommand("help", "Show all commands"),
         ]
         await self._app.bot.set_my_commands(commands)
@@ -311,6 +313,7 @@ class TelegramBot:
             "Commands:\n"
             "/status — Printer state, temps, safety\n"
             "/snapshot — Camera photos (nozzle + buddy)\n"
+            "/queue — View/add to print queue\n"
             "/urgent — Flag next cycle as urgent\n"
             "/estop — Emergency stop\n"
             "/approve <id> — Approve a pending action\n"
@@ -412,6 +415,42 @@ class TelegramBot:
         await update.message.reply_text(
             "🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."
         )
+
+    async def _cmd_queue(self, update, context):
+        """Manage print queue. Usage: /queue [file1.bgcode file2.bgcode ...]"""
+        if not await self._ensure_authorized(update):
+            return
+
+        if not self.wb:
+            await update.message.reply_text("Whiteboard not connected")
+            return
+
+        args = context.args
+        if not args:
+            # Show current queue
+            queue_raw = self.wb.read("print.queue") or "[]"
+            try:
+                items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
+            except (json.JSONDecodeError, TypeError):
+                items = []
+            if items:
+                text = "Print queue:\n" + "\n".join(f"{i+1}. {f}" for i, f in enumerate(items))
+            else:
+                text = "Queue is empty. Usage: /queue file1.bgcode file2.bgcode"
+            await update.message.reply_text(text)
+            return
+
+        # Add files to queue
+        queue_raw = self.wb.read("print.queue") or "[]"
+        try:
+            items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
+        except (json.JSONDecodeError, TypeError):
+            items = []
+        items.extend(args)
+        self.wb.publish("print.queue", json.dumps(items), ttl=86400)  # 24h TTL
+        await update.message.reply_text(f"Added {len(args)} file(s). Queue: {len(items)} total.")
+        if self._wake_agent:
+            self._wake_agent()
 
     async def _cmd_snapshot(self, update, context):
         if not await self._ensure_authorized(update):

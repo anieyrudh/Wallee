@@ -38,7 +38,7 @@ DECISION_SCHEMA = {
             "params": {"type": ["object", "null"], "description": "Tool params for ACTION"},
             "actions": {
                 "type": ["array", "null"],
-                "description": "Action steps for ACTION_CHAIN",
+                "description": "Steps for ACTION_CHAIN (max 5)",
                 "items": {
                     "type": "object",
                     "required": ["tool", "params", "reasoning"],
@@ -150,7 +150,7 @@ class LLMClient:
             },
             "plugins": [{"id": "response-healing"}],
             "stream": False,
-            "max_tokens": 2048,
+            "max_tokens": 512,
         }
 
         raw_content = self._send_request(payload)

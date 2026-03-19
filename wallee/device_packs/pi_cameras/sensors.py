@@ -278,3 +278,7 @@ def read_buddy_cameras() -> dict:
         result[f"camera.buddy{i+1}_status"] = "offline"
 
     return result
+
+
+# Re-export vision analysis sensor so the registry discovers it via this module
+from wallee.device_packs.pi_cameras.vision_analysis import read_vision_analysis  # noqa: F401

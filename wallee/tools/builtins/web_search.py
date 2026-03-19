@@ -20,7 +20,7 @@ def configure_web_search(api_key: str, model: str):
     _model = model
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
     """Search the web for 3D printing troubleshooting, datasheets, or technical info.
 

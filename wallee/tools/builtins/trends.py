@@ -4,7 +4,7 @@ from wallee.tools.decorator import tool
 from wallee.whiteboard.client import compute_trend
 
 
-@tool(kind="actuator", requires_approval=False)
+@tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def trends(key: str = "", whiteboard=None, **kwargs) -> dict:
     """Trend analysis for a whiteboard key: rising/falling/stable + magnitude."""
     if not key:

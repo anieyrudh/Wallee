@@ -84,6 +84,22 @@ class Engine:
 
         params = __import__("json").loads(proposal["params_json"])
 
+        # Gate bypass — non-hardware tools skip all gates (except ESTOP above)
+        if tool.meta.get("gate_bypass"):
+            logger.debug(f"Gate bypass: {tool_name}")
+            self.ledger.set_status(action_id, "DISPATCHED")
+            try:
+                result = tool.execute(whiteboard=self.wb, **params)
+                if isinstance(result, dict) and "error" in result:
+                    self.ledger.set_status(action_id, "FAILED", error=result)
+                    return "FAILED"
+                self.ledger.set_status(action_id, "DONE", result=result)
+                return "DONE"
+            except Exception as e:
+                error = {"error": str(e)}
+                self.ledger.set_status(action_id, "FAILED", error=error)
+                return "FAILED"
+
         # Chain predecessor check — if this action is part of a chain,
         # ensure all predecessors completed successfully
         chain_id = proposal.get("chain_id")
