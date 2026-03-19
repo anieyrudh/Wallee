@@ -1,7 +1,6 @@
 """Built-in tool: web search via OpenRouter with Exa plugin."""
 
 import logging
-import os
 
 import httpx
 
@@ -10,6 +9,15 @@ from wallee.tools.decorator import tool
 logger = logging.getLogger(__name__)
 
 _MAX_RESULT_CHARS = 2000
+_api_key = ""
+_model = "google/gemini-3.1-pro-preview"
+
+
+def configure_web_search(api_key: str, model: str):
+    """Set API key and model at boot from central config."""
+    global _api_key, _model
+    _api_key = api_key
+    _model = model
 
 
 @tool(kind="actuator", requires_approval=False)
@@ -22,14 +30,11 @@ def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
     if not query:
         return {"error": "query parameter required"}
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
+    if not _api_key:
         return {"error": "OPENROUTER_API_KEY not configured"}
 
-    model = os.environ.get("OPENROUTER_MODEL", "google/gemini-3.1-pro-preview")
-
     payload = {
-        "model": model,
+        "model": _model,
         "messages": [
             {"role": "user", "content": f"Search the web and answer concisely: {query}"},
         ],
@@ -44,7 +49,7 @@ def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
         response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {_api_key}",
                 "Content-Type": "application/json",
             },
             json=payload,

@@ -117,15 +117,18 @@ class TestWebSearch:
         result = web_search(query="")
         assert "error" in result
 
-    @patch.dict("os.environ", {"OPENROUTER_API_KEY": ""})
     def test_no_api_key(self):
+        from wallee.tools.builtins.web_search import configure_web_search
+        configure_web_search("", "model")
         result = web_search(query="test query")
         assert "error" in result
         assert "not configured" in result["error"]
 
     @patch("wallee.tools.builtins.web_search.httpx.post")
-    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_successful_search(self, mock_post):
+        from wallee.tools.builtins.web_search import configure_web_search
+        configure_web_search("test-key", "test-model")
+
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {

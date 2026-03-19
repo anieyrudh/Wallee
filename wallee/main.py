@@ -28,6 +28,7 @@ from wallee.agent.llm_client import LLMClient
 from wallee.agent.loop import AgentLoop
 from wallee.agent.parser import configure_check_intervals
 from wallee.tools.builtins.remember import configure_observations_dir
+from wallee.tools.builtins.web_search import configure_web_search
 from wallee.human.call_human import call_human
 from wallee.human.cli import CLI
 from wallee.ui.dashboard import DashboardServer
@@ -59,6 +60,7 @@ def main():
         cfg.agent_default_check_interval_s,
     )
     configure_observations_dir(cfg.data_dir)
+    configure_web_search(cfg.openrouter_api_key, cfg.openrouter_model)
 
     # Ensure data directory exists (fall back to local dir if system dir not writable)
     try:
