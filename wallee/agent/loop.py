@@ -486,25 +486,33 @@ class AgentLoop:
         return decision
 
     def _check_oscillation(self, decision) -> "Decision":
-        """Detect A-B-A flip-flop pattern: would adding this decision create oscillation?
+        """Detect ACTION flip-flop: ACTION:X → ACTION:Y → ACTION:X.
 
-        Checks current candidate against the last 2 decisions (deque maxlen=2).
-        If pattern is A → B → A (current matches two-ago, differs from last), force WAIT.
+        WAIT in the middle is NOT oscillation — it's the healthy observe-act-observe
+        pattern. Only flag when three consecutive ACTION decisions flip-flop between
+        two different tools (e.g., pause → resume → pause).
         """
         current_key = decision.type + ":" + getattr(decision, "tool", "")
-        if len(self._recent_decisions) >= 2:
-            prev = list(self._recent_decisions)
-            # A-B-A: current == prev[0] (two-ago) and current != prev[1] (last)
-            if prev[0] == current_key and prev[0] != prev[1]:
-                logger.warning(f"Oscillation detected: {prev[0]} -> {prev[1]} -> {current_key}. Forcing extended WAIT.")
-                self._recent_decisions.clear()
-                return Decision(
-                    type="WAIT",
-                    observation=decision.observation,
-                    reasoning="Oscillation detected — conflicting decisions in last 3 cycles. Stepping back to observe.",
-                    check_after_s=60,
-                )
-        self._recent_decisions.append(current_key)
+
+        if decision.type in ("ACTION", "ACTION_CHAIN"):
+            if len(self._recent_decisions) >= 2:
+                prev = list(self._recent_decisions)
+                # A-B-A: current == prev[0] and current != prev[1]
+                # But only if the middle entry is also an ACTION (WAIT never triggers oscillation)
+                if prev[0] == current_key and prev[0] != prev[1] and not prev[1].startswith("WAIT:"):
+                    logger.warning(f"Oscillation detected: {prev[0]} -> {prev[1]} -> {current_key}. Forcing extended WAIT.")
+                    self._recent_decisions.clear()
+                    return Decision(
+                        type="WAIT",
+                        observation=decision.observation,
+                        reasoning="Oscillation detected — conflicting actions in last 3 cycles. Stepping back to observe.",
+                        check_after_s=60,
+                    )
+            self._recent_decisions.append(current_key)
+        else:
+            # Track WAITs but they never trigger oscillation — WAIT is the healthy default
+            self._recent_decisions.append("WAIT:")
+
         return decision
 
     # ── Decision routing ────────────────────────────────────────────
