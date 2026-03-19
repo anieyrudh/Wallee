@@ -17,6 +17,8 @@ _RETRYABLE = (
 
 MAX_RETRIES = 3
 RETRY_BACKOFF_S = 2.0
+_FALLBACK_WAIT = ('{"type": "WAIT", "observation": "LLM response error", '
+                  '"reasoning": "Upstream failure, defaulting to WAIT", "check_after_s": 30}')
 
 # Structured output schema for agent decisions
 DECISION_SCHEMA = {
@@ -109,7 +111,7 @@ class LLMClient:
                 if content is None:
                     finish = choices[0].get("finish_reason", "")
                     logger.warning(f"LLM returned null content (finish_reason={finish})")
-                    return ""
+                    return _FALLBACK_WAIT
                 return content
 
             except _RETRYABLE as e:
@@ -118,14 +120,14 @@ class LLMClient:
                     time.sleep(RETRY_BACKOFF_S * attempt)
                     continue
                 logger.error(f"LLM call failed after {MAX_RETRIES} retries: {e}")
-                return ""
+                return _FALLBACK_WAIT
 
             except httpx.HTTPStatusError as e:
                 logger.error(f"LLM HTTP {e.response.status_code}: {e.response.text[:200]}")
-                return ""
+                return _FALLBACK_WAIT
 
             except Exception as e:
                 logger.error(f"LLM call unexpected error: {e}")
-                return ""
+                return _FALLBACK_WAIT
 
-        return ""
+        return _FALLBACK_WAIT

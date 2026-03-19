@@ -127,7 +127,7 @@ class TestRetryLogic:
                     side_effect=httpx.ConnectError("DNS failed")):
             result = client.call("prompt")
 
-        assert result == ""
+        assert '"type": "WAIT"' in result
         assert mock_sleep.call_count == MAX_RETRIES - 1
 
     def test_no_retry_on_http_4xx(self, client):
@@ -139,7 +139,7 @@ class TestRetryLogic:
         with patch("wallee.agent.llm_client.httpx.post", side_effect=error) as mock_post:
             result = client.call("prompt")
 
-        assert result == ""
+        assert '"type": "WAIT"' in result
         assert mock_post.call_count == 1
 
     def test_no_retry_on_http_5xx(self, client):
@@ -151,7 +151,7 @@ class TestRetryLogic:
         with patch("wallee.agent.llm_client.httpx.post", side_effect=error) as mock_post:
             result = client.call("prompt")
 
-        assert result == ""
+        assert '"type": "WAIT"' in result
         assert mock_post.call_count == 1
 
     @patch("wallee.agent.llm_client.time.sleep")
