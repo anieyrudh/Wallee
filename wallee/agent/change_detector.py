@@ -16,7 +16,8 @@ TRACKED_KEYS = {
     "printer.target_chamber": "set_temperature",
     "printer.speed": "set_speed_factor",
     "printer.flow": "set_flow_factor",
-    "printer.job_progress": None,  # Watch for unexpected jumps/resets
+    # Excluded: job_progress, pos_x/y/z, time_printing/remaining — these are
+    # continuously incrementing values, not discrete state changes.
 }
 
 

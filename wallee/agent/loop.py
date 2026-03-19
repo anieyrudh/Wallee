@@ -549,8 +549,10 @@ class AgentLoop:
                                   knowledge_dir=self.knowledge_dir,
                                   data_dir=self.data_dir)
 
-        # 10. Call LLM
-        raw_response = self.llm.call(system_prompt, messages=messages)
+        # 10. Call LLM (pass available tool names for output validation)
+        tool_names = [t["name"] for t in self.tools.list_for_llm()]
+        raw_response = self.llm.call(system_prompt, messages=messages,
+                                     available_tools=tool_names)
 
         # 11. Parse (use job.phase for interval clamping, fallback to printer.state)
         phase = state.get("job.phase", state.get("printer.state"))

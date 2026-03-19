@@ -201,7 +201,9 @@ def main():
                            telegram_fn=None)  # don't recurse
             agent.call_human_fn = _telegram_call_human
             safety.call_human_fn = _telegram_call_human
-            logger.info("Telegram bot started and wired to agent + safety kernel")
+            from wallee.tools.builtins.call_human_tool import set_call_human_fn
+            set_call_human_fn(_telegram_call_human)
+            logger.info("Telegram bot started and wired to agent + safety kernel + call_human tool")
         except Exception as e:
             logger.warning(f"Telegram bot failed to start: {e}")
     else:

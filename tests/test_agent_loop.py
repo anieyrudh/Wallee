@@ -282,7 +282,7 @@ class TestRunLoop:
     def test_loop_survives_llm_error(self, agent, mock_llm):
         call_count = 0
 
-        def flaky_call(prompt, messages=None):
+        def flaky_call(prompt, messages=None, available_tools=None):
             nonlocal call_count
             call_count += 1
             if call_count == 1:

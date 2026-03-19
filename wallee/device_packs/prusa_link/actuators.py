@@ -62,7 +62,10 @@ def _precheck_start_print(whiteboard=None, file_path: str = "", **kwargs) -> dic
     return _ok()
 
 
-def _precheck_set_temperature(whiteboard=None, target: float = 0, heater: str = "nozzle", **kwargs) -> dict:
+def _precheck_set_temperature(whiteboard=None, target=None, heater: str = "nozzle", **kwargs) -> dict:
+    if target is None:
+        return {"error": "target temperature is required"}
+    target = float(target)
     gcode_map = {"nozzle": "M104", "bed": "M140", "chamber": "M141"}
     if heater not in gcode_map:
         return {"error": f"Unknown heater: {heater}. Must be 'nozzle', 'bed', or 'chamber'"}
@@ -235,16 +238,20 @@ def start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_temperature)
-def set_temperature(whiteboard=None, target: float = 0, heater: str = "nozzle", **kwargs) -> dict:
+def set_temperature(whiteboard=None, target=None, heater: str = "nozzle", **kwargs) -> dict:
     """Set target temperature via POST /api/v1/gcode. Fire-and-forget.
 
     Uses G-code injection: M104 (nozzle), M140 (bed), M141 (chamber).
     Confirmation comes from the metrics stream showing targets change.
 
     Args:
-        target: Target temperature in Celsius.
+        target: Target temperature in Celsius (required).
         heater: 'nozzle', 'bed', or 'chamber'.
     """
+    if target is None:
+        return {"error": "target temperature is required"}
+    target = float(target)
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}

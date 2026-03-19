@@ -167,7 +167,7 @@ class TestRetryLogic:
         import json
         data = json.loads(result)
         assert data["type"] == "WAIT"
-        assert "malformed" in data["observation"]
+        assert "error" in data["observation"].lower() or "malformed" in data["observation"].lower()
 
     @patch("wallee.agent.llm_client.time.sleep")
     def test_backoff_increases(self, mock_sleep, client):

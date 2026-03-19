@@ -157,7 +157,7 @@ def read_job_phase() -> dict:
     Publishes: job.phase, job.phase_detail, job.time_in_phase_s
 
     Phases: IDLE, PREPARING, PRINTING, PAUSED, FINISHED, ERROR
-    PREPARING = printer says PRINTING but temps not at target or z < 0.5mm or progress == 0
+    PREPARING = printer says PRINTING but progress == 0 (still purging/heating)
     """
     global _phase_state
 
@@ -193,9 +193,9 @@ def read_job_phase() -> dict:
         phase = "FINISHED"
     elif not has_job and state in ("IDLE", "READY"):
         phase = "IDLE"
-    elif has_job and (any_heating or progress == 0):
+    elif has_job and progress == 0:
         phase = "PREPARING"
-    elif has_job and temp_ok(temp_nozzle, target_nozzle) and temp_ok(temp_bed, target_bed):
+    elif has_job:
         phase = "PRINTING"
     else:
         phase = "IDLE"

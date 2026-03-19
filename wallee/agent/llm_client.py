@@ -1,5 +1,6 @@
 """OpenRouter LLM client — stateless, one call per agent cycle."""
 
+import json
 import logging
 import time
 
@@ -17,6 +18,7 @@ _RETRYABLE = (
 
 MAX_RETRIES = 3
 RETRY_BACKOFF_S = 2.0
+MAX_VALIDATION_RETRIES = 1  # One retry only — don't burn tokens
 _FALLBACK_WAIT = ('{"type": "WAIT", "observation": "LLM response error", '
                   '"reasoning": "Upstream failure, defaulting to WAIT", "check_after_s": 30}')
 
@@ -51,13 +53,64 @@ class LLMClient:
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
-    def call(self, prompt: str, messages: list | None = None) -> str:
+    def _validate_decision(self, raw_json: str, available_tools: list[str]) -> tuple[bool, str]:
+        """Validate LLM output structure. Returns (is_valid, error_message)."""
+        try:
+            data = json.loads(raw_json)
+        except json.JSONDecodeError as e:
+            # Try to extract JSON from surrounding text
+            start = raw_json.find('{')
+            end = raw_json.rfind('}')
+            if start >= 0 and end > start:
+                try:
+                    data = json.loads(raw_json[start:end + 1])
+                except json.JSONDecodeError:
+                    return False, f"Invalid JSON: {e}"
+            else:
+                return False, "No JSON found in response"
+
+        dtype = data.get("type")
+        if dtype not in ("ACTION", "ACTION_CHAIN", "WAIT", "CALL_HUMAN"):
+            return False, f"Invalid type: {dtype}"
+
+        if not data.get("observation"):
+            return False, "Missing observation"
+        if not data.get("reasoning"):
+            return False, "Missing reasoning"
+
+        if dtype == "ACTION":
+            tool = data.get("tool")
+            if not tool:
+                return False, "ACTION missing tool field"
+            if available_tools and tool not in available_tools:
+                return False, f"Unknown tool '{tool}'. Available: {available_tools}"
+
+        if dtype == "ACTION_CHAIN":
+            actions = data.get("actions")
+            if not actions or not isinstance(actions, list):
+                return False, "ACTION_CHAIN missing actions array"
+            for i, action in enumerate(actions):
+                tool = action.get("tool")
+                if not tool:
+                    return False, f"Chain step {i} missing tool"
+                if available_tools and tool not in available_tools:
+                    return False, f"Chain step {i} unknown tool '{tool}'. Available: {available_tools}"
+
+        if dtype == "CALL_HUMAN":
+            if not data.get("message"):
+                return False, "CALL_HUMAN missing message"
+
+        return True, ""
+
+    def call(self, prompt: str, messages: list | None = None,
+             available_tools: list[str] | None = None) -> str:
         """Send prompt to LLM, return raw response text.
 
         Features enabled via OpenRouter:
         - Structured outputs (json_schema) — guarantees valid decision JSON
         - Response healing plugin — fixes malformed JSON automatically
         - Prompt caching — 90% discount on repeated system prompts
+        - Output validation with self-healing retry on malformed responses
         """
         if messages is None:
             messages = [
@@ -89,6 +142,35 @@ class LLMClient:
             "max_tokens": 2048,
         }
 
+        raw_content = self._send_request(payload)
+        if raw_content is None:
+            return _FALLBACK_WAIT
+
+        # Validate output and retry once if invalid
+        if available_tools is not None:
+            is_valid, error = self._validate_decision(raw_content, available_tools)
+            if not is_valid:
+                logger.warning(f"LLM output invalid: {error}. Retrying with correction.")
+                # Append correction and retry
+                messages = list(messages)  # don't mutate caller's list
+                messages.append({"role": "assistant", "content": raw_content})
+                messages.append({"role": "user", "content": (
+                    f"Your response was invalid: {error}. "
+                    "Please fix and respond with valid JSON only."
+                )})
+                payload["messages"] = messages
+                retry_content = self._send_request(payload)
+                if retry_content is not None:
+                    is_valid2, error2 = self._validate_decision(retry_content, available_tools)
+                    if is_valid2:
+                        return retry_content
+                    logger.warning(f"LLM retry also invalid: {error2}. Giving up.")
+                return raw_content  # return original — parser will downgrade to WAIT
+
+        return raw_content
+
+    def _send_request(self, payload: dict) -> str | None:
+        """Send HTTP request to OpenRouter. Returns content string or None on failure."""
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 response = httpx.post(
@@ -105,13 +187,12 @@ class LLMClient:
                 choices = data.get("choices")
                 if not choices or not isinstance(choices, list) or len(choices) == 0:
                     logger.warning(f"LLM response missing choices: {list(data.keys())}")
-                    return ('{"type": "WAIT", "observation": "LLM response malformed", '
-                            '"reasoning": "Defaulting to WAIT", "check_after_s": 30}')
+                    return None
                 content = choices[0]["message"].get("content")
                 if content is None:
                     finish = choices[0].get("finish_reason", "")
                     logger.warning(f"LLM returned null content (finish_reason={finish})")
-                    return _FALLBACK_WAIT
+                    return None
                 return content
 
             except _RETRYABLE as e:
@@ -120,14 +201,14 @@ class LLMClient:
                     time.sleep(RETRY_BACKOFF_S * attempt)
                     continue
                 logger.error(f"LLM call failed after {MAX_RETRIES} retries: {e}")
-                return _FALLBACK_WAIT
+                return None
 
             except httpx.HTTPStatusError as e:
                 logger.error(f"LLM HTTP {e.response.status_code}: {e.response.text[:200]}")
-                return _FALLBACK_WAIT
+                return None
 
             except Exception as e:
                 logger.error(f"LLM call unexpected error: {e}")
-                return _FALLBACK_WAIT
+                return None
 
-        return _FALLBACK_WAIT
+        return None
