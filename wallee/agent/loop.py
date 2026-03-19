@@ -773,11 +773,13 @@ class AgentLoop:
         self._route_decision(decision, state)
         self._set_next_cycle_delay(decision)
 
-        # 18. Mark intent as responded
-        if raw_intent and decision.type != "WAIT":
+        # 18. Consume human intent — delete from whiteboard after the agent has seen it
+        # The intent is already logged in human.intent_log for the dashboard, but the
+        # raw key must be cleared so it doesn't anchor future cycles' reasoning.
+        if raw_intent and raw_intent != self._last_responded_intent:
             self._last_responded_intent = raw_intent
-        elif raw_intent and "no active human intent" not in decision.reason.lower():
-            self._last_responded_intent = raw_intent
+            self.wb.r.delete("human.intent")
+            logger.info(f"Human intent consumed and cleared: {raw_intent[:50]}")
 
         return raw_response
 
