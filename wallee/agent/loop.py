@@ -63,6 +63,8 @@ class AgentLoop:
         self._recent_decisions: deque[str] = deque(maxlen=2)
         # Stale decision retry counter (max 3 discards before proceeding anyway)
         self._stale_retries: int = 0
+        # Track which rejection action_ids have already triggered cooldown
+        self._processed_rejections: set[str] = set()
 
     def wake(self):
         """Wake the agent from sleep immediately. Called by Telegram/CLI/sensors."""
@@ -407,30 +409,54 @@ class AgentLoop:
 
     # ── Stabilization guards ───────────────────────────────────────
 
+    # Engine rejection reasons — these are NOT human rejections
+    _ENGINE_REJECTION_PATTERNS = [
+        "toctou", "expired", "chain_skipped", "precheck", "is required",
+        "empty parameters", "outside bounds", "unknown tool", "outside safe range",
+    ]
+
+    def _is_human_rejection(self, reason: str) -> bool:
+        """Return True only if this rejection came from a human, not the engine."""
+        if not reason:
+            return False
+        reason_lower = reason.lower()
+        for pattern in self._ENGINE_REJECTION_PATTERNS:
+            if pattern in reason_lower:
+                return False
+        return True  # No engine pattern matched — assume human rejection
+
     def _scan_episode_for_rejections(self, episode: list[dict]):
-        """Scan recent episode for REJECTED actions and publish cooldown."""
+        """Scan episode for human-rejected actions and publish cooldown.
+
+        Only triggers cooldown for actual human rejections (via Telegram approve/reject),
+        NOT for engine rejections (TOCTOU, expired, precheck failures).
+        Each rejection is processed at most once (tracked by action_id).
+        """
         for entry in reversed(episode):
             status = str(entry.get("status", "")).upper()
-            if "REJECT" in status:
-                tool = entry.get("tool", "")
-                if not tool:
-                    continue
-                # Check if we already have an active cooldown for this tool
-                existing = self.wb.read("agent.cooldown")
-                if existing:
-                    try:
-                        data = json.loads(existing) if isinstance(existing, str) else existing
-                        if data.get("tool") == tool and time.time() < data.get("until", 0):
-                            return  # Already cooling down for this tool
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                self.wb.publish("agent.cooldown", json.dumps({
-                    "tool": tool,
-                    "until": time.time() + 180,  # 3 minute cooldown
-                    "reason": "Human rejected this action",
-                }), ttl=180)
-                logger.info(f"Cooldown published: {tool} rejected by human, suppressing for 180s")
-                return  # Only publish for the most recent rejection
+            if "REJECT" not in status:
+                continue
+            action_id = entry.get("action_id", "")
+            if not action_id or action_id in self._processed_rejections:
+                continue
+            self._processed_rejections.add(action_id)
+
+            tool = entry.get("tool", "")
+            reason = entry.get("reason", "") or entry.get("error_json", "")
+            if not tool:
+                continue
+
+            if not self._is_human_rejection(reason):
+                logger.debug(f"Engine rejection (not cooldown): {tool} — {reason}")
+                continue
+
+            self.wb.publish("agent.cooldown", json.dumps({
+                "tool": tool,
+                "until": time.time() + 180,
+                "reason": "Human rejected this action",
+            }), ttl=180)
+            logger.info(f"Cooldown published: {tool} rejected by human, suppressing for 180s")
+            return  # Only publish for the most recent human rejection
 
     def _check_cooldown(self, decision) -> "Decision":
         """If the proposed tool was recently rejected by a human, convert to WAIT."""

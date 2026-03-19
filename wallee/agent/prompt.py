@@ -178,7 +178,7 @@ def build_user_message(
     if intent:
         sections.append(f"=== HUMAN INTENT ===\n{intent}")
 
-    # 5. Episode context (recent actions)
+    # 5. Episode context (recent actions — rejections are prominent)
     sections.append("=== RECENT ACTIONS (this episode) ===")
     if episode:
         for action in episode:
@@ -187,13 +187,21 @@ def build_user_message(
             reason = _trim_text(action.get("reason", ""), MAX_PROMPT_REASON_CHARS)
             error = _summarize_payload(action.get("error_json", ""))
             result = _summarize_payload(action.get("result_json", ""))
-            line = f"  [{status}] {tool_name}"
-            if reason:
-                line += f" -- {reason}"
-            if error:
-                line += f" ERROR: {error}"
-            if result and status == "DONE":
-                line += f" -> {result}"
+            params = _summarize_payload(action.get("params_json", ""), MAX_PROMPT_STATE_JSON_CHARS)
+
+            if status == "REJECTED":
+                reject_reason = error or reason or "unknown"
+                line = f"  !! YOUR ACTION REJECTED: {tool_name}({params}) — REASON: {reject_reason}"
+            elif status == "FAILED":
+                line = f"  !! FAILED: {tool_name}({params}) — {error or reason}"
+            elif status == "DONE":
+                line = f"  OK: {tool_name}"
+                if result:
+                    line += f" -> {result}"
+            else:
+                line = f"  [{status}] {tool_name}"
+                if reason:
+                    line += f" -- {reason}"
             sections.append(line)
     else:
         sections.append("  (no actions yet this episode)")
