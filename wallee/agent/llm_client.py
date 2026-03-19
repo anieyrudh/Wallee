@@ -100,9 +100,14 @@ class LLMClient:
                 )
                 response.raise_for_status()
                 data = response.json()
-                content = data["choices"][0]["message"].get("content")
+                choices = data.get("choices")
+                if not choices or not isinstance(choices, list) or len(choices) == 0:
+                    logger.warning(f"LLM response missing choices: {list(data.keys())}")
+                    return ('{"type": "WAIT", "observation": "LLM response malformed", '
+                            '"reasoning": "Defaulting to WAIT", "check_after_s": 30}')
+                content = choices[0]["message"].get("content")
                 if content is None:
-                    finish = data["choices"][0].get("finish_reason", "")
+                    finish = choices[0].get("finish_reason", "")
                     logger.warning(f"LLM returned null content (finish_reason={finish})")
                     return ""
                 return content

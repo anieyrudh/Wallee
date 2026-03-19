@@ -44,7 +44,7 @@ class TestParseAction:
         raw = json.dumps({"type": "ACTION", "params": {}})
         d = parse_llm_output(raw)
         assert d.type == "WAIT"
-        assert "missing tool" in d.reason
+        assert "no tool" in d.reason
 
 
 class TestParseWait:

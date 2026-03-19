@@ -132,8 +132,12 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
     if decision_type == "ACTION":
         tool = data.get("tool", "")
         if not tool:
-            logger.warning("ACTION missing tool field")
-            return _default_wait("ACTION missing tool")
+            logger.warning("ACTION with no tool field, downgrading to WAIT")
+            return Decision(
+                type="WAIT", observation=observation,
+                reasoning="ACTION had no tool",
+                check_after_s=DEFAULT_CHECK_INTERVAL,
+            )
         return Decision(
             type="ACTION",
             observation=observation,
@@ -155,8 +159,12 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
     if decision_type == "ACTION_CHAIN":
         actions = data.get("actions", [])
         if not isinstance(actions, list) or len(actions) == 0:
-            logger.warning("ACTION_CHAIN missing or empty actions array")
-            return _default_wait("ACTION_CHAIN missing actions")
+            logger.warning("ACTION_CHAIN with no actions, downgrading to WAIT")
+            return Decision(
+                type="WAIT", observation=observation,
+                reasoning="ACTION_CHAIN had no actions",
+                check_after_s=DEFAULT_CHECK_INTERVAL,
+            )
         if len(actions) > MAX_CHAIN_LENGTH:
             logger.warning(f"ACTION_CHAIN has {len(actions)} actions, truncating to {MAX_CHAIN_LENGTH}")
             actions = actions[:MAX_CHAIN_LENGTH]
