@@ -66,7 +66,7 @@ Quick-start reference for developers and AI agents working on the Wallee codebas
 │  │  - agent/engine heartbeat   │  │  - CLI (REPL)                 │ │
 │  │  - overcurrent (oc_nozz,    │  │  - Telegram (async bot)       │ │
 │  │    oc_inp)                  │  │  - Dashboard (HTTP+WS 8081/2) │ │
-│  │  - ESTOP flag               │  │  - call_human fallback chain  │ │
+│  │  - ESTOP (sends M25 direct) │  │  - call_human fallback chain  │ │
 │  └─────────────────────────────┘  └──────────────────────────────┘ │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -94,7 +94,8 @@ wallee/
 │   ├── dispatch.py          # Engine — poll ledger, run 6-gate sequence, dispatch tools
 │   └── reconcile.py         # Crash recovery — resolve in-flight actions on boot
 ├── safety/
-│   └── kernel.py            # Watchdog — heartbeats + overcurrent + ESTOP monitoring
+│   ├── kernel.py            # Watchdog — heartbeats + overcurrent + ESTOP monitoring
+│   └── estop.py             # Direct M25 pause — shared by Telegram, CLI, kernel
 ├── ledger/
 │   ├── db.py                # SQLite WAL — proposals, approvals, episodes, events
 │   ├── diary.py             # Per-device-group idempotency DB for crash recovery
@@ -192,6 +193,7 @@ PROPOSED action arrives in ledger
          │
     Gate 0: ESTOP?
     │  safety.estop on whiteboard → REJECT
+    │  (ESTOP also sends M25 directly via safety/estop.py — bypasses engine)
     ▼
     Gate 1: Queue guard
     │  Device group has DISPATCHED action → SKIP (retry next poll)

@@ -224,7 +224,7 @@ def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
 @tool(kind="actuator", requires_approval=False)
 def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
     """Search the web for 3D printing troubleshooting, datasheets, or technical info.
-    Makes a separate OpenRouter call with the Exa web search plugin enabled.
+    Makes a separate OpenRouter call with web search plugin enabled.
     Returns a summarized answer capped at 2000 characters."""
 ```
 
@@ -232,7 +232,7 @@ def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
 `differential()` returns rate of change using real timestamps ("changing at +0.04/s").
 `get_sensor_history()` returns raw values from the ring buffer.
 `remember()` appends a timestamped observation to `{WALLEE_DATA_DIR}/OBSERVATIONS.md` (newest first, max 50).
-`web_search()` queries the web via a separate OpenRouter call with the Exa plugin enabled.
+`web_search()` queries the web via a separate OpenRouter call with web search plugin enabled.
 
 ---
 
@@ -284,7 +284,7 @@ def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
 | `differential` | builtin | No | No | 30000 | Rate of change for a whiteboard key |
 | `get_sensor_history` | builtin | No | No | 30000 | Raw ring buffer values |
 | `remember` | builtin | No | No | 30000 | Persist observation to OBSERVATIONS.md |
-| `web_search` | builtin | No | No | 30000 | Search the web via OpenRouter Exa plugin |
+| `web_search` | builtin | No | No | 30000 | Search the web via OpenRouter web search plugin |
 
 ### 6.3 Precheck summary
 
@@ -376,8 +376,8 @@ Configurable via `.env`. Enforced by the parser (code, not LLM):
 
 | State | check_after_s range | Default |
 |-------|-------------------|---------|
-| Printing / Paused / Attention | 30 – 120s | 60s |
-| Idle / other | 30 – 300s | 60s |
+| Printing / Paused / Attention | 10 – 30s | 15s |
+| Idle / other | 10 – 120s | 15s |
 
 The LLM requests a `check_after_s` value; the parser clamps it to the configured range. The agent sleep can be interrupted (woken early) by: Telegram intent/urgent/estop, CLI intent/estop, or printer state changes detected by sensor threads. Uses `threading.Event.wait(timeout)` instead of fixed sleep.
 
@@ -409,7 +409,7 @@ The `build_messages()` function includes camera frames and human photos as `imag
 
 ```python
 class LLMClient:
-    def __init__(self, api_key, model="google/gemini-3.1-pro-preview", enable_web_search=True):
+    def __init__(self, api_key, model="google/gemini-3.1-pro-preview"):
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def call(self, prompt, messages=None):
@@ -716,7 +716,7 @@ Separate thread. Starts first, stops last. Checks every 0.5s.
 | `engine.heartbeat` | whiteboard | Missing or > 3s stale | call_human (critical) |
 | `printer.oc_nozzle` | prusa_metrics | Non-zero | call_human (critical): "OVERCURRENT DETECTED: nozzle heater" |
 | `printer.oc_input` | prusa_metrics | Non-zero | call_human (critical): "OVERCURRENT DETECTED: input power" |
-| `safety.estop` | whiteboard | Truthy | call_human (critical): "ESTOP ACTIVE" |
+| `safety.estop` | whiteboard | Truthy | Send M25 directly to printer + call_human (critical) |
 
 ### 11.2 Boot grace period
 
@@ -740,7 +740,15 @@ Each signal has a `_alerted` flag. Alerts fire once per event and clear when the
 ### 12.2 Inbound
 - **Intent:** Human types text → `whiteboard.publish("human.intent", text, ttl=600)`
 - **Urgent:** `/urgent` → `whiteboard.publish("human.urgent", True, ttl=600)`
-- **ESTOP:** `/estop` → `whiteboard.publish("safety.estop", True, ttl=600)`
+- **ESTOP:** `/estop` or CLI `estop` — bypasses engine entirely:
+  1. Publishes `safety.estop=True` to whiteboard
+  2. Sends M25 (pause) directly to printer via `POST /api/v1/gcode` — no engine gates
+  3. If M25 fails, falls back to `DELETE /api/v1/job` (cancel)
+  4. Calls human with critical severity
+  5. Wakes the agent
+  The safety kernel independently monitors `safety.estop` and also sends M25 if it detects the flag.
+  All ESTOP HTTP logic lives in `wallee/safety/estop.py` (shared by Telegram, CLI, and kernel).
+  While ESTOP is active, the engine rejects all new proposals at Gate 0.
 - **Approval:** approve/reject → ledger approval row (via CLI command, Telegram command, or inline keyboard)
 - **Photo:** Telegram photo → resized JPEG → `whiteboard.publish("human.image", base64, ttl=600)`. Caption published as intent.
 
@@ -897,7 +905,6 @@ All configuration is loaded via `config.py`. Missing values use defaults.
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | (required) | OpenRouter API key |
 | `OPENROUTER_MODEL` | `google/gemini-3.1-pro-preview` | LLM model ID |
-| `OPENROUTER_ENABLE_WEB_SEARCH` | `true` | Enable Exa web search plugin |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
 | `DEVICE_PACKS` | `host_pi` | Comma-separated pack names to load |
 | `PRUSALINK_HOST` | (empty) | Printer IP (e.g., 192.168.1.50) |
@@ -910,10 +917,10 @@ All configuration is loaded via `config.py`. Missing values use defaults.
 | `AGENT_POLL_INTERVAL_S` | `5` | Base agent poll interval |
 | `AGENT_HEARTBEAT_INTERVAL_S` | `1` | Heartbeat publish interval |
 | `AGENT_HEARTBEAT_TTL_S` | `3` | Heartbeat Redis TTL |
-| `AGENT_MIN_CHECK_INTERVAL_S` | `30` | Minimum LLM-requested check_after_s |
-| `AGENT_MAX_CHECK_INTERVAL_S` | `120` | Maximum check_after_s (active print) |
-| `AGENT_MAX_CHECK_INTERVAL_IDLE_S` | `300` | Maximum check_after_s (idle) |
-| `AGENT_DEFAULT_CHECK_INTERVAL_S` | `60` | Default check_after_s |
+| `AGENT_MIN_CHECK_INTERVAL_S` | `10` | Minimum LLM-requested check_after_s |
+| `AGENT_MAX_CHECK_INTERVAL_S` | `30` | Maximum check_after_s (active print) |
+| `AGENT_MAX_CHECK_INTERVAL_IDLE_S` | `120` | Maximum check_after_s (idle) |
+| `AGENT_DEFAULT_CHECK_INTERVAL_S` | `15` | Default check_after_s |
 | `AGENT_LAST_DECISION_TTL_S` | `600` | TTL for agent.last_decision on whiteboard |
 | `ENGINE_POLL_INTERVAL_S` | `0.5` | Engine ledger poll interval |
 | `ENGINE_APPROVAL_TIMEOUT_S` | `300` | Approval wait timeout before auto-reject |
