@@ -1,0 +1,36 @@
+{
+    "name": "Human said speed it up, increase the speed factor",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 58%",
+        "job.time_in_phase_s": 1600,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 240.1,
+        "printer.target_nozzle": 240.0,
+        "printer.temp_bed": 80.1,
+        "printer.target_bed": 80.0,
+        "printer.job_progress": 58,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.87,
+        "vision.confidence": 0.86,
+        "vision.description": "Print quality is stable and there is room for a modest speed increase"
+    },
+    "job_context": "# Current Job\nFile: petg_organizer.bgcode\nMaterial: PETG\n",
+    "episode": [],
+    "human_intent": "speed it up",
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": "set_speed_factor",
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_temperature"
+    ]
+}

@@ -1,0 +1,38 @@
+{
+    "name": "Rapid state changes over the last 30 seconds, wait and do not overreact",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Recovered from brief transitions",
+        "job.time_in_phase_s": 30,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.0,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 12,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "printer.state_changes_30s": 6,
+        "job.phase_changes_30s": 4
+    },
+    "vision_state": {
+        "vision.status": "UNCERTAIN",
+        "vision.normal": 0.51,
+        "vision.confidence": 0.49,
+        "vision.description": "System just flipped through several transient states and the scene is not settled yet"
+    },
+    "job_context": "# Current Job\nFile: pla_test_piece.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_temperature"
+    ]
+}

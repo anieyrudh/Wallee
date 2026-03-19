@@ -1,0 +1,49 @@
+{
+    "name": "Human rejected cancel, respect cooldown and do not propose it again",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 64%",
+        "job.time_in_phase_s": 1760,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 204.7,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 64,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.31,
+        "vision.confidence": 0.72,
+        "vision.stringing": 0.48,
+        "vision.description": "Minor cosmetic issues remain but nothing clearly warrants cancellation"
+    },
+    "job_context": "# Current Job\nFile: pla_tray.bgcode\nMaterial: PLA\n",
+    "episode": [
+        {
+            "status": "REJECTED",
+            "tool": "cancel_print",
+            "params_json": "{}",
+            "reason": "print looked recoverable",
+            "error_json": "not approved",
+            "result_json": ""
+        }
+    ],
+    "human_intent": null,
+    "pending_callout": {
+        "status": "ACKNOWLEDGED",
+        "message": "Do not cancel, let it continue"
+    },
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "cancel_print",
+        "pause_print",
+        "call_human",
+        "resume_print"
+    ]
+}

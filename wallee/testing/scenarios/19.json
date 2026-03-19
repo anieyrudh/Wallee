@@ -1,0 +1,40 @@
+{
+    "name": "Multiple defects with stringing and overextrusion, fix one thing only",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 58%",
+        "job.time_in_phase_s": 1550,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 218.6,
+        "printer.target_nozzle": 218.0,
+        "printer.temp_bed": 60.1,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 58,
+        "printer.speed": 100,
+        "printer.flow": 104
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.14,
+        "vision.confidence": 0.87,
+        "vision.stringing": 0.71,
+        "vision.overextrusion": 0.63,
+        "vision.description": "There are wispy travel strings plus slightly swollen outer walls"
+    },
+    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "set_temperature",
+        "set_flow_factor"
+    ],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

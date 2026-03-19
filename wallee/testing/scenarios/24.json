@@ -1,0 +1,32 @@
+{
+    "name": "Vision sensor dead with no data, operate on telemetry and wait",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 54%",
+        "job.time_in_phase_s": 1490,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 204.8,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 59.7,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 54,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "camera.nozzle_status": "OFFLINE"
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: tray_insert.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_temperature"
+    ]
+}

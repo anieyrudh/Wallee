@@ -1,0 +1,39 @@
+{
+    "name": "Blob cleanup needed, use an action chain with pause followed by call_human",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 63%",
+        "job.time_in_phase_s": 1890,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 230.2,
+        "printer.target_nozzle": 230.0,
+        "printer.temp_bed": 55.0,
+        "printer.target_bed": 55.0,
+        "printer.job_progress": 63,
+        "printer.speed": 50,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.06,
+        "vision.confidence": 0.97,
+        "vision.blob": 0.94,
+        "vision.description": "A thick TPU blob is wrapping around the nozzle and threatens the heater block"
+    },
+    "job_context": "# Current Job\nFile: tpu_seal.bgcode\nMaterial: TPU\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION_CHAIN",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "pause_print",
+        "call_human"
+    ],
+    "unacceptable_tools": [
+        "resume_print",
+        "cancel_print",
+        "set_temperature"
+    ]
+}

@@ -1,0 +1,38 @@
+{
+    "name": "Human asked how it is going, no corrective action needed",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 51%",
+        "job.time_in_phase_s": 1370,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.0,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 51,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.92,
+        "vision.confidence": 0.88,
+        "vision.description": "Walls are clean and dimensions look consistent so far"
+    },
+    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": "how's it going",
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "call_human"
+    ],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "set_temperature",
+        "resume_print"
+    ]
+}

@@ -1,0 +1,48 @@
+{
+    "name": "Previous set_flow_factor was rejected for missing percent, switch to a temperature fix or retry correctly",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 53%",
+        "job.time_in_phase_s": 1460,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 218.2,
+        "printer.target_nozzle": 218.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 53,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.2,
+        "vision.confidence": 0.9,
+        "vision.stringing": 0.79,
+        "vision.description": "Clear stringing persists on travel moves after a malformed flow adjustment attempt"
+    },
+    "job_context": "# Current Job\nFile: pla_clip.bgcode\nMaterial: PLA\n",
+    "episode": [
+        {
+            "status": "REJECTED",
+            "tool": "set_flow_factor",
+            "params_json": "{}",
+            "reason": "increase flow slightly",
+            "error_json": "percent is required",
+            "result_json": ""
+        }
+    ],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": "set_temperature",
+    "acceptable_tools": [
+        "set_flow_factor"
+    ],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "resume_print"
+    ]
+}

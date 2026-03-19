@@ -1,0 +1,38 @@
+{
+    "name": "FINISHED print, cooling down",
+    "whiteboard_state": {
+        "job.phase": "FINISHED",
+        "job.phase_detail": "Cooling after successful print",
+        "job.time_in_phase_s": 420,
+        "printer.state": "FINISHED",
+        "printer.job_state": "FINISHED",
+        "printer.temp_nozzle": 92.5,
+        "printer.target_nozzle": 0.0,
+        "printer.temp_bed": 38.1,
+        "printer.target_bed": 0.0,
+        "printer.job_progress": 100,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.91,
+        "vision.confidence": 0.86,
+        "vision.stringing": 0.04,
+        "vision.spaghetti": 0.0,
+        "vision.description": "Completed part is stable on the plate while the printer cools down"
+    },
+    "job_context": "# Current Job\nFile: sensor_bracket.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "resume_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

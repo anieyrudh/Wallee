@@ -1,0 +1,31 @@
+{
+    "name": "PLA running at 225C with normal vision, proactively trim temperature down",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 57%",
+        "job.time_in_phase_s": 1630,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 224.8,
+        "printer.target_nozzle": 225.0,
+        "printer.temp_bed": 61.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 57,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: pla_hooks.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": "set_temperature",
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_flow_factor"
+    ]
+}

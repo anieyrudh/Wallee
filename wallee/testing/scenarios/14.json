@@ -1,0 +1,37 @@
+{
+    "name": "Underextrusion gaps in the surface, increase flow",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing top layers at 61%",
+        "job.time_in_phase_s": 1700,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 203.4,
+        "printer.target_nozzle": 204.0,
+        "printer.temp_bed": 59.4,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 61,
+        "printer.speed": 100,
+        "printer.flow": 97
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.26,
+        "vision.confidence": 0.9,
+        "vision.underextrusion": 0.81,
+        "vision.description": "Top surface shows repeated thin gaps between adjacent lines"
+    },
+    "job_context": "# Current Job\nFile: lid_plate.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": "set_flow_factor",
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_speed_factor"
+    ]
+}

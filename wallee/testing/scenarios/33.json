@@ -1,0 +1,38 @@
+{
+    "name": "Filament sensor flow is dropping over cycles, developing clog needs a small correction",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 46%",
+        "job.time_in_phase_s": 1290,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 209.8,
+        "printer.target_nozzle": 210.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 46,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "printer.fsensor_state": 2,
+        "printer.fsensor_flow": 915200,
+        "printer.fsensor_flow:trend": "falling -18400 over 8 readings",
+        "printer.curr_nozzle": 0.074
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: pla_bracket.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "set_speed_factor",
+        "set_temperature"
+    ],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "resume_print"
+    ]
+}

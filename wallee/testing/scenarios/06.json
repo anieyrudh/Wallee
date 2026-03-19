@@ -1,0 +1,38 @@
+{
+    "name": "Normal PETG at 240C, higher temp is expected for PETG",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 38%",
+        "job.time_in_phase_s": 980,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 239.6,
+        "printer.target_nozzle": 240.0,
+        "printer.temp_bed": 79.7,
+        "printer.target_bed": 80.0,
+        "printer.job_progress": 38,
+        "printer.speed": 90,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.9,
+        "vision.confidence": 0.87,
+        "vision.stringing": 0.12,
+        "vision.spaghetti": 0.0,
+        "vision.description": "PETG extrusion looks glossy but controlled, with no meaningful defect pattern"
+    },
+    "job_context": "# Current Job\nFile: cable_chain.bgcode\nMaterial: PETG\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "set_temperature",
+        "pause_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

@@ -1,0 +1,32 @@
+{
+    "name": "Bed temperature not reaching target after five minutes, call human",
+    "whiteboard_state": {
+        "job.phase": "PREPARING",
+        "job.phase_detail": "Heating bed for print start",
+        "job.time_in_phase_s": 320,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 209.2,
+        "printer.target_nozzle": 210.0,
+        "printer.temp_bed": 44.7,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 0,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "printer.volt_bed": 24.1
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "CALL_HUMAN",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "resume_print",
+        "cancel_print",
+        "set_temperature"
+    ]
+}

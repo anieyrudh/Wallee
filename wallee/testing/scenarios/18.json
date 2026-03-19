@@ -1,0 +1,42 @@
+{
+    "name": "First layer not adhering, increase bed temperature or reduce speed",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "First layer at 4%",
+        "job.time_in_phase_s": 70,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 200.1,
+        "printer.target_nozzle": 200.0,
+        "printer.temp_bed": 57.4,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 4,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "printer.pos_z": 0.23
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.17,
+        "vision.confidence": 0.9,
+        "vision.warping": 0.42,
+        "vision.bed_adhesion_ok": 0.16,
+        "vision.description": "Fresh first-layer lines are not sticking cleanly and are being dragged by the nozzle"
+    },
+    "job_context": "# Current Job\nFile: nameplate.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "set_temperature",
+        "set_speed_factor"
+    ],
+    "unacceptable_tools": [
+        "cancel_print",
+        "call_human",
+        "set_flow_factor",
+        "resume_print"
+    ]
+}

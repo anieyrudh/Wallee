@@ -1,0 +1,38 @@
+{
+    "name": "PREPARING phase, temps climbing toward target",
+    "whiteboard_state": {
+        "job.phase": "PREPARING",
+        "job.phase_detail": "Heating bed and nozzle",
+        "job.time_in_phase_s": 95,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 176.2,
+        "printer.target_nozzle": 210.0,
+        "printer.temp_bed": 48.7,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 0,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.72,
+        "vision.confidence": 0.64,
+        "vision.stringing": 0.02,
+        "vision.spaghetti": 0.0,
+        "vision.description": "Nozzle is purging while temperatures ramp toward target"
+    },
+    "job_context": "# Current Job\nFile: gear_holder.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "set_temperature",
+        "call_human",
+        "cancel_print"
+    ]
+}

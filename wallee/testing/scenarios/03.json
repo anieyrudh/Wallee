@@ -1,0 +1,36 @@
+{
+    "name": "IDLE printer, no job, room temperature",
+    "whiteboard_state": {
+        "job.phase": "IDLE",
+        "job.phase_detail": "Awaiting next job",
+        "job.time_in_phase_s": 1800,
+        "printer.state": "IDLE",
+        "printer.job_state": "IDLE",
+        "printer.temp_nozzle": 27.8,
+        "printer.target_nozzle": 0.0,
+        "printer.temp_bed": 26.4,
+        "printer.target_bed": 0.0,
+        "printer.job_progress": 0,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.88,
+        "vision.confidence": 0.74,
+        "vision.description": "No active print, nozzle parked and build plate empty"
+    },
+    "job_context": "# Current Job\nNo active job.\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "resume_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

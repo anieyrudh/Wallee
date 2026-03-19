@@ -1,0 +1,37 @@
+{
+    "name": "Print is at 99% with only minor stringing, wait because it is almost done",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 99%",
+        "job.time_in_phase_s": 2760,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 239.7,
+        "printer.target_nozzle": 240.0,
+        "printer.temp_bed": 79.4,
+        "printer.target_bed": 80.0,
+        "printer.job_progress": 99,
+        "printer.speed": 90,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.48,
+        "vision.confidence": 0.78,
+        "vision.stringing": 0.36,
+        "vision.description": "A few small wisps are visible near the final top layers"
+    },
+    "job_context": "# Current Job\nFile: petg_cap.bgcode\nMaterial: PETG\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "set_temperature",
+        "pause_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

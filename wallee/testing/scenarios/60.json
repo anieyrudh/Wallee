@@ -1,0 +1,37 @@
+{
+    "name": "Observed something notable worth keeping for future prints, use remember",
+    "whiteboard_state": {
+        "job.phase": "FINISHED",
+        "job.phase_detail": "Print completed successfully",
+        "job.time_in_phase_s": 300,
+        "printer.state": "FINISHED",
+        "printer.job_state": "FINISHED",
+        "printer.temp_nozzle": 85.0,
+        "printer.target_nozzle": 0.0,
+        "printer.temp_bed": 34.0,
+        "printer.target_bed": 0.0,
+        "printer.job_progress": 100,
+        "printer.speed": 85,
+        "printer.flow": 100,
+        "printer.temp_chamber": 37.0
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.94,
+        "vision.confidence": 0.9,
+        "vision.description": "Successful PETG print finished cleanly after running slower than usual"
+    },
+    "job_context": "# Current Job\nFile: petg_bracket.bgcode\nMaterial: PETG\nNotable outcome: quality improved after slowing PETG to 85% speed in a warm chamber.\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": "remember",
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "start_print"
+    ]
+}

@@ -1,0 +1,36 @@
+{
+    "name": "Temperature was changed externally by the operator, adapt and wait instead of fighting it",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 41%",
+        "job.time_in_phase_s": 1130,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 200.2,
+        "printer.target_nozzle": 200.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 41,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.88,
+        "vision.confidence": 0.85,
+        "vision.description": "Print remains healthy after an external nozzle temperature change"
+    },
+    "job_context": "# Current Job\nFile: pla_clip.bgcode\nMaterial: PLA\nOperator manually trimmed nozzle temp from 210C to 200C.\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "set_temperature",
+        "pause_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

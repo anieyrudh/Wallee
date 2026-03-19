@@ -1,0 +1,37 @@
+{
+    "name": "TPU printing at slow speed, 50% speed is normal for TPU",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Flexible part at 24%",
+        "job.time_in_phase_s": 720,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 228.9,
+        "printer.target_nozzle": 230.0,
+        "printer.temp_bed": 54.8,
+        "printer.target_bed": 55.0,
+        "printer.job_progress": 24,
+        "printer.speed": 50,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.88,
+        "vision.confidence": 0.83,
+        "vision.stringing": 0.14,
+        "vision.description": "TPU bead is slow but consistent, with expected soft material behavior"
+    },
+    "job_context": "# Current Job\nFile: gasket_pad.bgcode\nMaterial: TPU\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "set_speed_factor",
+        "pause_print",
+        "cancel_print",
+        "call_human"
+    ]
+}

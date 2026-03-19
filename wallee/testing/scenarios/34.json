@@ -1,0 +1,39 @@
+{
+    "name": "Print fan RPM is zero during cruise printing, investigate before overreacting",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 48%",
+        "job.time_in_phase_s": 1310,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 241.0,
+        "printer.target_nozzle": 240.0,
+        "printer.temp_bed": 80.0,
+        "printer.target_bed": 80.0,
+        "printer.job_progress": 48,
+        "printer.speed": 90,
+        "printer.flow": 100,
+        "printer.fan_print_state": 1,
+        "printer.fan_print_pwm": 255,
+        "printer.fan_print_rpm": 0,
+        "printer.fan_heatbreak_rpm": 5960
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: petg_shroud.bgcode\nMaterial: PETG\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "ACTION",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "get_sensor_history",
+        "trends",
+        "call_human"
+    ],
+    "unacceptable_tools": [
+        "resume_print",
+        "cancel_print",
+        "set_flow_factor",
+        "set_speed_factor"
+    ]
+}

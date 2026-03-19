@@ -1,0 +1,37 @@
+{
+    "name": "Human said stop worrying about the camera, wait and observe silently",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 46%",
+        "job.time_in_phase_s": 1270,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.3,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 46,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.45,
+        "vision.confidence": 0.41,
+        "vision.stringing": 0.34,
+        "vision.description": "Camera keeps producing weak cosmetic alerts that the human does not care about"
+    },
+    "job_context": "# Current Job\nFile: pla_riser.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": "stop worrying about the camera",
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "call_human",
+        "pause_print",
+        "cancel_print",
+        "set_temperature"
+    ]
+}

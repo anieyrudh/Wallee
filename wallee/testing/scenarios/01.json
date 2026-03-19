@@ -1,0 +1,39 @@
+{
+    "name": "Normal PLA printing at 45%, all nominal",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 45%",
+        "job.time_in_phase_s": 600,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.4,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 59.8,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 45,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.93,
+        "vision.confidence": 0.9,
+        "vision.stringing": 0.05,
+        "vision.spaghetti": 0.01,
+        "vision.bed_adhesion_ok": 0.94,
+        "vision.description": "Even PLA perimeters with clean layer stacking and no visible defects"
+    },
+    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_temperature"
+    ]
+}

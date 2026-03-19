@@ -1,0 +1,35 @@
+{
+    "name": "Nozzle temperature 15C below target, possible developing clog, observe or escalate",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 41%",
+        "job.time_in_phase_s": 1120,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 195.0,
+        "printer.target_nozzle": 210.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 41,
+        "printer.speed": 100,
+        "printer.flow": 100,
+        "printer.curr_nozzle": 0.066,
+        "printer.fsensor_flow": 987540
+    },
+    "vision_state": {},
+    "job_context": "# Current Job\nFile: pla_latch.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [
+        "call_human"
+    ],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "set_speed_factor",
+        "set_temperature"
+    ]
+}

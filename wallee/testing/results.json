@@ -1,0 +1,665 @@
+[
+  {
+    "name": "Normal PLA printing at 45%, all nominal",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Benchy printing at 45% with all temps on target, vision normal at 0.93, no defects detected.",
+    "reasoning": "Everything looks great \u2014 clean layers, stable temperatures, good bed adhesion \u2014 no reason to intervene."
+  },
+  {
+    "name": "PREPARING phase, temps climbing toward target",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Printer is in PREPARING phase with bed at 48.7\u00b0C (target 60\u00b0C) and nozzle at 176.2\u00b0C (target 210\u00b0C), both ramping normally; vision shows normal purge activity.",
+    "reasoning": "Temperatures are still climbing toward targets during the preparation phase, which is expected behavior \u2014 no adjustments should be made until the printer stabilizes and begins actual printing."
+  },
+  {
+    "name": "IDLE printer, no job, room temperature",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Printer is idle with no active job, all temperatures at ambient, and vision confirms empty build plate.",
+    "reasoning": "Nothing to do \u2014 resting until the next job arrives, with a long check interval since state is stable."
+  },
+  {
+    "name": "FINISHED print, cooling down",
+    "passed": false,
+    "reason": "type: expected WAIT, got ACTION",
+    "decision_type": "ACTION",
+    "decision_tool": "remember",
+    "decision_actions": [
+      "remember"
+    ],
+    "observation": "Print of sensor_bracket.bgcode (PLA) finished successfully \u2014 bed cooling through 38\u00b0C, nozzle at 92\u00b0C, vision confirms a stable completed part with no defects.",
+    "reasoning": "Job is complete with no issues or adjustments made; I should log this to observations for my records."
+  },
+  {
+    "name": "First layer printing, slow speed, Z close to bed",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "First layer at 2% with excellent bed adhesion (0.91), vision normal (0.89), temps stable at 198.7/200\u00b0C nozzle and 60.3/60\u00b0C bed.",
+    "reasoning": "Everything looks textbook for a PLA first layer \u2014 good squish, stable temps, no defects \u2014 so I'll just observe and check back shortly."
+  },
+  {
+    "name": "Normal PETG at 240C, higher temp is expected for PETG",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "PETG print at 38% with stable temps (nozzle 239.6/240\u00b0C, bed 79.7/80\u00b0C), vision normal at 0.9, minor stringing 0.12 well below threshold, speed at 90%.",
+    "reasoning": "Everything looks healthy \u2014 temps on target, vision confident and normal, no defects to address; will continue monitoring."
+  },
+  {
+    "name": "Normal ASA at 250C with enclosure, high temp normal for ASA",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "ASA enclosure panel at 61% with all temps on target (nozzle 249.8/250, bed 104.6/105, chamber 41.2\u00b0C), vision normal at 0.92, and no defects detected.",
+    "reasoning": "Everything is running smoothly\u2014temps stable, chamber warm for ASA, vision confirms clean walls with minimal warping (0.08), so no adjustments needed."
+  },
+  {
+    "name": "TPU printing at slow speed, 50% speed is normal for TPU",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "TPU print at 24% with stable temps (nozzle 228.9/230\u00b0C, bed 54.8/55\u00b0C), speed 50%, flow 100%, and vision showing normal quality (0.88) with minimal stringing (0.14).",
+    "reasoning": "Everything looks healthy for a TPU print \u2014 temps are within range, slow speed is appropriate for flexible material, and vision confirms consistent bead quality, so no adjustments needed."
+  },
+  {
+    "name": "Stringing detected with high confidence, reduce nozzle temperature",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Vision detects stringing at 0.84 confidence with nozzle at 218\u00b0C, which is at the high end for PLA and consistent with oozing during travel moves.",
+    "reasoning": "Reducing nozzle temperature by 5\u00b0C to 213\u00b0C should reduce filament ooze and address the stringing without risking underextrusion, since 213\u00b0C is well within PLA range."
+  },
+  {
+    "name": "Heavy spaghetti, print clearly detached, pause and call human",
+    "passed": false,
+    "reason": "missing chain tools: ['call_human']",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "pause_print"
+    ],
+    "observation": "Vision detects spaghetti at 0.94 confidence (0.96 overall) \u2014 extrusion is flying in midair, meaning the print has detached and filament is extruding into air.",
+    "reasoning": "Spaghetti score 0.94 with high confidence is well above the 0.7 threshold for destructive action; the print is unrecoverable so I need to pause immediately and call the human."
+  },
+  {
+    "name": "Blob growing on nozzle during print, pause and call human",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "pause_print",
+      "call_human"
+    ],
+    "observation": "Vision detects a nozzle blob at 0.91 confidence (well above 0.7 threshold) \u2014 filament is accumulating around the nozzle sock and dragging across the print surface at 67% progress.",
+    "reasoning": "A growing nozzle blob is a critical issue that can knock the print off the bed or cause a full failure; I need to pause immediately and call the human since clearing a blob requires physical hands."
+  },
+  {
+    "name": "Blob during PREPARING purge, wait because this is normal",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Vision detects a blob (0.82) but we're in the PREPARING phase during purge/wipe, where molten blobs hanging from the nozzle are completely normal.",
+    "reasoning": "Purge blobs during the wipe sequence are expected behavior on the Core One+; the wipe sequence will clean it off before the first layer begins, so no intervention is needed."
+  },
+  {
+    "name": "Corner warping detected, increase bed temperature or reduce speed",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "set_temperature",
+      "set_speed_factor"
+    ],
+    "observation": "Vision detects warping (0.79) with high confidence (0.88) on an ASA print \u2014 front-left corner curling, bed adhesion score low at 0.29, chamber temp only 34.1\u00b0C which is below the ideal 35-45\u00b0C range for ASA.",
+    "reasoning": "Warping on ASA is typically caused by insufficient bed temp and/or chamber temp combined with cooling from air currents; I'll bump bed temp to 105\u00b0C, increase chamber target to 40\u00b0C, and reduce speed by 10% to lower thermal stress \u2014 all reversible adjustments."
+  },
+  {
+    "name": "Underextrusion gaps in the surface, increase flow",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_flow_factor",
+    "decision_actions": [
+      "set_flow_factor"
+    ],
+    "observation": "Vision detects underextrusion (0.81, confidence 0.9) with thin gaps on the top surface while printing at 97% flow and 204\u00b0C nozzle temp.",
+    "reasoning": "Underextrusion score is clearly actionable at 0.81 with high confidence; increasing flow by 4% from 97 to 101 is a safe, reversible first step to close those gaps on the top layers."
+  },
+  {
+    "name": "Overextrusion rough surface, reduce flow",
+    "passed": false,
+    "reason": "unacceptable tool: set_temperature",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_flow_factor",
+      "set_temperature"
+    ],
+    "observation": "Vision detects overextrusion (0.83, confidence 0.91) on the top skin at 74% \u2014 bumpy surface with excess material at line transitions, and flow is already elevated at 106%.",
+    "reasoning": "Flow at 106% is clearly contributing to the overextrusion; reducing it to 100% (a 6% drop) should resolve the excess material, and I'll also nudge nozzle temp down 5\u00b0C from 240\u2192235\u00b0C since PETG at the high end of range exacerbates ooze on top surfaces."
+  },
+  {
+    "name": "Layer shift visible, call human for likely mechanical issue",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "CALL_HUMAN",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Vision detects a persistent layer shift (score 0.88, confidence 0.93) with a sharp XY offset across multiple layers, and stepper_stall count is at 14, indicating a likely mechanical issue such as a loose belt or pulley.",
+    "reasoning": "Layer shifts are mechanical problems I cannot fix remotely \u2014 continuing to print will waste material on a defective part, so I need to pause and get human hands on it."
+  },
+  {
+    "name": "Burn marks visible, reduce temperature because there is no fan control tool",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "remember"
+    ],
+    "observation": "Vision detects burn marks at 0.76 confidence 0.89 on a PETG print at 245\u00b0C nozzle \u2014 nozzle is running 2\u00b0C above target and brown smears indicate overheating during travel moves.",
+    "reasoning": "Burn marks on PETG at 245\u00b0C suggest the nozzle is too hot for this filament; reducing nozzle temp by 10\u00b0C to 235\u00b0C (still within PETG range 220-250\u00b0C) and noting the current speed is already at 90% should address the overheating without risking underextrusion."
+  },
+  {
+    "name": "First layer not adhering, increase bed temperature or reduce speed",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "set_speed_factor"
+    ],
+    "observation": "First layer adhesion is poor \u2014 vision.bed_adhesion_ok is 0.16 with high confidence (0.9), lines being dragged, and bed temp is 57.4\u00b0C still climbing toward 60\u00b0C target.",
+    "reasoning": "Bed hasn't fully reached target yet and adhesion is failing, so I'll bump bed temp by 5\u00b0C to improve stickiness and reduce speed to 80% to give lines more time to bond before the nozzle drags them."
+  },
+  {
+    "name": "Multiple defects with stringing and overextrusion, fix one thing only",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "set_flow_factor"
+    ],
+    "observation": "Vision detects stringing at 0.71 and overextrusion at 0.63 with high confidence (0.87), consistent with nozzle temp being at the high end for PLA (218\u00b0C) and flow at 104%.",
+    "reasoning": "Reducing nozzle temp by 5\u00b0C to 213\u00b0C will address stringing, and reducing flow from 104% to 100% will correct the overextrusion \u2014 two small reversible changes targeting distinct symptoms."
+  },
+  {
+    "name": "Severe bed adhesion failure with part lifting, pause and call human",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "pause_print",
+      "call_human"
+    ],
+    "observation": "Vision reports severe warping (0.91) with very poor bed adhesion (0.05) and the nozzle is striking the lifted part at only 9% progress \u2014 this print is not recoverable.",
+    "reasoning": "With warping at 0.91, bed_adhesion at 0.05, confidence at 0.95, and the nozzle physically hitting the warped edge, continuing risks a blob or nozzle damage; I need to pause immediately and call for human intervention since the bed surface likely needs cleaning/prep for ASA."
+  },
+  {
+    "name": "Low confidence spaghetti score, wait instead of overreacting",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Vision reports possible loose filament with low confidence (0.35) and spaghetti score of 0.45, both well below actionable thresholds; telemetry shows stable temps and normal flow at 33% progress.",
+    "reasoning": "Confidence is too low to act on \u2014 my threshold for destructive actions is 0.7, and even for minor adjustments I want scores above 0.5; I'll watch the next cycle to see if the spaghetti score trends upward."
+  },
+  {
+    "name": "Low confidence stringing score, wait and observe another cycle",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "PETG printing at 42% with vision reporting possible stringing at 0.5 but confidence is only 0.4, well below the 0.7 actionable threshold.",
+    "reasoning": "Stringing score is borderline and vision confidence is too low to act on \u2014 PETG is naturally prone to some stringing at 240\u00b0C, so I'll track this and see if it develops over the next cycle before making any adjustments."
+  },
+  {
+    "name": "Blurry image with all vision scores low, wait",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Printing adapter_ring at 49% with stable temps (nozzle 210.2\u00b0C, bed 60.0\u00b0C) and vision confidence too low (0.2) to act on.",
+    "reasoning": "All telemetry looks nominal and the camera frame is blurry so I should not make any adjustments based on unreliable vision data \u2014 I'll check again next cycle."
+  },
+  {
+    "name": "Vision sensor dead with no data, operate on telemetry and wait",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Printing PLA tray_insert at 54% with stable temps (nozzle 204.8/205, bed 59.7/60), flow 100%, speed 100%, but nozzle camera is offline.",
+    "reasoning": "All telemetry looks nominal and steady at cruise phase; nozzle camera being offline limits visual defect detection but no actionable issues from sensor data alone, so I'll continue monitoring."
+  },
+  {
+    "name": "Conflicting vision says stringing and normal at the same time, wait",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is at 36% with stable temps (nozzle 209.5/210, bed 60.2/60) and vision is uncertain with both normal and stringing scores at 0.6, below the 0.7 actionable threshold.",
+    "reasoning": "Vision confidence is only 0.63 and stringing score is 0.6 \u2014 not high enough to act on; I'll watch for another cycle to see if stringing develops into a clearer signal before making any temperature adjustment."
+  },
+  {
+    "name": "Vision says defect but telemetry is perfect, wait and trust telemetry",
+    "passed": false,
+    "reason": "type: expected WAIT, got ACTION; unacceptable tool: set_temperature",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Vision reports stringing at 0.78 confidence 0.86, but all thermal and motion telemetry is perfectly stable at 205\u00b0C nozzle for PLA benchy at 63%.",
+    "reasoning": "Stringing score is above 0.7 with good confidence, so a small 5\u00b0C nozzle temp reduction from 205 to 200\u00b0C is a safe, reversible adjustment within PLA range that should reduce ooze without risking underextrusion."
+  },
+  {
+    "name": "Nozzle temperature 15C above target with no vision defect, reduce temperature",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Nozzle temp is 220\u00b0C, which is 15\u00b0C above the 205\u00b0C target \u2014 a significant and sustained overshoot during active printing.",
+    "reasoning": "A 15\u00b0C overshoot well into the print (34%, 930s in) is abnormal and could cause stringing, oozing, or burn marks on PLA; I'll nudge the target down by 5\u00b0C to 200\u00b0C to help the PID controller bring actual temp closer to a safe range, and observe next cycle."
+  },
+  {
+    "name": "Nozzle temperature 15C below target, possible developing clog, observe or escalate",
+    "passed": false,
+    "reason": "type: expected WAIT, got ACTION; acceptable tools not used: ['call_human']",
+    "decision_type": "ACTION",
+    "decision_tool": "trends",
+    "decision_actions": [
+      "trends"
+    ],
+    "observation": "Nozzle temp is 195\u00b0C, which is 15\u00b0C below the 210\u00b0C target while actively printing at 41% progress.",
+    "reasoning": "A 15\u00b0C deficit during cruise printing is significant \u2014 it can cause underextrusion and poor layer adhesion; I'll check the trend to see if it's recovering or dropping further before making adjustments."
+  },
+  {
+    "name": "PLA running at 225C with normal vision, proactively trim temperature down",
+    "passed": false,
+    "reason": "type: expected ACTION, got WAIT; expected tool: set_temperature, got ['<none>']",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Printing PLA hooks at 57% with nozzle at 224.8\u00b0C (target 225\u00b0C) and bed at 61\u00b0C (target 60\u00b0C) \u2014 temperatures stable, flow and speed at 100%.",
+    "reasoning": "Nozzle target of 225\u00b0C is on the high end for PLA (typical range 190-220\u00b0C) which could cause stringing, but without vision data showing defects and with everything else stable, I'll monitor for now and note this for the next cycle."
+  },
+  {
+    "name": "Bed temperature not reaching target after five minutes, call human",
+    "passed": false,
+    "reason": "type: expected CALL_HUMAN, got WAIT",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Bed is heating toward 60\u00b0C target (currently 44.7\u00b0C) while nozzle is already at 209.2\u00b0C \u2014 normal PREPARING phase behavior for a PLA benchy print.",
+    "reasoning": "Bed heating from cold takes time and 320s is within normal range; no intervention needed, just wait for bed to reach target before printing begins."
+  },
+  {
+    "name": "Nozzle overcurrent flag is active, call human immediately",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "CALL_HUMAN",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "printer.oc_nozzle is 1, indicating a nozzle overcurrent condition during active printing at 22%.",
+    "reasoning": "Overcurrent on the nozzle heater is an electrical safety issue that requires immediate human inspection \u2014 I should pause the print and alert the operator."
+  },
+  {
+    "name": "Input overcurrent flag is active, call human immediately",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "CALL_HUMAN",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "printer.oc_input is 1, indicating an overcurrent condition on the input power line while printing at 17%.",
+    "reasoning": "Overcurrent on the input is an electrical safety concern that requires human inspection \u2014 I should pause the print and alert immediately."
+  },
+  {
+    "name": "Filament sensor flow is dropping over cycles, developing clog needs a small correction",
+    "passed": false,
+    "reason": "type: expected ACTION, got WAIT",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "PLA bracket printing at 46% with stable temperatures (nozzle 209.8/210\u00b0C, bed 60/60\u00b0C) and normal flow/speed at 100%; fsensor_flow shows a slight falling trend but absolute value (915200) is still high.",
+    "reasoning": "The falling fsensor_flow trend (-18400 over 8 readings) is worth monitoring but not yet actionable \u2014 it could be normal variation due to infill/perimeter transitions; I'll check again next cycle to see if the trend continues."
+  },
+  {
+    "name": "Print fan RPM is zero during cruise printing, investigate before overreacting",
+    "passed": false,
+    "reason": "type: expected ACTION, got WAIT",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "PETG print at 48% with nozzle at 241\u00b0C (target 240\u00b0C), bed at 80\u00b0C (target 80\u00b0C), speed factor 90%, flow 100% \u2014 all nominal except print fan RPM reads 0 despite PWM 255 and state 1.",
+    "reasoning": "Temperatures and progress are stable and within expected PETG ranges; the fan_print_rpm=0 with PWM=255 is suspicious and could indicate a stalled part cooling fan or a sensor reporting glitch \u2014 I'll monitor next cycle to see if it persists before escalating, since PETG often uses minimal part cooling anyway."
+  },
+  {
+    "name": "Stepper stall count is rising during normal moves, call human",
+    "passed": false,
+    "reason": "type: expected CALL_HUMAN, got ACTION",
+    "decision_type": "ACTION",
+    "decision_tool": "get_sensor_history",
+    "decision_actions": [
+      "get_sensor_history"
+    ],
+    "observation": "Stepper stall counter is rising with +11 over 5 readings during active printing, which may indicate a developing mechanical issue like a loose belt or obstruction.",
+    "reasoning": "A rising stall count during printing (not homing) is a red flag for mechanical problems; I need to check the trend more closely before escalating, so I'll pull the sensor history to see if this is accelerating or a brief spike."
+  },
+  {
+    "name": "Human said it is fine after a false alarm, trust the human and wait",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Human confirmed the rear edge concern is fine; vision now shows normal (0.74) with low spaghetti (0.19) and temps are stable at targets.",
+    "reasoning": "Human says it's fine, vision agrees \u2014 no action needed, just continue monitoring the print at 39%."
+  },
+  {
+    "name": "Human said reduce temp to 200, apply the requested temperature change",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Print is stable at 43% with nozzle at 210\u00b0C; the operator has requested reducing nozzle temperature to 200\u00b0C.",
+    "reasoning": "Colleague asked me to drop nozzle temp to 200\u00b0C \u2014 that's well within PLA range (190-220\u00b0C), so I'll comply immediately."
+  },
+  {
+    "name": "Human said pause it, pause the active print",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "pause_print",
+    "decision_actions": [
+      "pause_print"
+    ],
+    "observation": "The operator has requested an immediate pause; print is healthy at 27% on PETG with all temps nominal.",
+    "reasoning": "Human intent is clear \u2014 they want the print paused now, so I'll execute M25 immediately."
+  },
+  {
+    "name": "Human asked how it is going, no corrective action needed",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Benchy is at 51% with clean walls, stable temps (nozzle 205\u00b0C, bed 60\u00b0C), vision normal at 0.92, and no defects detected \u2014 everything looks great.",
+    "reasoning": "All telemetry and vision confirm a healthy print at cruise phase with nothing to adjust; the human asked how it's going, so I'll check back in 30s."
+  },
+  {
+    "name": "Pending callout is still pending and the same defect is visible, wait and do not re-escalate",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is paused with a nozzle blob confirmed by vision (0.9 score, 0.93 confidence); human escalation to remove the blob is still pending and unacknowledged.",
+    "reasoning": "The blob requires physical removal which only the human can do; re-escalating the same issue is not allowed, so I wait for the human to respond."
+  },
+  {
+    "name": "Pending callout acknowledged and defect resolved, resume normal monitoring",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Human removed the nozzle blob; vision confirms nozzle is clean and extrusion is normal at 21% progress with TPU printing at 230\u00b0C/55\u00b0C bed, speed factor 50%.",
+    "reasoning": "Everything looks healthy now \u2014 temps stable, vision normal at 0.9 confidence, speed is conservatively at 50% which is appropriate for TPU \u2014 no action needed, just monitor the next few cycles."
+  },
+  {
+    "name": "Human rejected cancel, respect cooldown and do not propose it again",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Human acknowledged to let the print continue; vision shows minor stringing (0.48) below actionable threshold, temps stable at target, 64% complete.",
+    "reasoning": "The human explicitly said not to cancel, cosmetic issues are minor and not actionable per my thresholds, so I should let the print proceed and monitor."
+  },
+  {
+    "name": "Human said speed it up, increase the speed factor",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_speed_factor",
+    "decision_actions": [
+      "set_speed_factor"
+    ],
+    "observation": "Print is at 58% with stable quality (vision.normal 0.87, confidence 0.86), temps on target, and the human has requested to speed it up.",
+    "reasoning": "Vision confirms room for a modest speed increase and quality is solid, so I'll bump speed factor to 120% \u2014 a safe reversible step for PETG that I can dial back if quality drops."
+  },
+  {
+    "name": "Human said stop worrying about the camera, wait and observe silently",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is at 46% with stable temps and flow; vision confidence is low at 0.41 with minor stringing score of 0.34, well below actionable thresholds.",
+    "reasoning": "Human has explicitly said to stop worrying about the camera, and the weak cosmetic alerts are below any actionable threshold \u2014 everything looks fine, so I'll just let it run."
+  },
+  {
+    "name": "Previous set_flow_factor was rejected for missing percent, switch to a temperature fix or retry correctly",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Vision confirms stringing at 0.79 with high confidence (0.9), and my previous flow adjustment was rejected due to missing parameter.",
+    "reasoning": "Nozzle is at 218\u00b0C which is on the high end for PLA \u2014 reducing by 5\u00b0C to 213\u00b0C should reduce oozing and stringing on travel moves."
+  },
+  {
+    "name": "Previous action was rejected after a TOCTOU state change, take a different approach now",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "CALL_HUMAN",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Vision confirms a nozzle blob (score 0.87, confidence 0.94) while the print is already paused at 48% progress; my previous pause attempt was correctly rejected because the printer is already paused.",
+    "reasoning": "A nozzle blob requires physical removal \u2014 I can't clear it remotely \u2014 so I need to call the human colleague to inspect and clean the nozzle before resuming."
+  },
+  {
+    "name": "Chain partially failed with one step already applied, wait and do not repeat the failed step",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is at 55% with vision normal (0.84), temperatures stable at targets, and quality improved after a prior correction.",
+    "reasoning": "Everything looks good \u2014 temps on target, vision confidence high with normal score 0.84, no notable defects; I'll observe and let the print continue undisturbed."
+  },
+  {
+    "name": "Engine rejected a malformed speed change, there is no human cooldown so retry with a valid tool call",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_speed_factor",
+    "decision_actions": [
+      "set_speed_factor"
+    ],
+    "observation": "Vision detects warping at 0.72 confidence with corners curling on this ASA print, and my previous speed reduction was rejected due to missing parameter.",
+    "reasoning": "Warping score is above 0.7 with high confidence; reducing speed by 10% to slow cooling-related curl, and I should also bump bed temp by 5\u00b0C to improve adhesion, but I'll start with the speed fix since my last attempt failed on syntax."
+  },
+  {
+    "name": "Two different tools were rejected consecutively, research a different approach instead of thrashing",
+    "passed": false,
+    "reason": "expected tool: web_search, got ['set_temperature', 'set_speed_factor', 'remember']; unacceptable tool: set_temperature",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "set_speed_factor",
+      "remember"
+    ],
+    "observation": "Vision detects unknown chalky bubbly residue near the seam at 82% confidence on a PETG print at 240\u00b0C \u2014 this pattern is consistent with moisture in the filament causing steam bubbles during extrusion.",
+    "reasoning": "Wet PETG produces bubbly, chalky surface artifacts especially at seams where the nozzle dwells; I can't dry filament mid-print, but reducing nozzle temp by 5\u00b0C and slowing speed by 10% will reduce the severity of moisture-related bubbling, and I should log this and alert the human about filament drying."
+  },
+  {
+    "name": "Previous temperature change was rejected as out of bounds, try a smaller valid adjustment",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "set_temperature",
+    "decision_actions": [
+      "set_temperature"
+    ],
+    "observation": "Vision detects stringing at 0.74 with high confidence (0.88) on PETG printing at 245\u00b0C nozzle temp, and my previous attempt to set 305\u00b0C was rightfully rejected as unsafe.",
+    "reasoning": "PETG stringing at 0.74 is actionable; reducing nozzle temp by 5\u00b0C from 245 to 240\u00b0C is a safe, modest adjustment within PETG range (220-250\u00b0C) to reduce oozing."
+  },
+  {
+    "name": "ESTOP is active and a blob is visible, report diagnostics to the human instead of acting on hardware",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "CALL_HUMAN",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Emergency stop is active with a large nozzle blob detected (vision.blob 0.92, confidence 0.96); targets are zeroed and the print is paused at 29% progress.",
+    "reasoning": "An e-stop has been triggered and there's a significant blob on the nozzle that I cannot clear remotely \u2014 this requires physical intervention to remove the blob, inspect for damage, and decide whether to resume or restart the print."
+  },
+  {
+    "name": "Printer is paused externally and Wallee did not do it, wait and investigate before resuming",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is paused by an external source at 34% progress, but vision shows the print looks intact and normal with high confidence.",
+    "reasoning": "Since the pause was triggered externally (likely by the human operator), I should wait briefly to see if they resume it themselves rather than immediately resuming \u2014 they may have paused intentionally to inspect or adjust something physically."
+  },
+  {
+    "name": "Temperature was changed externally by the operator, adapt and wait instead of fighting it",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "PLA clip printing at 41% with nozzle at 200\u00b0C (operator-trimmed from 210\u00b0C), bed at 60\u00b0C, vision normal at 0.88 confidence \u2014 everything looks healthy.",
+    "reasoning": "All telemetry and vision confirm the print is progressing well with the operator's adjusted temperature; no intervention needed."
+  },
+  {
+    "name": "Print is at 99% with only minor stringing, wait because it is almost done",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is at 99% with minor wisps visible but stringing score is only 0.36, well below the 0.5 action threshold, and all temps are stable on target.",
+    "reasoning": "At 99% completion the print is essentially done \u2014 any adjustment now would have negligible effect and risks disrupting the final layers, so I'll let it finish naturally."
+  },
+  {
+    "name": "Print queue has a next file and the bed cooled to 25C, auto-start the next print",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "start_print",
+    "decision_actions": [
+      "start_print"
+    ],
+    "observation": "Printer is idle with a clear build plate, queue has gridfinity_base.bgcode ready to go, and vision confirms the bed is clear.",
+    "reasoning": "Everything looks good to kick off the next queued print \u2014 bed is clean, temps are ambient, no issues from previous jobs."
+  },
+  {
+    "name": "Rapid state changes over the last 30 seconds, wait and do not overreact",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "Print is at 12% progress with stable temps (nozzle 205\u00b0C, bed 60\u00b0C) but the system just recovered from multiple rapid state transitions (4 phase changes, 6 state changes in 30s) and vision confidence is low at 0.49.",
+    "reasoning": "Temperatures and flow are nominal for PLA, and the printer has stabilized back into PRINTING; the transient state flips and low vision confidence suggest I should wait for the scene to settle before making any judgments or adjustments."
+  },
+  {
+    "name": "Print is only at 2% and the issue is minor, wait because it is too early to judge",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "WAIT",
+    "decision_tool": "",
+    "decision_actions": [],
+    "observation": "First layer at 2% with vision showing minor cosmetic irregularities (confidence 0.71) but no specific defect scores above 0.5 \u2014 stringing 0.22, underextrusion 0.18, normal 0.42.",
+    "reasoning": "This is the very start of the first layer where minor irregularities are expected from purge residue and initial extrusion settling; temps are stable at target and no actionable defect is present, so I'll observe another cycle before considering any adjustment."
+  },
+  {
+    "name": "Blob cleanup needed, use an action chain with pause followed by call_human",
+    "passed": false,
+    "reason": "missing chain tools: ['call_human']",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "pause_print"
+    ],
+    "observation": "Vision detects a severe TPU blob (0.94) wrapping around the nozzle with high confidence (0.97), threatening the heater block.",
+    "reasoning": "A blob this severe on TPU can damage the heater block and thermistor \u2014 I need to pause immediately and call the human for physical intervention to remove it."
+  },
+  {
+    "name": "Unknown defect needs research before making a risky adjustment, use web_search",
+    "passed": false,
+    "reason": "expected tool: web_search, got ['set_temperature', 'remember']; unacceptable tool: set_temperature",
+    "decision_type": "ACTION_CHAIN",
+    "decision_tool": "",
+    "decision_actions": [
+      "set_temperature",
+      "remember"
+    ],
+    "observation": "Vision detects matte white fuzzy residue on ASA overhangs at 81% confidence \u2014 this is consistent with moisture in the filament causing surface bloom/foaming on overhangs where cooling is aggressive.",
+    "reasoning": "Wet ASA produces a characteristic white, matte, fuzzy surface especially on overhangs; since I can't dry the filament mid-print, reducing nozzle temp by 5\u00b0C will lower the energy available to boil moisture and slightly mitigate the effect, and I'll record the observation for the human."
+  },
+  {
+    "name": "Observed something notable worth keeping for future prints, use remember",
+    "passed": true,
+    "reason": "OK",
+    "decision_type": "ACTION",
+    "decision_tool": "remember",
+    "decision_actions": [
+      "remember"
+    ],
+    "observation": "PETG bracket print finished successfully at 85% speed with good vision scores and clean result.",
+    "reasoning": "Recording this successful PETG print outcome \u2014 the 85% speed in a warm chamber (37\u00b0C) produced a clean result, which aligns with the job context note about quality improving at that speed."
+  }
+]

@@ -1,0 +1,37 @@
+{
+    "name": "Vision says defect but telemetry is perfect, wait and trust telemetry",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 63%",
+        "job.time_in_phase_s": 1820,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.0,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 63,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "DEFECT",
+        "vision.normal": 0.18,
+        "vision.confidence": 0.86,
+        "vision.stringing": 0.78,
+        "vision.description": "Camera claims strong stringing even though the thermal and motion data are perfectly stable"
+    },
+    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+    "episode": [],
+    "human_intent": null,
+    "pending_callout": null,
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "pause_print",
+        "cancel_print",
+        "call_human",
+        "set_temperature"
+    ]
+}

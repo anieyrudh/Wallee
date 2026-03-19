@@ -1,0 +1,49 @@
+{
+    "name": "Human said it is fine after a false alarm, trust the human and wait",
+    "whiteboard_state": {
+        "job.phase": "PRINTING",
+        "job.phase_detail": "Printing at 39%",
+        "job.time_in_phase_s": 1090,
+        "printer.state": "PRINTING",
+        "printer.job_state": "PRINTING",
+        "printer.temp_nozzle": 205.2,
+        "printer.target_nozzle": 205.0,
+        "printer.temp_bed": 60.0,
+        "printer.target_bed": 60.0,
+        "printer.job_progress": 39,
+        "printer.speed": 100,
+        "printer.flow": 100
+    },
+    "vision_state": {
+        "vision.status": "NORMAL",
+        "vision.normal": 0.74,
+        "vision.confidence": 0.58,
+        "vision.spaghetti": 0.19,
+        "vision.description": "Current frame looks acceptable after a prior false alarm"
+    },
+    "job_context": "# Current Job\nFile: pla_case.bgcode\nMaterial: PLA\n",
+    "episode": [
+        {
+            "status": "DONE",
+            "tool": "call_human",
+            "params_json": "{}",
+            "reason": "Escalated possible spaghetti",
+            "error_json": "",
+            "result_json": "{\"status\":\"delivered\"}"
+        }
+    ],
+    "human_intent": "it's fine don't worry",
+    "pending_callout": {
+        "status": "ACKNOWLEDGED",
+        "message": "Possible spaghetti near rear edge"
+    },
+    "expected_type": "WAIT",
+    "expected_tool": null,
+    "acceptable_tools": [],
+    "unacceptable_tools": [
+        "call_human",
+        "pause_print",
+        "cancel_print",
+        "resume_print"
+    ]
+}
