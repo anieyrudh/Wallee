@@ -95,6 +95,9 @@ class AgentLoop:
         """Track job.phase transitions and manage JOB_CONTEXT.md lifecycle."""
         phase = state.get("job.phase")
         if phase is None or phase == self._last_job_phase:
+            # No transition — but patch filename if still "unknown"
+            if phase in ("PREPARING", "PRINTING", "PAUSED"):
+                self._patch_job_context_filename(state)
             return
 
         prev = self._last_job_phase
@@ -147,9 +150,35 @@ class AgentLoop:
 
         return "unknown"
 
+    def _fetch_job_filename(self, state: dict) -> str:
+        """Fetch print filename — HTTP API first, whiteboard fallback, then 'unknown'."""
+        # Primary: fetch from PrusaLink HTTP API
+        host = os.environ.get("PRUSALINK_HOST", "").strip()
+        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
+        if host:
+            base = host if host.startswith("http") else f"http://{host}"
+            try:
+                resp = httpx.get(f"{base}/api/v1/job",
+                                 headers={"X-Api-Key": api_key}, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    name = (data.get("file", {}).get("display_name")
+                            or data.get("file", {}).get("name"))
+                    if name:
+                        return name
+            except Exception as e:
+                logger.debug(f"PrusaLink /api/v1/job filename fetch failed: {e}")
+
+        # Fallback: whiteboard (UDP stream)
+        wb_name = state.get("printer.print_filename")
+        if wb_name:
+            return wb_name
+
+        return "unknown"
+
     def _create_job_context(self, state: dict):
         """Create JOB_CONTEXT.md when a new print starts."""
-        filename = state.get("printer.print_filename", "unknown")
+        filename = self._fetch_job_filename(state)
         material = self._detect_material(filename, state)
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -171,6 +200,38 @@ class AgentLoop:
 
         # Fetch thumbnail from PrusaLink
         self._fetch_thumbnail(filename)
+
+    def _patch_job_context_filename(self, state: dict):
+        """If JOB_CONTEXT.md exists with 'unknown' filename, patch it with a real one."""
+        ctx_path = self.data_dir / "JOB_CONTEXT.md"
+        if not ctx_path.exists():
+            return
+        try:
+            text = ctx_path.read_text()
+        except Exception:
+            return
+        if "File: unknown" not in text and "File: \n" not in text:
+            return
+        # Try to get a real filename
+        real_name = state.get("printer.print_filename")
+        if not real_name:
+            real_name = self._fetch_job_filename(state)
+        if not real_name or real_name == "unknown":
+            return
+        # Patch the filename line
+        text = text.replace("File: unknown", f"File: {real_name}", 1)
+        text = text.replace("File: \n", f"File: {real_name}\n", 1)
+        try:
+            ctx_path.write_text(text)
+            logger.info(f"JOB_CONTEXT.md filename patched to {real_name}")
+            # Also update material if it was unknown
+            if "Material: unknown" in text:
+                material = self._detect_material(real_name, state)
+                if material != "unknown":
+                    text = text.replace("Material: unknown", f"Material: {material}", 1)
+                    ctx_path.write_text(text)
+        except Exception as e:
+            logger.error(f"Failed to patch JOB_CONTEXT.md filename: {e}")
 
     def _fetch_thumbnail(self, filename: str):
         """Fetch print thumbnail from PrusaLink API."""
