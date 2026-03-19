@@ -4,6 +4,7 @@ instead of interpreting raw images directly."""
 
 import json
 import logging
+import time
 
 import httpx
 import redis
@@ -26,6 +27,7 @@ def configure_vision(api_key: str, vision_model: str, redis_url: str):
     _vision_model = vision_model
     _redis_url = redis_url
     _redis_client = None  # Reset so next call picks up new URL
+    logger.info(f"Vision sensor configured: model={vision_model}, api_key={'set' if api_key else 'MISSING'}")
 
 
 def _get_redis():
@@ -56,17 +58,23 @@ def read_vision_analysis() -> dict:
     """
     r = _get_redis()
 
+    # Heartbeat — always publish so dashboard can confirm sensor is alive
+    r.set("vision.last_analysis_ts", str(time.time()), ex=30)
+
     # Only analyze during active print phases
     phase = r.get("job.phase")
     if phase not in ("PRINTING", "PREPARING", "PAUSED"):
+        logger.debug(f"Vision: skipping, phase is {phase}")
         return {}
 
     # Read the latest nozzle camera frame (base64 JPEG)
     frame_b64 = r.get("camera.nozzle_frame")
     if not frame_b64:
+        logger.warning("Vision: no camera frame available (camera.nozzle_frame is empty)")
         return {}
 
     if not _api_key:
+        logger.warning("Vision: API key not configured (configure_vision not called or key empty)")
         return {}
 
     try:
@@ -92,13 +100,17 @@ def read_vision_analysis() -> dict:
             timeout=15.0,
         )
 
+        if response.status_code != 200:
+            logger.warning(f"Vision: OpenRouter returned HTTP {response.status_code}: {response.text[:200]}")
+            return {}
+
         data = response.json()
         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
         start = content.find("{")
         end = content.rfind("}")
         if start < 0 or end < 0:
-            logger.warning("Vision analysis returned no JSON")
+            logger.warning(f"Vision: no JSON in response: {content[:100]}")
             return {}
 
         scores = json.loads(content[start:end + 1])
@@ -127,8 +139,9 @@ def read_vision_analysis() -> dict:
         else:
             result["vision.status"] = "NORMAL"
 
+        logger.info(f"Vision: {result.get('vision.status', '?')} (conf={scores.get('confidence', '?')})")
         return result
 
     except Exception as e:
-        logger.warning(f"Vision analysis failed: {e}")
+        logger.warning(f"Vision analysis failed: {type(e).__name__}: {e}")
         return {}
