@@ -58,18 +58,20 @@ _NOZZLE_PROMPT = """You are a 3D print quality inspector analyzing a NOZZLE CAME
 Score each defect 0.0 (absent) to 1.0 (clearly present). Be conservative — only score above 0.5 if confident.
 If the image is blurry or unclear, set all defect scores low and normal high.
 
-Also write a one-sentence description of what you see in plain language.
+Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation. Good: "White fuzzy residue on overhangs, rough bumpy texture on top surface." Bad: "Moisture in filament causing steam bubbles during extrusion."
 
 Respond with JSON only:
-{"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Clean extrusion bead with good layer adhesion, no visible defects"}"""
+{"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Clean bead, smooth top surface, no threads or blobs visible"}"""
 
 _BUDDY_PROMPT = """You are a 3D print quality inspector analyzing a WIDE-ANGLE BED CAMERA image (overview of the entire build plate).
 
 Score each defect 0.0 (absent) to 1.0 (clearly present). Focus on: spaghetti (filament in air), warping (corners lifting), detachment (print shifted or fallen). Be conservative.
 If the image is blurry or unclear, set all defect scores low and normal high.
 
+Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation.
+
 Respond with JSON only:
-{"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Print attached to bed, no visible defects from wide angle"}"""
+{"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Object centered on bed, no loose filament, corners flat"}"""
 
 
 def _analyze_frame(frame_b64: str, prompt: str) -> dict | None:
