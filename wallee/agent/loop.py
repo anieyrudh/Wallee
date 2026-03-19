@@ -59,8 +59,10 @@ class AgentLoop:
         self._wake_event = threading.Event()
         # Change 4: job context tracking
         self._last_job_phase: str | None = None
-        # Stabilization: oscillation detector (tracks last 3 decision type:tool pairs)
-        self._recent_decisions: deque[str] = deque(maxlen=3)
+        # Stabilization: oscillation detector (tracks last 2 decisions for A-B-A check)
+        self._recent_decisions: deque[str] = deque(maxlen=2)
+        # Stale decision retry counter (max 3 discards before proceeding anyway)
+        self._stale_retries: int = 0
 
     def wake(self):
         """Wake the agent from sleep immediately. Called by Telegram/CLI/sensors."""
@@ -458,12 +460,17 @@ class AgentLoop:
         return decision
 
     def _check_oscillation(self, decision) -> "Decision":
-        """Detect A-B-A flip-flop pattern in last 3 decisions and force extended WAIT."""
-        if len(self._recent_decisions) >= 3:
-            recent = list(self._recent_decisions)
-            # A-B-A pattern: first == third, first != second
-            if recent[0] == recent[2] and recent[0] != recent[1]:
-                logger.warning(f"Oscillation detected: {recent}. Forcing extended WAIT.")
+        """Detect A-B-A flip-flop pattern: would adding this decision create oscillation?
+
+        Checks current candidate against the last 2 decisions (deque maxlen=2).
+        If pattern is A → B → A (current matches two-ago, differs from last), force WAIT.
+        """
+        current_key = decision.type + ":" + getattr(decision, "tool", "")
+        if len(self._recent_decisions) >= 2:
+            prev = list(self._recent_decisions)
+            # A-B-A: current == prev[0] (two-ago) and current != prev[1] (last)
+            if prev[0] == current_key and prev[0] != prev[1]:
+                logger.warning(f"Oscillation detected: {prev[0]} -> {prev[1]} -> {current_key}. Forcing extended WAIT.")
                 self._recent_decisions.clear()
                 return Decision(
                     type="WAIT",
@@ -471,6 +478,7 @@ class AgentLoop:
                     reasoning="Oscillation detected — conflicting decisions in last 3 cycles. Stepping back to observe.",
                     check_after_s=60,
                 )
+        self._recent_decisions.append(current_key)
         return decision
 
     # ── Decision routing ────────────────────────────────────────────
@@ -645,7 +653,7 @@ class AgentLoop:
                         decision = Decision(
                             type="ACTION",
                             tool="start_print",
-                            params={"path": next_file},
+                            params={"file_path": next_file},
                             observation=f"Queue has {len(items) + 1} prints, bed cooled to {bed_temp:.0f}C",
                             reasoning=f"Auto-starting next queued print: {next_file}",
                         )
@@ -695,20 +703,27 @@ class AgentLoop:
                                      available_tools=tool_names)
 
         # 12. Stale decision check — discard if world changed during LLM call
+        stale = False
         post_call_intent = self.wb.read("human.intent")
         if post_call_intent != pre_call_intent:
-            logger.info("Human input arrived during LLM call. Discarding stale decision, re-running cycle.")
-            return raw_response
-
+            logger.info("Human input arrived during LLM call.")
+            stale = True
         post_call_pending = self.wb.read("human.pending_callout")
         if post_call_pending != pre_call_pending:
-            logger.info("Pending callout changed during LLM call. Discarding stale decision, re-running cycle.")
-            return raw_response
-
+            logger.info("Pending callout changed during LLM call.")
+            stale = True
         post_call_state = self.wb.read("printer.state")
         if post_call_state != pre_call_state:
-            logger.info(f"Printer state changed during LLM call ({pre_call_state} → {post_call_state}). Discarding stale decision, re-running cycle.")
+            logger.info(f"Printer state changed during LLM call ({pre_call_state} → {post_call_state}).")
+            stale = True
+
+        if stale and self._stale_retries < 3:
+            self._stale_retries += 1
+            logger.info(f"Discarding stale decision (retry {self._stale_retries}/3)")
             return raw_response
+        elif stale:
+            logger.warning("Max stale retries reached, proceeding with potentially stale decision")
+        self._stale_retries = 0
 
         # 13. Parse (use job.phase for interval clamping, fallback to printer.state)
         phase = state.get("job.phase", state.get("printer.state"))
@@ -720,12 +735,7 @@ class AgentLoop:
         # 15. Stabilization: oscillation guard (A-B-A flip-flop detection)
         decision = self._check_oscillation(decision)
 
-        # 16. Record decision for oscillation tracking
-        self._recent_decisions.append(
-            decision.type + ":" + getattr(decision, "tool", "")
-        )
-
-        # 17. Route
+        # 16. Route
         self._route_decision(decision, state)
         self._set_next_cycle_delay(decision)
 

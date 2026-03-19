@@ -125,7 +125,8 @@ def main():
     logger.info("Engine started (polling ledger)")
 
     # 7. Agent (starts LAST)
-    llm = LLMClient(api_key=cfg.openrouter_api_key, model=cfg.openrouter_model)
+    llm = LLMClient(api_key=cfg.openrouter_api_key, model=cfg.openrouter_model,
+                     temperature=cfg.llm_temperature)
     knowledge_dir = Path(__file__).parent / "knowledge"
 
     agent = AgentLoop(

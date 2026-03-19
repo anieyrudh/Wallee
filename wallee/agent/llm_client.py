@@ -154,6 +154,7 @@ class LLMClient:
             "stream": False,
             "max_tokens": 512,
             "temperature": self.temperature,
+            "top_p": 0.9,
         }
 
         raw_content = self._send_request(payload)
