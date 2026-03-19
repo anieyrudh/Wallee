@@ -169,6 +169,7 @@ img.cam { display: block; width: 100%; min-height: 210px; object-fit: cover; }
     <div class="card"><div class="card-header"><h2>Temperatures</h2></div><table id="temps"></table><canvas id="temp-chart"></canvas></div>
     <div class="card"><div class="card-header"><h2>Electrical</h2></div><table id="electrical"></table></div>
     <div class="card"><div class="card-header"><h2>Fans</h2></div><table id="fans"></table></div>
+    <div class="card"><div class="card-header"><h2>Vision Analysis</h2></div><div id="vision-panel"></div></div>
     <div class="card"><div class="card-header"><h2>Position</h2></div><table id="position"></table></div>
     <div class="card"><div class="card-header"><h2>Firmware Health</h2></div><table id="health"></table></div>
     <div class="card"><div class="card-header"><h2>Human Intent</h2></div><div id="intent"></div></div>
@@ -231,7 +232,7 @@ function connect() {
 function update(s) {
   updatePrintStatus(s); updateTemps(s); updateElectrical(s);
   updateFans(s); updatePosition(s); updateHealth(s);
-  updateIntent(s); updateAgentLog(s);
+  updateVision(s); updateIntent(s); updateAgentLog(s);
   updateCameras(s); updateSafety(s); updateSummary(s); updateAllKeys(s);
 }
 
@@ -378,6 +379,64 @@ function updateFans(s) {
   var el = document.getElementById('fans'); clearEl(el);
   if (s['printer.fan_heatbreak_rpm'] != null) el.appendChild(makeRow('Heatbreak', s['printer.fan_heatbreak_rpm'] + ' RPM'));
   if (s['printer.fan_print_rpm'] != null) el.appendChild(makeRow('Print', s['printer.fan_print_rpm'] + ' RPM'));
+}
+
+function updateVision(s) {
+  var el = document.getElementById('vision-panel');
+  clearEl(el);
+  var tbl = document.createElement('table');
+
+  /* Check if vision sensor is alive */
+  var lastTs = s['vision.last_analysis_ts'];
+  var age = lastTs ? Math.round((Date.now() / 1000) - parseFloat(lastTs)) : null;
+
+  if (!lastTs || age > 30) {
+    tbl.appendChild(makeRow('Status', 'OFFLINE — no vision data'));
+    el.appendChild(tbl);
+    return;
+  }
+
+  /* Combined status */
+  var status = s['vision.status'] || s['vision.nozzle.status'] || 'NO_DATA';
+  var statusCls = status.startsWith('DEFECT') ? 'color:var(--red)' :
+                  status.startsWith('POSSIBLE') ? 'color:var(--yellow)' : '';
+  var statusRow = makeRow('Status', status);
+  if (statusCls) statusRow.lastChild.style.cssText = statusCls + ';font-weight:700';
+  tbl.appendChild(statusRow);
+
+  /* Confidence */
+  var conf = s['vision.confidence'] || s['vision.nozzle.confidence'];
+  if (conf != null) tbl.appendChild(makeRow('Confidence', conf));
+
+  /* Description */
+  var desc = s['vision.description'] || s['vision.nozzle.description'];
+  if (desc) tbl.appendChild(makeRow('Description', desc));
+
+  /* Defect scores — nozzle */
+  var defects = ['stringing', 'spaghetti', 'blob', 'warping', 'layer_shift',
+                 'underextrusion', 'overextrusion', 'burn_marks', 'bed_adhesion_ok', 'normal'];
+  for (var i = 0; i < defects.length; i++) {
+    var key = defects[i];
+    var val = s['vision.nozzle.' + key] || s['vision.' + key];
+    if (val == null) continue;
+    var row = makeRow(key.replace('_', ' '), val);
+    if (val > 0.7 && key !== 'normal' && key !== 'bed_adhesion_ok')
+      row.lastChild.style.cssText = 'color:var(--red);font-weight:700';
+    else if (val > 0.4 && key !== 'normal' && key !== 'bed_adhesion_ok')
+      row.lastChild.style.cssText = 'color:var(--yellow)';
+    tbl.appendChild(row);
+  }
+
+  /* Buddy camera status if available */
+  var buddyStatus = s['vision.buddy.status'];
+  if (buddyStatus) {
+    var bRow = makeRow('Buddy cam', buddyStatus);
+    if (buddyStatus.startsWith('DEFECT')) bRow.lastChild.style.cssText = 'color:var(--red);font-weight:700';
+    tbl.appendChild(bRow);
+  }
+
+  tbl.appendChild(makeRow('Last update', age + 's ago'));
+  el.appendChild(tbl);
 }
 
 function updatePosition(s) {
