@@ -30,9 +30,7 @@ class TestLLMClient:
         assert body["model"] == "test/model"
         assert body["messages"][0]["role"] == "system"
         assert body["messages"][1]["content"] == "Decide your next action."
-        assert body["response_format"]["type"] == "json_schema"
-        assert body["response_format"]["json_schema"]["name"] == "agent_decision"
-        assert body["response_format"]["json_schema"]["strict"] is True
+        assert body["response_format"]["type"] == "json_object"
         # Only response-healing plugin (no web search)
         assert body["plugins"] == [{"id": "response-healing"}]
         assert body["stream"] is False
@@ -68,8 +66,8 @@ class TestLLMClient:
         headers = mock_post.call_args.kwargs["headers"]
         assert headers["Authorization"] == "Bearer test-key"
 
-    def test_schema_requires_observation_and_reasoning(self, client):
-        """JSON schema requires observation and reasoning fields."""
+    def test_uses_json_object_response_format(self, client):
+        """Use json_object mode and enforce structure with local validation."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"choices": [{"message": {"content": "{}"}}]}
         mock_response.raise_for_status = MagicMock()
@@ -77,9 +75,8 @@ class TestLLMClient:
         with patch("wallee.agent.llm_client.httpx.post", return_value=mock_response) as mock_post:
             client.call("prompt")
 
-        schema = mock_post.call_args.kwargs["json"]["response_format"]["json_schema"]["schema"]
-        assert "observation" in schema["required"]
-        assert "reasoning" in schema["required"]
+        response_format = mock_post.call_args.kwargs["json"]["response_format"]
+        assert response_format == {"type": "json_object"}
 
 
 class TestRetryLogic:

@@ -149,6 +149,14 @@ class TestBuildSystemPrompt:
         assert "JOB_CONTEXT.md" in prompt
         assert "benchy.gcode" in prompt
 
+    def test_includes_json_contract_examples(self, sample_knowledge, sample_tools):
+        prompt = build_system_prompt(sample_knowledge, sample_tools)
+        assert "Respond with one JSON object only" in prompt
+        assert '"type":"WAIT"' in prompt
+        assert '"type":"ACTION"' in prompt
+        assert '"type":"ACTION_CHAIN"' in prompt
+        assert '"type":"CALL_HUMAN"' in prompt
+
 
 class TestBuildUserMessage:
     def test_contains_phase_banner(self, sample_state):

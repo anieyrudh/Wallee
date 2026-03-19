@@ -90,7 +90,11 @@ def build_system_prompt(
 
     # Static instruction at end of system prompt (cached with it)
     sections.append(
-        "Respond with JSON. One sentence observation, one sentence reasoning."
+        "Respond with one JSON object only. Observation and reasoning must each be one sentence.\n"
+        'WAIT: {"type":"WAIT","observation":"...","reasoning":"...","check_after_s":30}\n'
+        'ACTION: {"type":"ACTION","observation":"...","reasoning":"...","tool":"tool_name","params":{"key":"value"}}\n'
+        'ACTION_CHAIN: {"type":"ACTION_CHAIN","observation":"...","reasoning":"...","actions":[{"tool":"tool_name","params":{},"reasoning":"..."}]}\n'
+        'CALL_HUMAN: {"type":"CALL_HUMAN","observation":"...","reasoning":"...","message":"...","severity":"warning"}'
     )
 
     return "\n\n".join(sections)
