@@ -219,7 +219,7 @@ class TestEstopMonitoring:
         status = kernel.check_once()
         assert status["estop_ok"] is False
         assert len(msgs) == 1
-        assert "ESTOP ACTIVE" in msgs[0][0]
+        assert "ESTOP ACTIVATED" in msgs[0][0]
 
         kernel.check_once()
         assert len(msgs) == 1

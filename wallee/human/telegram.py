@@ -22,6 +22,8 @@ import threading
 import time
 from typing import Callable
 
+import httpx
+
 from wallee.config import (
     DEFAULT_HUMAN_ESTOP_TTL_S,
     DEFAULT_HUMAN_IMAGE_TTL_S,
@@ -34,6 +36,31 @@ logger = logging.getLogger(__name__)
 # Lazy imports — telegram library may not be installed
 _telegram = None
 _telegram_ext = None
+
+
+def _estop_printer():
+    """Send M25 pause directly to printer, bypassing engine gates."""
+    host = os.environ.get("PRUSALINK_HOST", "").strip()
+    api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
+    if not host:
+        logger.warning("ESTOP: PRUSALINK_HOST not set, cannot pause printer")
+        return
+    base = host if host.startswith("http") else f"http://{host}"
+    headers = {"X-Api-Key": api_key} if api_key else {}
+    try:
+        resp = httpx.post(f"{base}/api/v1/gcode", json={"command": "M25"},
+                          headers=headers, timeout=5.0)
+        if resp.status_code < 300:
+            logger.critical("ESTOP: printer paused via M25")
+            return
+        logger.warning(f"ESTOP: M25 failed (HTTP {resp.status_code}), trying cancel")
+    except Exception as e:
+        logger.warning(f"ESTOP: M25 failed ({e}), trying cancel")
+    try:
+        resp = httpx.delete(f"{base}/api/v1/job", headers=headers, timeout=5.0)
+        logger.critical(f"ESTOP: cancel job response HTTP {resp.status_code}")
+    except Exception as e:
+        logger.error(f"ESTOP: cancel also failed: {e}")
 
 
 def _ensure_telegram():
@@ -403,10 +430,13 @@ class TelegramBot:
 
         if self.wb:
             self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
+        _estop_printer()
         if self._wake_agent:
             self._wake_agent()
         logger.critical("ESTOP triggered via Telegram")
-        await update.message.reply_text("🛑 ESTOP triggered. All actions paused.")
+        await update.message.reply_text(
+            "🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."
+        )
 
     async def _cmd_snapshot(self, update, context):
         if not await self._ensure_authorized(update):

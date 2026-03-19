@@ -160,4 +160,4 @@ class TestTelegramAuth:
 
         assert wb.read("safety.estop") is True
         assert wb.read("human.estop") is None
-        assert replies == ["🛑 ESTOP triggered. All actions paused."]
+        assert replies == ["🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."]
