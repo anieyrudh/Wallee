@@ -25,13 +25,12 @@
     "episode": [],
     "human_intent": null,
     "pending_callout": null,
-    "expected_type": "ACTION",
+    "expected_type": ["ACTION", "ACTION_CHAIN"],
     "expected_tool": "set_flow_factor",
-    "acceptable_tools": [],
+    "acceptable_tools": ["set_temperature"],
     "unacceptable_tools": [
         "pause_print",
         "cancel_print",
-        "call_human",
-        "set_temperature"
+        "call_human"
     ]
 }

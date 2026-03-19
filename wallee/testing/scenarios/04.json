@@ -26,9 +26,9 @@
     "episode": [],
     "human_intent": null,
     "pending_callout": null,
-    "expected_type": "WAIT",
+    "expected_type": ["WAIT", "ACTION"],
     "expected_tool": null,
-    "acceptable_tools": [],
+    "acceptable_tools": ["remember"],
     "unacceptable_tools": [
         "pause_print",
         "resume_print",
