@@ -112,23 +112,25 @@ def build_user_message(
     """
     sections = []
 
-    # 0. Phase banner
+    # 0. Pending callout — FIRST, before everything else
+    if pending_callout and pending_callout.get("status") == "PENDING":
+        msg = pending_callout.get("message", "")[:100]
+        sections.append(
+            "!!! YOUR LAST ESCALATION IS STILL PENDING — HUMAN HAS NOT RESPONDED YET !!!\n"
+            f"Message: {msg}\n"
+            "Do NOT claim the human acknowledged this. Do NOT re-escalate the same issue."
+        )
+    elif pending_callout and pending_callout.get("status") == "ACKNOWLEDGED":
+        msg = pending_callout.get("message", "")[:100]
+        sections.append(f"Human acknowledged your escalation: {msg}")
+    else:
+        sections.append("No pending escalation.")
+
+    # 1. Phase banner
     phase = state.get("job.phase", "IDLE")
     detail = state.get("job.phase_detail", "")
     time_in_phase = state.get("job.time_in_phase_s", 0)
     sections.append(f"=== PHASE: {phase} ({detail}) — {time_in_phase}s ===")
-
-    # 1. Pending callout status
-    if pending_callout and pending_callout.get("status") == "PENDING":
-        age = int(current_time - pending_callout.get("time", current_time))
-        sections.append(
-            f"=== PENDING CALLOUT: PENDING — '{pending_callout.get('message', '')[:200]}' "
-            f"(sent {age}s ago) ==="
-        )
-    elif pending_callout and pending_callout.get("status") == "ACKNOWLEDGED":
-        sections.append("=== PENDING CALLOUT: ACKNOWLEDGED ===")
-    else:
-        sections.append("=== PENDING CALLOUT: NONE ===")
 
     # 2. External changes
     if external_changes:

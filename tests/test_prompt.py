@@ -162,12 +162,13 @@ class TestBuildUserMessage:
     def test_pending_callout_shown(self, sample_state):
         pending = {"hash": "abc", "message": "nozzle blob", "time": time.time() - 60, "status": "PENDING"}
         text = build_user_message(sample_state, [], None, time.time(), pending_callout=pending)
-        assert "PENDING CALLOUT: PENDING" in text
+        assert "STILL PENDING" in text
+        assert "HAS NOT RESPONDED" in text
         assert "nozzle blob" in text
 
     def test_no_pending_callout(self, sample_state):
         text = build_user_message(sample_state, [], None, time.time())
-        assert "PENDING CALLOUT: NONE" in text
+        assert "No pending escalation" in text
 
 
 class TestBuildMessages:
