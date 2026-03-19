@@ -26,12 +26,18 @@ class Ledger:
         self._run_migrations()
 
     def _run_migrations(self):
-        """Apply all SQL migration files in order."""
+        """Apply all SQL migration files in order (idempotent)."""
         with self._lock:
             migration_files = sorted(_MIGRATION_DIR.glob("*.sql"))
             for mf in migration_files:
                 sql = mf.read_text()
-                self.conn.executescript(sql)
+                try:
+                    self.conn.executescript(sql)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" in str(e):
+                        logger.debug(f"Migration {mf.name}: column already exists, skipping")
+                    else:
+                        raise
             self.conn.commit()
 
     def close(self):
