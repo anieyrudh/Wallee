@@ -91,10 +91,10 @@ def build_system_prompt(
     # Static instruction at end of system prompt (cached with it)
     sections.append(
         "Respond with one JSON object only. Observation and reasoning must each be one sentence.\n"
-        'WAIT: {"type":"WAIT","observation":"...","reasoning":"...","check_after_s":30}\n'
-        'ACTION: {"type":"ACTION","observation":"...","reasoning":"...","tool":"tool_name","params":{"key":"value"}}\n'
-        'ACTION_CHAIN: {"type":"ACTION_CHAIN","observation":"...","reasoning":"...","actions":[{"tool":"tool_name","params":{},"reasoning":"..."}]}\n'
-        'CALL_HUMAN: {"type":"CALL_HUMAN","observation":"...","reasoning":"...","message":"...","severity":"warning"}'
+        'WAIT: {"type":"WAIT","observation":"...","reasoning":"...","tool":null,"params":null,"actions":null,"message":null,"severity":null,"check_after_s":30}\n'
+        'ACTION: {"type":"ACTION","observation":"...","reasoning":"...","tool":"tool_name","params":"{\\"target\\":210,\\"heater\\":\\"nozzle\\"}","actions":null,"message":null,"severity":null,"check_after_s":null}\n'
+        'ACTION_CHAIN: {"type":"ACTION_CHAIN","observation":"...","reasoning":"...","tool":null,"params":null,"actions":[{"tool":"tool_name","params":"{}","reasoning":"..."}],"message":null,"severity":null,"check_after_s":null}\n'
+        'CALL_HUMAN: {"type":"CALL_HUMAN","observation":"...","reasoning":"...","tool":null,"params":null,"actions":null,"message":"...","severity":"warning","check_after_s":null}'
     )
 
     return "\n\n".join(sections)

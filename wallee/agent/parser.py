@@ -37,6 +37,27 @@ def configure_check_intervals(
     DEFAULT_CHECK_INTERVAL = int(default_check_interval)
 
 
+def _parse_params_value(value, *, context: str) -> dict:
+    """Normalize params into a dict for dispatch safety."""
+    params = value
+    if isinstance(params, str):
+        try:
+            parsed = json.loads(params)
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse {context} params string: {params}")
+            return {}
+        if isinstance(parsed, dict):
+            return parsed
+        logger.warning(f"{context} params JSON did not decode to object: {parsed!r}")
+        return {}
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    logger.warning(f"{context} params had unexpected type: {type(value).__name__}")
+    return {}
+
+
 @dataclass
 class Decision:
     type: str  # ACTION, WAIT, CALL_HUMAN, ACTION_CHAIN
@@ -143,7 +164,7 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
             observation=observation,
             reasoning=reasoning,
             tool=tool,
-            params=data.get("params", {}),
+            params=_parse_params_value(data.get("params"), context="ACTION"),
         )
 
     if decision_type == "WAIT":
@@ -173,6 +194,7 @@ def parse_llm_output(raw: str, printer_state: str | None = None) -> Decision:
             if not isinstance(act, dict) or not act.get("tool"):
                 logger.warning(f"ACTION_CHAIN action[{i}] missing tool")
                 return _default_wait(f"ACTION_CHAIN action[{i}] missing tool")
+            act["params"] = _parse_params_value(act.get("params"), context=f"ACTION_CHAIN action[{i}]")
         return Decision(
             type="ACTION_CHAIN",
             observation=observation,

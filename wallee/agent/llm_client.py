@@ -28,14 +28,24 @@ DECISION_SCHEMA = {
     "strict": True,
     "schema": {
         "type": "object",
-        "required": ["type", "observation", "reasoning"],
+        "required": [
+            "type",
+            "observation",
+            "reasoning",
+            "tool",
+            "params",
+            "actions",
+            "message",
+            "severity",
+            "check_after_s",
+        ],
         "additionalProperties": False,
         "properties": {
             "type": {"type": "string", "enum": ["ACTION", "ACTION_CHAIN", "WAIT", "CALL_HUMAN"]},
             "observation": {"type": "string", "description": "One sentence: what you see right now"},
             "reasoning": {"type": "string", "description": "One sentence: why this decision"},
             "tool": {"type": ["string", "null"], "description": "Tool name for ACTION"},
-            "params": {"type": ["object", "null"], "description": "Tool params for ACTION"},
+            "params": {"type": ["string", "null"], "description": "Tool params as JSON string, e.g. '{\"target\":210,\"heater\":\"nozzle\"}'. Required for ACTION"},
             "actions": {
                 "type": ["array", "null"],
                 "description": "Steps for ACTION_CHAIN (max 5)",
@@ -45,7 +55,7 @@ DECISION_SCHEMA = {
                     "additionalProperties": False,
                     "properties": {
                         "tool": {"type": "string"},
-                        "params": {"type": "object"},
+                        "params": {"type": "string", "description": "Tool params as JSON string"},
                         "reasoning": {"type": "string"},
                     },
                 },

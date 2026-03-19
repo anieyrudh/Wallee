@@ -81,6 +81,12 @@ class TestLLMClient:
         schema = response_format["json_schema"]
         assert schema["strict"] is True
         assert schema["schema"]["additionalProperties"] is False
+        assert schema["schema"]["required"] == [
+            "type", "observation", "reasoning", "tool", "params",
+            "actions", "message", "severity", "check_after_s",
+        ]
+        assert schema["schema"]["properties"]["params"]["type"] == ["string", "null"]
+        assert schema["schema"]["properties"]["actions"]["items"]["properties"]["params"]["type"] == "string"
 
 
 class TestRetryLogic:

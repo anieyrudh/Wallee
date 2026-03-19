@@ -40,6 +40,27 @@ class TestParseAction:
         assert d.type == "ACTION"
         assert d.params == {}
 
+    def test_action_string_params_are_deserialized(self):
+        raw = json.dumps({
+            "type": "ACTION",
+            "tool": "set_temperature",
+            "params": "{\"target\": 210, \"heater\": \"nozzle\"}",
+            "reason": "raise temp",
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION"
+        assert d.params == {"target": 210, "heater": "nozzle"}
+
+    def test_action_invalid_string_params_default_empty(self):
+        raw = json.dumps({
+            "type": "ACTION",
+            "tool": "set_temperature",
+            "params": "{not-json}",
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION"
+        assert d.params == {}
+
     def test_action_missing_tool(self):
         raw = json.dumps({"type": "ACTION", "params": {}})
         d = parse_llm_output(raw)
@@ -232,6 +253,32 @@ class TestParseActionChain:
         assert len(d.actions) == 2
         assert d.actions[0]["tool"] == "pause_print"
         assert d.actions[1]["tool"] == "set_temperature"
+
+    def test_action_chain_string_params_are_deserialized(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "need two steps",
+            "reasoning": "pause then tune",
+            "actions": [
+                {"tool": "pause_print", "params": "{}"},
+                {"tool": "set_temperature", "params": "{\"target\": 200, \"heater\": \"nozzle\"}"},
+            ],
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION_CHAIN"
+        assert d.actions[0]["params"] == {}
+        assert d.actions[1]["params"] == {"target": 200, "heater": "nozzle"}
+
+    def test_action_chain_invalid_string_params_default_empty(self):
+        raw = json.dumps({
+            "type": "ACTION_CHAIN",
+            "observation": "test",
+            "reasoning": "test",
+            "actions": [{"tool": "pause_print", "params": "{bad-json}"}],
+        })
+        d = parse_llm_output(raw)
+        assert d.type == "ACTION_CHAIN"
+        assert d.actions[0]["params"] == {}
 
     def test_empty_actions_defaults_to_wait(self):
         raw = json.dumps({
