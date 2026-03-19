@@ -34,6 +34,58 @@ TPU: nozzle 210-230°C, bed 40-60°C. Very slow printing, flexible — don't ret
 
 The material being used is visible in the metrics (material field from OctoPrint compat endpoint) and in the print filename convention.
 
+## Print phases — what's physically happening
+
+### Startup / Preparing
+Bed heats first (60-110°C depending on material), then nozzle. Firmware runs a purge line
+along the bed edge to prime the nozzle. Blobs during purge are NORMAL. Temps climbing toward
+target is NORMAL. Do not adjust anything during this phase — nothing has stabilized yet.
+
+### First layer
+The most critical phase. Nozzle moves slowly, close to the bed. Look for: consistent squish
+(slightly wider than nozzle diameter), no gaps between lines, no curling at corners. First
+layer problems are usually bed temp, Z-offset, or speed — not nozzle temp.
+
+### Cruise (bulk of the print)
+Steady state. Temps should be stable (±1°C), speed consistent, fan at slicer settings.
+This is where stringing, overextrusion, and underextrusion become visible. Small adjustments
+here have the most impact — one change at a time, observe for 2-3 cycles.
+
+### Final layers / top surface
+Speed often drops for top solid infill. Overextrusion shows as bumpy top surface.
+Underextrusion shows as gaps. Fan usually at max for bridging and overhangs.
+
+### Cooldown / Finished
+Nozzle and bed cool toward ambient. Parts may pop off PEI sheets as bed cools below 40°C.
+This is normal. Nothing to do — observe and log the outcome.
+
+## Sensor patterns — what telemetry tells you
+
+### Developing clog
+Nozzle temp stable but printer.fsensor_flow dropping over 5+ cycles. Extruder motor working
+harder (printer.curr_nozzle rising) but less filament coming out. Action: reduce speed 10%,
+increase temp 5°C. If flow continues dropping, call human — may need cold pull.
+
+### Wet filament
+Inconsistent extrusion, popping sounds (visible as heater PWM micro-fluctuations in
+printer.pwm_nozzle). Surface looks rough/bubbly. Stringing worse than expected for the temp.
+Action: note in observations for human. Can't fix mid-print — filament needs drying.
+
+### Loose belt / mechanical issue
+printer.stepper_stall incrementing during normal moves (not homing). Layer shifts visible
+in vision.layer_shift score. Position jumps in printer.pos_x/y. Action: call human —
+mechanical intervention needed.
+
+### Failing heater
+printer.pwm_nozzle at 100% but temp not reaching target. Or temp oscillating ±5°C around
+target. Voltage dropping (printer.volt_nozzle). Action: call human — heater cartridge or
+thermistor issue.
+
+### Normal patterns to ignore
+- Stepper stall count incrementing during homing — normal
+- Brief temp dip when fan kicks in at layer 2-3 — normal
+- Serial disconnects every 1-3s — normal Core One+ behavior
+- Filament sensor noise during retraction — normal
 ---
 
 ## What you can fix autonomously
