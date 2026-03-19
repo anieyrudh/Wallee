@@ -179,10 +179,6 @@ def read_job_phase() -> dict:
     temp_bed = float(printer.get("temp_bed", 0) or 0)
     target_bed = float(printer.get("target_bed", 0) or 0)
 
-    def temp_ok(cur, tgt):
-        return tgt == 0 or abs(cur - tgt) <= 3
-
-    any_heating = not temp_ok(temp_nozzle, target_nozzle) or not temp_ok(temp_bed, target_bed)
     has_job = state in ("PRINTING", "PAUSED") or progress > 0
 
     if state in ("ERROR", "ATTENTION"):

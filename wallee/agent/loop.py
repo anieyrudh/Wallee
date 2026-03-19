@@ -114,7 +114,11 @@ class AgentLoop:
 
         # PREPARING from any other state → create JOB_CONTEXT.md
         if phase == "PREPARING" and prev != "PREPARING":
-            self._create_job_context(state)
+            ctx_path = self.data_dir / "JOB_CONTEXT.md"
+            if not ctx_path.exists():
+                self._create_job_context(state)
+            else:
+                logger.debug("JOB_CONTEXT.md already exists, skipping recreation")
 
         # FINISHED or IDLE from PRINTING/PAUSED → archive and clean up
         if phase in ("FINISHED", "IDLE") and prev in ("PRINTING", "PAUSED"):

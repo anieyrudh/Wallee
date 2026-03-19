@@ -165,7 +165,7 @@ class LLMClient:
                     if is_valid2:
                         return retry_content
                     logger.warning(f"LLM retry also invalid: {error2}. Giving up.")
-                return raw_content  # return original — parser will downgrade to WAIT
+                return '{"type": "WAIT", "observation": "LLM output invalid after retry", "reasoning": "Defaulting to WAIT for safety", "check_after_s": 30}'
 
         return raw_content
 

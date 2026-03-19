@@ -88,7 +88,10 @@ def _precheck_idle_motion(whiteboard=None, action: str = "move", **kwargs) -> di
     return _ok()
 
 
-def _precheck_set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+def _precheck_set_speed_factor(whiteboard=None, percent=None, **kwargs) -> dict:
+    if percent is None:
+        return {"error": "percent is required"}
+    percent = int(percent)
     if percent < 10 or percent > 200:
         return {"error": f"Speed factor {percent}% outside bounds (10-200)"}
 
@@ -98,7 +101,10 @@ def _precheck_set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) ->
     return _ok()
 
 
-def _precheck_set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+def _precheck_set_flow_factor(whiteboard=None, percent=None, **kwargs) -> dict:
+    if percent is None:
+        return {"error": "percent is required"}
+    percent = int(percent)
     if percent < 10 or percent > 150:
         return {"error": f"Flow factor {percent}% outside bounds (10-150)"}
 
@@ -108,13 +114,21 @@ def _precheck_set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> 
     return _ok()
 
 
-def _precheck_set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kwargs) -> dict:
-    if x < 0 or x > 252:
-        return {"error": f"X={x} outside bounds (0-252mm)"}
-    if y < 0 or y > 220:
-        return {"error": f"Y={y} outside bounds (0-220mm)"}
-    if z < 0 or z > 220:
-        return {"error": f"Z={z} outside bounds (0-220mm)"}
+def _precheck_set_position(whiteboard=None, x=None, y=None, z=None, **kwargs) -> dict:
+    if x is None and y is None and z is None:
+        return {"error": "at least one of x, y, z is required"}
+    if x is not None:
+        x = float(x)
+        if x < 0 or x > 252:
+            return {"error": f"X={x} outside bounds (0-252mm)"}
+    if y is not None:
+        y = float(y)
+        if y < 0 or y > 220:
+            return {"error": f"Y={y} outside bounds (0-220mm)"}
+    if z is not None:
+        z = float(z)
+        if z < 0 or z > 220:
+            return {"error": f"Z={z} outside bounds (0-220mm)"}
 
     state = _read_state(whiteboard, "printer.state")
     if state not in ("IDLE", "FINISHED", None):
@@ -122,7 +136,10 @@ def _precheck_set_position(whiteboard=None, x: float = 0, y: float = 0, z: float
     return _ok()
 
 
-def _precheck_extrusion(action: str, whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+def _precheck_extrusion(action: str, whiteboard=None, length_mm=None, **kwargs) -> dict:
+    if length_mm is None:
+        return {"error": "length_mm is required"}
+    length_mm = float(length_mm)
     if length_mm <= 0 or length_mm > 100:
         return {"error": f"{action.title()} length {length_mm}mm outside bounds (0-100)"}
 
@@ -136,11 +153,11 @@ def _precheck_extrusion(action: str, whiteboard=None, length_mm: float = 10, **k
     return _ok()
 
 
-def _precheck_extrude(whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+def _precheck_extrude(whiteboard=None, length_mm=None, **kwargs) -> dict:
     return _precheck_extrusion("extrude", whiteboard=whiteboard, length_mm=length_mm, **kwargs)
 
 
-def _precheck_retract(whiteboard=None, length_mm: float = 10, **kwargs) -> dict:
+def _precheck_retract(whiteboard=None, length_mm=None, **kwargs) -> dict:
     return _precheck_extrusion("retract", whiteboard=whiteboard, length_mm=length_mm, **kwargs)
 
 
@@ -318,8 +335,12 @@ def disable_motors(whiteboard=None, **kwargs) -> dict:
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_speed_factor)
-def set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+def set_speed_factor(whiteboard=None, percent=None, **kwargs) -> dict:
     """Set print speed factor (M220). Only during printing. Bounds: 10-200%."""
+    if percent is None:
+        return {"error": "percent is required"}
+    percent = int(percent)
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
@@ -335,8 +356,12 @@ def set_speed_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_flow_factor)
-def set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
+def set_flow_factor(whiteboard=None, percent=None, **kwargs) -> dict:
     """Set flow/extrusion factor (M221). Only during printing. Bounds: 10-150%."""
+    if percent is None:
+        return {"error": "percent is required"}
+    percent = int(percent)
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
@@ -352,7 +377,7 @@ def set_flow_factor(whiteboard=None, percent: int = 100, **kwargs) -> dict:
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_set_position)
-def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kwargs) -> dict:
+def set_position(whiteboard=None, x=None, y=None, z=None, **kwargs) -> dict:
     """Move toolhead to position via G1. HIGH CONSEQUENCE — never during a print.
 
     Args:
@@ -360,33 +385,65 @@ def set_position(whiteboard=None, x: float = 0, y: float = 0, z: float = 0, **kw
         y: Y position in mm (0-220).
         z: Z position in mm (0-220).
     """
+    if x is None and y is None and z is None:
+        return {"error": "at least one of x, y, z is required"}
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
 
-    if x < 0 or x > 252:
-        return {"error": f"X={x} outside bounds (0-252mm)"}
-    if y < 0 or y > 220:
-        return {"error": f"Y={y} outside bounds (0-220mm)"}
-    if z < 0 or z > 220:
-        return {"error": f"Z={z} outside bounds (0-220mm)"}
+    if x is not None:
+        x = float(x)
+        if x < 0 or x > 252:
+            return {"error": f"X={x} outside bounds (0-252mm)"}
+    if y is not None:
+        y = float(y)
+        if y < 0 or y > 220:
+            return {"error": f"Y={y} outside bounds (0-220mm)"}
+    if z is not None:
+        z = float(z)
+        if z < 0 or z > 220:
+            return {"error": f"Z={z} outside bounds (0-220mm)"}
 
     state = whiteboard.read("printer.state") if whiteboard else None
     if state not in ("IDLE", "FINISHED", None):
         return {"error": f"Cannot move: printer state is {state}, must be IDLE. "
                 "Moving during a print would destroy it."}
 
-    return _gcode(http, f"G1 X{x} Y{y} Z{z} F3000", "set_position", x=x, y=y, z=z)
+    # Build G-code with only specified axes
+    parts = ["G1"]
+    if x is not None:
+        parts.append(f"X{x}")
+    if y is not None:
+        parts.append(f"Y{y}")
+    if z is not None:
+        parts.append(f"Z{z}")
+    parts.append("F3000")
+    gcode = " ".join(parts)
+
+    result_kwargs = {}
+    if x is not None:
+        result_kwargs["x"] = x
+    if y is not None:
+        result_kwargs["y"] = y
+    if z is not None:
+        result_kwargs["z"] = z
+
+    return _gcode(http, gcode, "set_position", **result_kwargs)
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_extrude)
-def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
+def extrude(whiteboard=None, length_mm=None, feedrate: int = 300, **kwargs) -> dict:
     """Extrude filament via G1 E{length}. Requires nozzle >= 170C.
 
     Args:
         length_mm: Length to extrude in mm (max 100).
         feedrate: Feedrate in mm/min (default 300).
     """
+    if length_mm is None:
+        return {"error": "length_mm is required"}
+    length_mm = float(length_mm)
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
@@ -413,13 +470,17 @@ def extrude(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwarg
 
 
 @tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_retract)
-def retract(whiteboard=None, length_mm: float = 10, feedrate: int = 300, **kwargs) -> dict:
+def retract(whiteboard=None, length_mm=None, feedrate: int = 300, **kwargs) -> dict:
     """Retract filament via G1 E-{length}. Requires nozzle >= 170C.
 
     Args:
         length_mm: Length to retract in mm (max 100).
         feedrate: Feedrate in mm/min (default 300).
     """
+    if length_mm is None:
+        return {"error": "length_mm is required"}
+    length_mm = float(length_mm)
+
     http = _get_http()
     if http is None:
         return {"error": "PrusaLink not configured"}
