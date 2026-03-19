@@ -200,7 +200,8 @@ def main():
                 call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox",
                            telegram_fn=None)  # don't recurse
             agent.call_human_fn = _telegram_call_human
-            logger.info("Telegram bot started and wired to agent")
+            safety.call_human_fn = _telegram_call_human
+            logger.info("Telegram bot started and wired to agent + safety kernel")
         except Exception as e:
             logger.warning(f"Telegram bot failed to start: {e}")
     else:

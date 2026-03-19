@@ -165,6 +165,7 @@ class ToolRegistry:
         ttl_redis = max(1, int(ttl_s)) if ttl_s else None
         history_depth = tool.meta["history_depth"]
         prev_printer_state = None
+        prev_fsensor_state = None
 
         while self._running:
             try:
@@ -184,6 +185,13 @@ class ToolRegistry:
                             logger.info(f"Printer state changed: {prev_printer_state} → {new_state}, waking agent")
                             self._wake_fn()
                         prev_printer_state = new_state
+                    # Wake agent on filament sensor state change
+                    new_fsensor = payload.get("printer.fsensor_state")
+                    if new_fsensor is not None and self._wake_fn:
+                        if prev_fsensor_state is not None and new_fsensor != prev_fsensor_state:
+                            logger.info(f"Filament sensor changed: {prev_fsensor_state} → {new_fsensor}, waking agent")
+                            self._wake_fn()
+                        prev_fsensor_state = new_fsensor
             except Exception as e:
                 logger.error(f"Sensor {tool.name} error: {e}")
             time.sleep(interval)
