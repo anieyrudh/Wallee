@@ -4,8 +4,10 @@ import time
 import threading
 import fakeredis
 import pytest
+from unittest.mock import patch, MagicMock
 
 from wallee.safety.kernel import SafetyKernel
+from wallee.safety.estop import estop_printer
 from wallee.whiteboard.client import Whiteboard
 
 
@@ -241,6 +243,46 @@ class TestEstopMonitoring:
         wb.publish("safety.estop", True, ttl=30)
         kernel.check_once()
         assert len(msgs) == 2
+
+
+class TestEstopPrinter:
+    """Tests for wallee.safety.estop.estop_printer — direct M25 bypass."""
+
+    @patch("wallee.safety.estop.httpx.post")
+    def test_estop_sends_m25(self, mock_post):
+        """ESTOP sends M25 to printer via direct HTTP, bypassing engine."""
+        mock_post.return_value = MagicMock(status_code=204)
+        result = estop_printer("192.168.1.50", "test-key")
+        assert result is True
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert "/api/v1/gcode" in call_args[0][0]
+        assert call_args[1]["json"] == {"command": "M25"}
+
+    @patch("wallee.safety.estop.httpx.delete")
+    @patch("wallee.safety.estop.httpx.post")
+    def test_estop_falls_back_to_cancel(self, mock_post, mock_delete):
+        """If M25 fails, ESTOP tries DELETE /api/v1/job."""
+        mock_post.side_effect = Exception("connection refused")
+        mock_delete.return_value = MagicMock(status_code=204)
+        result = estop_printer("192.168.1.50", "test-key")
+        assert result is True
+        mock_delete.assert_called_once()
+        assert "/api/v1/job" in mock_delete.call_args[0][0]
+
+    @patch("wallee.safety.estop.httpx.delete")
+    @patch("wallee.safety.estop.httpx.post")
+    def test_estop_all_fail(self, mock_post, mock_delete):
+        """If both M25 and cancel fail, returns False."""
+        mock_post.side_effect = Exception("post failed")
+        mock_delete.side_effect = Exception("delete failed")
+        result = estop_printer("192.168.1.50", "test-key")
+        assert result is False
+
+    def test_estop_no_host(self):
+        """No host configured returns False without HTTP calls."""
+        result = estop_printer("", "key")
+        assert result is False
 
 
 class TestRunLoop:

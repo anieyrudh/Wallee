@@ -154,6 +154,21 @@ class TestRetryLogic:
         assert '"type": "WAIT"' in result
         assert mock_post.call_count == 1
 
+    def test_missing_choices_returns_wait(self, client):
+        """LLM response without choices key returns valid WAIT JSON."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"id": "gen-123", "model": "test"}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("wallee.agent.llm_client.httpx.post", return_value=mock_resp):
+            result = client.call("prompt")
+
+        import json
+        data = json.loads(result)
+        assert data["type"] == "WAIT"
+        assert "malformed" in data["observation"]
+
     @patch("wallee.agent.llm_client.time.sleep")
     def test_backoff_increases(self, mock_sleep, client):
         with patch("wallee.agent.llm_client.httpx.post",

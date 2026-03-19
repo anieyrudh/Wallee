@@ -417,6 +417,40 @@ class TestMaterialDetection:
         assert agent._detect_material("mystery_file.gcode", {}) == "unknown"
 
 
+class TestJobFilename:
+    @patch("wallee.agent.loop.httpx.get")
+    def test_job_filename_from_http(self, mock_get, wb, mock_llm, registry, knowledge_dir):
+        """Filename fetched from PrusaLink HTTP API as primary source."""
+        import os
+        os.environ["PRUSALINK_HOST"] = "192.168.1.50"
+        os.environ["PRUSALINK_API_KEY"] = "test"
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"file": {"display_name": "Benchy.bgcode", "name": "BENCH~1.BGC"}}
+            mock_get.return_value = mock_resp
+
+            agent = AgentLoop(whiteboard=wb, llm=mock_llm, tools=registry, knowledge_dir=knowledge_dir)
+            result = agent._fetch_job_filename({})
+            assert result == "Benchy.bgcode"
+        finally:
+            os.environ.pop("PRUSALINK_HOST", None)
+            os.environ.pop("PRUSALINK_API_KEY", None)
+
+    @patch("wallee.agent.loop.httpx.get")
+    def test_job_filename_falls_back_to_whiteboard(self, mock_get, wb, mock_llm, registry, knowledge_dir):
+        """If HTTP fails, filename comes from whiteboard."""
+        import os
+        os.environ["PRUSALINK_HOST"] = "192.168.1.50"
+        try:
+            mock_get.side_effect = Exception("connection refused")
+            agent = AgentLoop(whiteboard=wb, llm=mock_llm, tools=registry, knowledge_dir=knowledge_dir)
+            result = agent._fetch_job_filename({"printer.print_filename": "fallback.gcode"})
+            assert result == "fallback.gcode"
+        finally:
+            os.environ.pop("PRUSALINK_HOST", None)
+
+
 class TestKnowledge:
     def test_loads_knowledge_files(self, agent):
         k = agent._load_knowledge()
