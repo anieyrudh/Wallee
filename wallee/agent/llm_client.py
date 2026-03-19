@@ -22,10 +22,40 @@ MAX_VALIDATION_RETRIES = 1  # One retry only — don't burn tokens
 _FALLBACK_WAIT = ('{"type": "WAIT", "observation": "LLM response error", '
                   '"reasoning": "Upstream failure, defaulting to WAIT", "check_after_s": 30}')
 
-# OpenRouter supports both json_schema and json_object response formats. Our
-# decision payload includes open-ended tool parameter maps, so json_object plus
-# local validation is more compatible with provider-side schema enforcement.
-DECISION_RESPONSE_FORMAT = {"type": "json_object"}
+# Structured output schema for agent decisions (OpenAI strict mode)
+DECISION_SCHEMA = {
+    "name": "agent_decision",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "required": ["type", "observation", "reasoning"],
+        "additionalProperties": False,
+        "properties": {
+            "type": {"type": "string", "enum": ["ACTION", "ACTION_CHAIN", "WAIT", "CALL_HUMAN"]},
+            "observation": {"type": "string", "description": "One sentence: what you see right now"},
+            "reasoning": {"type": "string", "description": "One sentence: why this decision"},
+            "tool": {"type": ["string", "null"], "description": "Tool name for ACTION"},
+            "params": {"type": ["object", "null"], "description": "Tool params for ACTION"},
+            "actions": {
+                "type": ["array", "null"],
+                "description": "Steps for ACTION_CHAIN (max 5)",
+                "items": {
+                    "type": "object",
+                    "required": ["tool", "params", "reasoning"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "tool": {"type": "string"},
+                        "params": {"type": "object"},
+                        "reasoning": {"type": "string"},
+                    },
+                },
+            },
+            "message": {"type": ["string", "null"], "description": "Message for CALL_HUMAN"},
+            "severity": {"type": ["string", "null"], "enum": ["info", "warning", "critical", None]},
+            "check_after_s": {"type": ["number", "null"], "description": "Seconds until next check for WAIT"},
+        },
+    },
+}
 
 
 class LLMClient:
@@ -90,7 +120,7 @@ class LLMClient:
         """Send prompt to LLM, return raw response text.
 
         Features enabled via OpenRouter:
-        - Structured outputs (json_object) — guarantees syntactically valid JSON
+        - Structured outputs (json_schema, strict: true) — model can only emit valid tokens
         - Response healing plugin — fixes malformed JSON automatically
         - Prompt caching — 90% discount on repeated system prompts
         - Output validation with self-healing retry on malformed responses
@@ -116,7 +146,10 @@ class LLMClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "response_format": DECISION_RESPONSE_FORMAT,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": DECISION_SCHEMA,
+            },
             "plugins": [{"id": "response-healing"}],
             "stream": False,
             "max_tokens": 512,
