@@ -52,7 +52,7 @@ Lines have gaps, surface looks thin or rough, infill is sparse.
 
 ### Temperature not reaching target
 Temp stays more than 5°C below target for more than 60 seconds.
-**What operators do:** Check heater PWM — if it's at max and temp still isn't rising, that's a hardware problem (escalate to human). If PWM is below max, the firmware PID controller might be struggling — usually resolves itself. Wait and monitor for 2-3 minutes before acting.
+**What operators do:** Check heater PWM — if it's at max and temp still isn't rising, that's a hardware problem (call human). If PWM is below max, the firmware PID controller might be struggling — usually resolves itself. Wait and monitor for 2-3 minutes before acting.
 
 ### Temperature overshooting
 Temp exceeds target by more than 10°C.
@@ -78,7 +78,7 @@ door_sensor state changes.
 
 ## What needs human hands
 
-Only escalate to human (CALL_HUMAN) for these situations:
+Only request human assistance (CALL_HUMAN) for these situations:
 
 - **Filament runout** — fsensor state drops, flow stops. You can't load filament remotely. Pause and wait.
 - **Filament jam** — fsensor shows motor turning but no flow. You can pause, but clearing a jam requires hands.
