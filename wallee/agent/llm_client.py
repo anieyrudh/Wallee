@@ -59,9 +59,11 @@ DECISION_SCHEMA = {
 
 
 class LLMClient:
-    def __init__(self, api_key: str, model: str = "openai/gpt-5.4", **kwargs):
+    def __init__(self, api_key: str, model: str = "openai/gpt-5.4",
+                 temperature: float = 0.7, **kwargs):
         self.api_key = api_key
         self.model = model
+        self.temperature = temperature
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def _validate_decision(self, raw_json: str, available_tools: list[str]) -> tuple[bool, str]:
@@ -151,6 +153,7 @@ class LLMClient:
             "plugins": [{"id": "response-healing"}],
             "stream": False,
             "max_tokens": 512,
+            "temperature": self.temperature,
         }
 
         raw_content = self._send_request(payload)
