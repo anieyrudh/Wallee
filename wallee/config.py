@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4"
 DEFAULT_LLM_TEMPERATURE = 0.7
+DEFAULT_VISION_MODEL = "google/gemini-3.1-flash-lite-preview"
 DEFAULT_MIN_CHECK_INTERVAL_S = 10
 DEFAULT_MAX_CHECK_INTERVAL_S = 30
 DEFAULT_MAX_CHECK_INTERVAL_IDLE_S = 120
@@ -51,6 +52,7 @@ class Config:
     openrouter_api_key: str = ""
     openrouter_model: str = DEFAULT_OPENROUTER_MODEL
     llm_temperature: float = DEFAULT_LLM_TEMPERATURE
+    vision_model: str = DEFAULT_VISION_MODEL
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -103,6 +105,7 @@ def load_config(env_path: Path | None = None) -> Config:
         openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         openrouter_model=os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL),
         llm_temperature=float(os.environ.get("LLM_TEMPERATURE", str(DEFAULT_LLM_TEMPERATURE))),
+        vision_model=os.environ.get("VISION_MODEL", DEFAULT_VISION_MODEL),
         redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
         prusalink_host=os.environ.get("PRUSALINK_HOST", ""),
         prusalink_api_key=os.environ.get("PRUSALINK_API_KEY", ""),

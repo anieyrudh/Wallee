@@ -29,7 +29,7 @@ Safety Kernel (thread) ── heartbeats + overcurrent + ESTOP
 **Main LLM receives text only, no images.** Vision handled by separate Gemini Flash Lite sensor (`read_vision_analysis`, every 10s). Publishes structured defect scores (`vision.*` keys) to the whiteboard.
 
 **Gate sequence:** ESTOP → Queue guard → Deadline → Approval → TOCTOU precheck → Dispatch
-**Gate bypass:** Non-hardware builtins (remember, web_search, call_human, discover, trends, differential, sensor_history) skip all gates except ESTOP.
+**Gate bypass:** Non-hardware builtins (remember, web_search, call_human, discover, trends, differential, sensor_history) execute immediately, skipping all engine gates. Safety for these tools is inherent — they don't touch hardware.
 
 **ESTOP bypasses the engine entirely.** Sends M25 directly to printer via `wallee/safety/estop.py`. Telegram, CLI, and safety kernel all use this shared helper.
 
@@ -170,7 +170,7 @@ wallee/
 | differential | builtin | No (gate_bypass) | key |
 | get_sensor_history | builtin | No (gate_bypass) | key |
 
-All actuators have `requires_approval=False`. Builtins marked `gate_bypass` skip engine gates (except ESTOP).
+All actuators have `requires_approval=False`. Builtins marked `gate_bypass` execute immediately, skipping all engine gates.
 
 ## Prompt structure (caching, text only)
 

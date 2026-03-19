@@ -13,6 +13,8 @@ from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
 
+VISION_MODEL = os.environ.get("VISION_MODEL", "google/gemini-3.1-flash-lite-preview")
+
 _redis_client = None
 
 
@@ -67,7 +69,7 @@ def read_vision_analysis() -> dict:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "google/gemini-3.1-flash-lite-preview",
+                "model": VISION_MODEL,
                 "messages": [{
                     "role": "user",
                     "content": [

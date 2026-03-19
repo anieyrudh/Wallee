@@ -1,4 +1,4 @@
-"""Built-in tool: web search via OpenRouter with Exa plugin."""
+"""Built-in tool: web search via OpenRouter."""
 
 import logging
 
@@ -24,7 +24,7 @@ def configure_web_search(api_key: str, model: str):
 def web_search(query: str = "", whiteboard=None, **kwargs) -> dict:
     """Search the web for 3D printing troubleshooting, datasheets, or technical info.
 
-    Makes a separate OpenRouter call with the Exa web search plugin enabled.
+    Makes a separate OpenRouter call with the web search plugin enabled.
     Returns a summarized answer capped at 2000 characters.
     """
     if not query:
