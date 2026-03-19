@@ -62,6 +62,9 @@ def main():
     configure_observations_dir(cfg.data_dir)
     configure_web_search(cfg.openrouter_api_key, cfg.openrouter_model)
 
+    from wallee.device_packs.pi_cameras.vision_analysis import configure_vision
+    configure_vision(cfg.openrouter_api_key, cfg.vision_model, cfg.redis_url)
+
     # Ensure data directory exists (fall back to local dir if system dir not writable)
     try:
         cfg.data_dir.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,6 @@ instead of interpreting raw images directly."""
 
 import json
 import logging
-import os
 
 import httpx
 import redis
@@ -13,17 +12,27 @@ from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
 
-VISION_MODEL = os.environ.get("VISION_MODEL", "google/gemini-3.1-flash-lite-preview")
-
+# Module-level config — set by configure_vision() at boot
+_api_key = ""
+_vision_model = "google/gemini-3.1-flash-lite-preview"
+_redis_url = "redis://localhost:6379"
 _redis_client = None
+
+
+def configure_vision(api_key: str, vision_model: str, redis_url: str):
+    """Set vision config at boot from central config. Called by main.py."""
+    global _api_key, _vision_model, _redis_url, _redis_client
+    _api_key = api_key
+    _vision_model = vision_model
+    _redis_url = redis_url
+    _redis_client = None  # Reset so next call picks up new URL
 
 
 def _get_redis():
     """Get or create module-level Redis client for reading whiteboard keys."""
     global _redis_client
     if _redis_client is None:
-        url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        _redis_client = redis.from_url(url, decode_responses=True)
+        _redis_client = redis.from_url(_redis_url, decode_responses=True)
     return _redis_client
 
 
@@ -57,19 +66,18 @@ def read_vision_analysis() -> dict:
     if not frame_b64:
         return {}
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
+    if not _api_key:
         return {}
 
     try:
         response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {_api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": VISION_MODEL,
+                "model": _vision_model,
                 "messages": [{
                     "role": "user",
                     "content": [
