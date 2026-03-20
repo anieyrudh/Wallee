@@ -43,6 +43,11 @@ def _try_outbox(message: str, severity: str, outbox_dir: Path) -> bool:
         return False
 
 
+def write_outbox(message: str, severity: str, outbox_dir: Path) -> bool:
+    """Public wrapper for durable outbox writes."""
+    return _try_outbox(message, severity, outbox_dir)
+
+
 def call_human(
     message: str,
     severity: str = "info",
@@ -75,6 +80,6 @@ def call_human(
         return "cli"
 
     # 3. Durable outbox (never silently gives up)
-    _try_outbox(message, severity, outbox_dir)
+    write_outbox(message, severity, outbox_dir)
     logger.warning("call_human fell back to outbox")
     return "outbox"

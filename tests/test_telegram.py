@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from wallee.human.telegram import TelegramBot, _escape_md
+from wallee.main import _deliver_safety_message
 from wallee.whiteboard.client import Whiteboard
 
 
@@ -253,3 +254,24 @@ class TestTelegramCallHumanWrapper:
         assert wb.read("safety.estop") is True
         assert wb.read("human.estop") is None
         assert replies == ["🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."]
+
+
+class TestSafetyCallHumanWrapper:
+    def test_safety_message_tries_telegram_and_always_writes_outbox(self, tmp_path):
+        bot = MagicMock()
+
+        with patch("wallee.main.write_outbox", return_value=True) as mock_outbox:
+            _deliver_safety_message("danger", "critical", bot, tmp_path / "outbox")
+
+        bot.send.assert_called_once_with("danger", "critical")
+        mock_outbox.assert_called_once_with("danger", "critical", tmp_path / "outbox")
+
+    def test_safety_message_writes_outbox_even_if_telegram_fails(self, tmp_path):
+        bot = MagicMock()
+        bot.send.side_effect = OSError("Temporary failure in name resolution")
+
+        with patch("wallee.main.write_outbox", return_value=True) as mock_outbox:
+            _deliver_safety_message("danger", "critical", bot, tmp_path / "outbox")
+
+        bot.send.assert_called_once_with("danger", "critical")
+        mock_outbox.assert_called_once_with("danger", "critical", tmp_path / "outbox")

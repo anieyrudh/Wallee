@@ -29,7 +29,7 @@ from wallee.agent.loop import AgentLoop
 from wallee.agent.parser import configure_check_intervals
 from wallee.tools.builtins.remember import configure_observations_dir
 from wallee.tools.builtins.web_search import configure_web_search
-from wallee.human.call_human import call_human
+from wallee.human.call_human import call_human, write_outbox
 from wallee.human.cli import CLI
 from wallee.ui.dashboard import DashboardServer
 
@@ -42,6 +42,16 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("wallee.main")
+
+
+def _deliver_safety_message(message: str, severity: str, telegram_bot, outbox_dir: Path):
+    """Try Telegram for safety messages, then always persist to outbox."""
+    if telegram_bot is not None:
+        try:
+            telegram_bot.send(message, severity)
+        except Exception as e:
+            logger.error(f"Safety message Telegram delivery failed: {e}")
+    write_outbox(message, severity, outbox_dir)
 
 
 def main():
@@ -85,9 +95,11 @@ def main():
         logger.error(f"Cannot connect to Redis: {e}")
         sys.exit(1)
 
+    telegram_bot = None
+
     # 3. Safety kernel starts FIRST
     def _call_human_fn(msg, severity="critical"):
-        call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox")
+        _deliver_safety_message(msg, severity, telegram_bot, cfg.data_dir / "outbox")
 
     safety = SafetyKernel(wb, call_human_fn=_call_human_fn)
     safety_thread = threading.Thread(target=safety.run, daemon=True, name="safety-kernel")
@@ -175,7 +187,6 @@ def main():
     logger.info(f"Dashboard at http://0.0.0.0:{cfg.dashboard_port}")
 
     # 9. Telegram bot (if configured)
-    telegram_bot = None
     if cfg.telegram_bot_token and cfg.telegram_chat_id:
         try:
             from wallee.human.telegram import TelegramBot
