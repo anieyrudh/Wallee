@@ -15,5 +15,7 @@ logs/
 *.png
 *.jpeg
 *.jpg
+!assets/
+!assets/wallee-logo.png
 wallee-audit/
 JOB_CONTEXT.md
