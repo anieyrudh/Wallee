@@ -11,6 +11,7 @@ Boot order (per spec):
 """
 
 import logging
+import json
 import signal
 import subprocess
 import sys
@@ -99,18 +100,47 @@ def main():
 
     telegram_bot = None
 
-    # 3. Safety kernel starts FIRST — as a separate OS process
+    # 3. Load device packs + built-in tools
+    registry = ToolRegistry()
+    registry.load_builtins()
+    for pack_name in cfg.device_packs:
+        registry.load_pack(f"wallee.device_packs.{pack_name}")
+        logger.info(f"Loaded device pack: {pack_name}")
+    logger.info(f"Loaded {len(registry.list_sensors())} sensors, {len(registry.list_actuators())} actuators")
+
+    device_callbacks = registry.get_device_callbacks()
+    safety_profile = device_callbacks.get_safety_profile()
+    safety_kwargs = {
+        "control_host": "",
+        "control_api_key": "",
+        "primary_stop": {"method": "POST", "path": "/api/v1/gcode", "json": {"command": "M25"}},
+        "fallback_stop": {"method": "DELETE", "path": "/api/v1/job"},
+        "fault_monitors": [],
+    }
+    if safety_profile is not None:
+        safety_kwargs.update({
+            "control_host": safety_profile.control_host,
+            "control_api_key": safety_profile.control_api_key,
+            "primary_stop": safety_profile.primary_stop or safety_kwargs["primary_stop"],
+            "fallback_stop": safety_profile.fallback_stop or safety_kwargs["fallback_stop"],
+            "fault_monitors": safety_profile.fault_monitors,
+        })
+
+    # 4. Safety kernel starts FIRST — as a separate OS process
     safety_proc = subprocess.Popen(
         [sys.executable, "-m", "wallee.safety.kernel_main",
          "--redis-url", str(cfg.redis_url),
-         "--printer-host", str(cfg.prusalink_host or ""),
-         "--printer-api-key", str(cfg.prusalink_api_key or ""),
+         "--control-host", str(safety_kwargs["control_host"] or ""),
+         "--control-api-key", str(safety_kwargs["control_api_key"] or ""),
+         "--primary-stop-json", json.dumps(safety_kwargs["primary_stop"]),
+         "--fallback-stop-json", json.dumps(safety_kwargs["fallback_stop"]),
+         "--fault-monitors-json", json.dumps(safety_kwargs["fault_monitors"]),
          "--check-interval", "2.0",
          "--heartbeat-timeout", "30.0"],
     )
     logger.info(f"Safety kernel started as separate process (PID {safety_proc.pid})")
 
-    # 4. Ledger + reconcile
+    # 5. Ledger + reconcile
     ledger_path = cfg.data_dir / "ledger.db"
     ledger = Ledger(ledger_path)
     logger.info(f"Ledger initialized: {ledger_path}")
@@ -121,14 +151,6 @@ def main():
 
     reconcile(ledger, _get_diary, call_human_fn=call_human)
     logger.info("Reconcile complete (boot)")
-
-    # 5. Load device packs + built-in tools
-    registry = ToolRegistry()
-    registry.load_builtins()
-    for pack_name in cfg.device_packs:
-        registry.load_pack(f"wallee.device_packs.{pack_name}")
-        logger.info(f"Loaded device pack: {pack_name}")
-    logger.info(f"Loaded {len(registry.list_sensors())} sensors, {len(registry.list_actuators())} actuators")
 
     # 6. Engine
     engine = Engine(
@@ -159,6 +181,7 @@ def main():
         last_decision_ttl=cfg.agent_last_decision_ttl_s,
         ledger=ledger,
         data_dir=cfg.data_dir,
+        device_callbacks=device_callbacks,
     )
 
     # Store agent ref for wake wiring — before starting sensors

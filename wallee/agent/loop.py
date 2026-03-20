@@ -6,20 +6,17 @@ v4 features: job context lifecycle, CALL_HUMAN dedup, event-driven wake.
 import hashlib
 import json
 import logging
-import os
-import re
 import threading
 import time
 from collections import deque
 from pathlib import Path
-
-import httpx
 
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.parser import Decision, parse_llm_output
 from wallee.agent.prompt import build_system_prompt, build_user_message, build_messages
 from wallee.agent.change_detector import ExternalChangeDetector
 from wallee.agent.state_manager import AgentStateManager
+from wallee.device_packs.callbacks import DevicePackCallbacks
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.registry import ToolRegistry
 
@@ -59,6 +56,7 @@ class AgentLoop:
         last_decision_ttl: int = 600,
         ledger=None,
         data_dir: Path | None = None,
+        device_callbacks: DevicePackCallbacks | None = None,
     ):
         self.wb = whiteboard  # reads only — use self.state for writes
         self.state = AgentStateManager(whiteboard)  # controlled write interface
@@ -71,6 +69,7 @@ class AgentLoop:
         self.heartbeat_ttl = heartbeat_ttl
         self.last_decision_ttl = last_decision_ttl
         self.ledger = ledger
+        self.device_callbacks = device_callbacks or DevicePackCallbacks()
         # call_human routed through engine via ledger.propose (gate_bypass tool)
         self._running = False
         self._knowledge_cache: dict[str, str] = {}
@@ -140,6 +139,7 @@ class AgentLoop:
             if phase in ("PRINTING", "PAUSED", "PREPARING"):
                 ctx_path = self.data_dir / "JOB_CONTEXT.md"
                 if not ctx_path.exists():
+                    self.device_callbacks.on_job_start(state, self.wb, data_dir=self.data_dir)
                     self._create_job_context(state)
                     logger.info("Recovered job context after restart")
             return
@@ -147,6 +147,7 @@ class AgentLoop:
         # PREPARING from any other state → create JOB_CONTEXT.md
         if phase == "PREPARING" and prev != "PREPARING":
             ctx_path = self.data_dir / "JOB_CONTEXT.md"
+            self.device_callbacks.on_job_start(state, self.wb, data_dir=self.data_dir)
             if not ctx_path.exists():
                 self._create_job_context(state)
             else:
@@ -156,67 +157,18 @@ class AgentLoop:
         if phase in ("FINISHED", "IDLE") and prev in ("PRINTING", "PAUSED"):
             self._archive_job_context()
 
-    _MATERIAL_RE = re.compile(
-        r'(?:^|[_\-.\s/])(PLA|PETG|ASA|ABS|TPU|PC|PA|PP|PVB|HIPS)(?:$|[_\-.\s/\d])',
-        re.IGNORECASE,
-    )
-
-    def _detect_material(self, filename: str, state: dict) -> str:
-        """Detect material from filename regex, PrusaLink API fallback, or 'unknown'."""
-        # Primary: regex match in filename
-        m = self._MATERIAL_RE.search(filename)
-        if m:
-            return m.group(1).upper()
-
-        # Fallback: PrusaLink GET /api/v1/job
-        host = os.environ.get("PRUSALINK_HOST", "").strip()
-        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
-        if host:
-            base = host if host.startswith("http") else f"http://{host}"
-            try:
-                resp = httpx.get(f"{base}/api/v1/job",
-                                 headers={"X-Api-Key": api_key}, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    mat = data.get("file", {}).get("material", "")
-                    if mat:
-                        return mat.upper()
-            except Exception as e:
-                logger.debug(f"PrusaLink /api/v1/job material lookup failed: {e}")
-
-        return "unknown"
-
-    def _fetch_job_filename(self, state: dict) -> str:
-        """Fetch print filename — HTTP API first, whiteboard fallback, then 'unknown'."""
-        # Primary: fetch from PrusaLink HTTP API
-        host = os.environ.get("PRUSALINK_HOST", "").strip()
-        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
-        if host:
-            base = host if host.startswith("http") else f"http://{host}"
-            try:
-                resp = httpx.get(f"{base}/api/v1/job",
-                                 headers={"X-Api-Key": api_key}, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    name = (data.get("file", {}).get("display_name")
-                            or data.get("file", {}).get("name"))
-                    if name:
-                        return name
-            except Exception as e:
-                logger.debug(f"PrusaLink /api/v1/job filename fetch failed: {e}")
-
-        # Fallback: whiteboard (UDP stream)
-        wb_name = state.get("printer.print_filename")
-        if wb_name:
-            return wb_name
-
-        return "unknown"
-
     def _create_job_context(self, state: dict):
         """Create JOB_CONTEXT.md when a new print starts."""
-        filename = self._fetch_job_filename(state)
-        material = self._detect_material(filename, state)
+        filename = (
+            state.get("job.filename")
+            or self.wb.read("job.filename")
+            or state.get("printer.print_filename")
+            or self.wb.read("printer.print_filename")
+            or "unknown"
+        )
+        material = state.get("job.material") or self.wb.read("job.material") or "unknown"
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        extra_context = self.device_callbacks.get_job_context(state, self.wb).strip()
 
         ctx = (
             f"# Current Job\n"
@@ -226,6 +178,8 @@ class AgentLoop:
             f"## Adjustments made\n(none yet)\n\n"
             f"## Issues observed\n(none yet)\n"
         )
+        if extra_context:
+            ctx += f"\n## Device context\n{extra_context}\n"
 
         ctx_path = self.data_dir / "JOB_CONTEXT.md"
         try:
@@ -233,9 +187,6 @@ class AgentLoop:
             logger.info(f"JOB_CONTEXT.md created for {filename}")
         except Exception as e:
             logger.error(f"Failed to create JOB_CONTEXT.md: {e}")
-
-        # Fetch thumbnail from PrusaLink
-        self._fetch_thumbnail(filename)
 
     def _patch_job_context_filename(self, state: dict):
         """If JOB_CONTEXT.md exists with 'unknown' filename, patch it with a real one."""
@@ -249,9 +200,10 @@ class AgentLoop:
         if "File: unknown" not in text and "File: \n" not in text:
             return
         # Try to get a real filename
-        real_name = state.get("printer.print_filename")
-        if not real_name:
-            real_name = self._fetch_job_filename(state)
+        real_name = state.get("job.filename") or state.get("printer.print_filename")
+        if not real_name or real_name == "unknown":
+            self.device_callbacks.on_job_start(state, self.wb, data_dir=self.data_dir)
+            real_name = self.wb.read("job.filename") or state.get("printer.print_filename") or real_name
         if not real_name or real_name == "unknown":
             return
         # Patch the filename line
@@ -262,40 +214,16 @@ class AgentLoop:
             logger.info(f"JOB_CONTEXT.md filename patched to {real_name}")
             # Also update material if it was unknown
             if "Material: unknown" in text:
-                material = self._detect_material(real_name, state)
+                material = state.get("job.material") or self.wb.read("job.material") or "unknown"
                 if material != "unknown":
                     text = text.replace("Material: unknown", f"Material: {material}", 1)
                     ctx_path.write_text(text)
         except Exception as e:
             logger.error(f"Failed to patch JOB_CONTEXT.md filename: {e}")
 
-    def _fetch_thumbnail(self, filename: str):
-        """Fetch print thumbnail from PrusaLink API."""
-        host = os.environ.get("PRUSALINK_HOST", "").strip()
-        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
-        if not host:
-            return
-
-        base = host if host.startswith("http") else f"http://{host}"
-        thumb_path = self.data_dir / "job_thumbnail.png"
-
-        for size in ("l", "s"):
-            url = f"{base}/thumb/{size}/usb/{filename}"
-            try:
-                resp = httpx.get(url, headers={"X-Api-Key": api_key}, timeout=5.0)
-                if resp.status_code == 200 and len(resp.content) > 100:
-                    thumb_path.write_bytes(resp.content)
-                    logger.info(f"Thumbnail saved ({len(resp.content)} bytes)")
-                    return
-            except Exception as e:
-                logger.debug(f"Thumbnail fetch {size} failed: {e}")
-
-        logger.info("No thumbnail available for this print")
-
     def _archive_job_context(self):
         """Archive JOB_CONTEXT.md to OBSERVATIONS.md and clean up."""
         ctx_path = self.data_dir / "JOB_CONTEXT.md"
-        thumb_path = self.data_dir / "job_thumbnail.png"
 
         if not ctx_path.exists():
             return
@@ -356,7 +284,6 @@ class AgentLoop:
         # Clean up
         try:
             ctx_path.unlink(missing_ok=True)
-            thumb_path.unlink(missing_ok=True)
         except Exception as e:
             logger.error(f"Failed to clean up job context files: {e}")
 
@@ -557,16 +484,6 @@ class AgentLoop:
 
     def _extract_changes(self, decision, state: dict) -> list[dict]:
         """Build structured old -> new parameter deltas for dashboard display."""
-        tool_specs = {
-            "set_speed_factor": ("Speed", "printer.speed", "percent", "%"),
-            "set_flow_factor": ("Flow", "printer.flow", "percent", "%"),
-            "set_temperature": {
-                "nozzle": ("Nozzle Temp", "printer.target_nozzle", "target", "C"),
-                "bed": ("Bed Temp", "printer.target_bed", "target", "C"),
-                "chamber": ("Chamber Temp", "printer.target_chamber", "target", "C"),
-            },
-        }
-
         if decision.type == "ACTION":
             actions = [{"tool": decision.tool, "params": decision.params or {}}]
         elif decision.type == "ACTION_CHAIN":
@@ -574,31 +491,46 @@ class AgentLoop:
         else:
             return []
 
+        def _format_label(state_key: str) -> str:
+            return state_key.split(".")[-1].replace("_", " ").title()
+
+        def _select_effect_keys(effect_keys: list[str], params: dict) -> list[str]:
+            if len(effect_keys) <= 1:
+                return effect_keys
+            selector = str(params.get("heater", "")).lower()
+            if selector:
+                filtered = [key for key in effect_keys if key.lower().endswith(selector)]
+                if filtered:
+                    return filtered
+            return effect_keys[:1]
+
+        def _extract_target_value(params: dict):
+            for candidate in ("target", "percent", "value", "file_path"):
+                if candidate in params:
+                    return params[candidate]
+            if len(params) == 1:
+                return next(iter(params.values()))
+            return None
+
         changes = []
         for act in actions:
             tool_name = act.get("tool", "")
             params = act.get("params", {}) or {}
-            spec = tool_specs.get(tool_name)
-            if spec is None:
+            tool = self.tools.get(tool_name)
+            if tool is None:
                 continue
-
-            if tool_name == "set_temperature":
-                heater = str(params.get("heater", "")).lower()
-                spec = spec.get(heater)
-                if spec is None:
-                    continue
-
-            label, state_key, param_key, unit = spec
-            new_value = params.get(param_key)
+            effect_keys = _select_effect_keys(tool.meta.get("state_effects", []), params)
+            new_value = _extract_target_value(params)
             if new_value is None:
                 continue
-            changes.append({
-                "tool": tool_name,
-                "label": label,
-                "from": state.get(state_key),
-                "to": new_value,
-                "unit": unit,
-            })
+            for state_key in effect_keys:
+                changes.append({
+                    "tool": tool_name,
+                    "label": _format_label(state_key),
+                    "from": state.get(state_key),
+                    "to": new_value,
+                    "unit": "",
+                })
         return changes
 
     # ── Decision routing ────────────────────────────────────────────
@@ -777,27 +709,24 @@ class AgentLoop:
         # 4c. Auto-start next queued print if IDLE + queue non-empty + bed cooled
         current_phase = state.get("job.phase", "IDLE")
         if current_phase == "IDLE":
-            queue_raw = self.wb.read("print.queue")
-            bed_temp = float(state.get("printer.temp_bed") or 100)
-            if queue_raw and bed_temp < 35:
-                try:
-                    items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
-                    if items and isinstance(items, list):
-                        next_file = items.pop(0)
-                        self.state.publish("print.queue", items, ttl=86400)
-                        logger.info(f"Auto-starting next queued print: {next_file}")
-                        decision = Decision(
-                            type="ACTION",
-                            tool="start_print",
-                            params={"file_path": next_file},
-                            observation=f"Queue has {len(items) + 1} prints, bed cooled to {bed_temp:.0f}C",
-                            reasoning=f"Auto-starting next queued print: {next_file}",
-                        )
-                        self._route_decision(decision, state)
-                        self._set_next_cycle_delay(decision)
-                        return '{"type": "ACTION", "observation": "auto-start from queue"}'
-                except (json.JSONDecodeError, TypeError, ValueError) as e:
-                    logger.error(f"Failed to process print queue: {e}")
+            try:
+                auto_action = self.device_callbacks.on_idle_check(state, self.wb)
+                if auto_action:
+                    for key, value in (auto_action.get("state_updates") or {}).items():
+                        self.state.publish(key, value, ttl=auto_action.get("state_ttl", 86400))
+                    decision = Decision(
+                        type="ACTION",
+                        tool=auto_action["tool"],
+                        params=auto_action.get("params", {}),
+                        observation=auto_action.get("observation", "device pack requested auto-action"),
+                        reasoning=auto_action.get("reasoning", f"Auto-action from device pack: {auto_action['tool']}"),
+                    )
+                    logger.info(f"Auto-action proposed by device callbacks: {decision.tool}")
+                    self._route_decision(decision, state)
+                    self._set_next_cycle_delay(decision)
+                    return '{"type": "ACTION", "observation": "auto-action from device callbacks"}'
+            except Exception as e:
+                logger.error(f"Failed to process device callback idle action: {e}")
 
         # 5. Detect external changes
         external_changes = self._change_detector.detect(state, episode, ledger=self.ledger)

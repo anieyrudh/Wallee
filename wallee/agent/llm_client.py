@@ -50,7 +50,7 @@ DECISION_SCHEMA = {
             "observation": {"type": "string", "description": "One sentence: what you see right now"},
             "reasoning": {"type": "string", "description": "One sentence: why this decision"},
             "tool": {"type": ["string", "null"], "description": "Tool name for ACTION"},
-            "params": {"type": ["string", "null"], "description": "Tool params as JSON string, e.g. '{\"target\":210,\"heater\":\"nozzle\"}'. Required for ACTION"},
+            "params": {"type": ["string", "null"], "description": "Tool params as JSON string, e.g. '{\"target\":210,\"zone\":\"primary\"}'. Required for ACTION"},
             "actions": {
                 "type": ["array", "null"],
                 "description": "Steps for ACTION_CHAIN (max 5)",

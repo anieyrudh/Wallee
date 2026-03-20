@@ -1,19 +1,14 @@
-"""Safety kernel — runs as an independent OS process.
-
-Monitors agent/engine heartbeats and printer safety signals via Redis.
-Can ESTOP the printer even if the agent process crashes.
-
-Usage:
-    python -m wallee.safety.kernel_main --redis-url redis://localhost:6379 \
-        --printer-host 192.168.0.195 --printer-api-key KEY
-"""
+"""Safety kernel — runs as an independent OS process."""
 
 import argparse
+import json
 import logging
 import os
 import time
 
 import redis
+
+from wallee.safety.estop import estop_printer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,27 +18,33 @@ logging.basicConfig(
 logger = logging.getLogger("wallee.safety.kernel")
 
 
-def _estop_printer(host: str, api_key: str = ""):
-    """Emergency stop — send M25 pause directly to printer."""
+def _parse_json(raw: str, default):
+    if not raw:
+        return default
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse JSON argument for safety kernel; using default")
+        return default
+
+
+def _estop_printer(host: str, api_key: str = "", primary_request: dict | None = None,
+                   fallback_request: dict | None = None):
+    """Execute the configured stop requests."""
     if not host:
         return
-    import httpx
-    base = host if host.startswith("http") else f"http://{host}"
-    headers = {"X-Api-Key": api_key} if api_key else {}
-    try:
-        httpx.post(f"{base}/api/v1/gcode", json={"command": "M25"},
-                   headers=headers, timeout=5)
-        logger.critical("ESTOP: M25 sent to printer")
-    except Exception as e:
-        logger.error(f"ESTOP M25 failed: {e}")
+    estop_printer(host, api_key, primary_request=primary_request, fallback_request=fallback_request)
 
 
 def run_kernel(
     redis_url: str = "redis://localhost:6379",
     check_interval: float = 2.0,
     heartbeat_timeout: float = 30.0,
-    printer_host: str = "",
-    printer_api_key: str = "",
+    control_host: str = "",
+    control_api_key: str = "",
+    primary_stop: dict | None = None,
+    fallback_stop: dict | None = None,
+    fault_monitors: list[dict] | None = None,
 ):
     """Main safety loop. Runs indefinitely."""
     r = redis.Redis.from_url(redis_url, decode_responses=True)
@@ -52,11 +53,11 @@ def run_kernel(
 
     agent_alerted = False
     engine_alerted = False
-    oc_nozzle_alerted = False
-    oc_input_alerted = False
+    fault_alerted: dict[str, bool] = {}
     estop_alerted = False
     boot_time = time.monotonic()
     boot_grace_s = 15.0  # suppress heartbeat alerts while components start
+    monitors = fault_monitors or []
 
     while True:
         try:
@@ -67,7 +68,9 @@ def run_kernel(
             if estop_raw and estop_raw != "false":
                 if not estop_alerted:
                     logger.critical("ESTOP flag active on whiteboard")
-                    _estop_printer(printer_host, printer_api_key)
+                    _estop_printer(control_host, control_api_key,
+                                   primary_request=primary_stop,
+                                   fallback_request=fallback_stop)
                     estop_alerted = True
             else:
                 estop_alerted = False
@@ -112,24 +115,20 @@ def run_kernel(
                 except (ValueError, TypeError):
                     pass
 
-            # Check overcurrent flags
-            oc_nozz_raw = r.get("printer.oc_nozzle")
-            if oc_nozz_raw and oc_nozz_raw != "0":
-                if not oc_nozzle_alerted:
-                    logger.critical(f"OVERCURRENT: nozzle heater (oc_nozzle={oc_nozz_raw})")
-                    _estop_printer(printer_host, printer_api_key)
-                    oc_nozzle_alerted = True
-            else:
-                oc_nozzle_alerted = False
-
-            oc_inp_raw = r.get("printer.oc_input")
-            if oc_inp_raw and oc_inp_raw != "0":
-                if not oc_input_alerted:
-                    logger.critical(f"OVERCURRENT: input power (oc_input={oc_inp_raw})")
-                    _estop_printer(printer_host, printer_api_key)
-                    oc_input_alerted = True
-            else:
-                oc_input_alerted = False
+            # Check configured fault monitors
+            for monitor in monitors:
+                key = monitor.get("key", "")
+                label = monitor.get("label", "configured fault")
+                raw_value = r.get(key) if key else None
+                if raw_value and raw_value != "0":
+                    if not fault_alerted.get(key):
+                        logger.critical(f"SAFETY FAULT: {label} ({key}={raw_value})")
+                        _estop_printer(control_host, control_api_key,
+                                       primary_request=primary_stop,
+                                       fallback_request=fallback_stop)
+                        fault_alerted[key] = True
+                else:
+                    fault_alerted[key] = False
 
             time.sleep(check_interval)
 
@@ -144,16 +143,22 @@ def run_kernel(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Wallee safety kernel (standalone process)")
     parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379"))
-    parser.add_argument("--printer-host", default=os.environ.get("PRUSALINK_HOST", ""))
-    parser.add_argument("--printer-api-key", default=os.environ.get("PRUSALINK_API_KEY", ""))
+    parser.add_argument("--control-host", default="")
+    parser.add_argument("--control-api-key", default="")
+    parser.add_argument("--primary-stop-json", default="")
+    parser.add_argument("--fallback-stop-json", default="")
+    parser.add_argument("--fault-monitors-json", default="[]")
     parser.add_argument("--check-interval", type=float, default=2.0)
     parser.add_argument("--heartbeat-timeout", type=float, default=30.0)
     args = parser.parse_args()
 
     run_kernel(
         redis_url=args.redis_url,
-        printer_host=args.printer_host,
-        printer_api_key=args.printer_api_key,
+        control_host=args.control_host,
+        control_api_key=args.control_api_key,
+        primary_stop=_parse_json(args.primary_stop_json, {"method": "POST", "path": "/api/v1/gcode", "json": {"command": "M25"}}),
+        fallback_stop=_parse_json(args.fallback_stop_json, {"method": "DELETE", "path": "/api/v1/job"}),
+        fault_monitors=_parse_json(args.fault_monitors_json, []),
         check_interval=args.check_interval,
         heartbeat_timeout=args.heartbeat_timeout,
     )

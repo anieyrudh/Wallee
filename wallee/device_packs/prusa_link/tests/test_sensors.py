@@ -10,6 +10,7 @@ from wallee.device_packs.prusa_link.sensors import (
     read_printer_info,
     read_file_list,
     read_job_phase,
+    read_job_metadata,
 )
 
 BASE_URL = "http://testprinter"
@@ -59,6 +60,14 @@ PRUSA_FILES = {
         {"name": "BENCHY~2.BGC", "display_name": "Benchy Rules.bgcode", "type": "PRINT_FILE", "size": 12345},
         {"name": "MMU3", "type": "FOLDER"},
     ]
+}
+
+PRUSA_JOB = {
+    "file": {
+        "display_name": "Benchy PLA.bgcode",
+        "name": "BENCHY~1.BGC",
+        "material": "PLA",
+    }
 }
 
 
@@ -133,6 +142,25 @@ class TestSensorMetadata:
         meta = read_job_phase._tool_meta
         assert meta["kind"] == "sensor"
         assert meta["refresh_hz"] == 1.0
+
+    def test_job_metadata_meta(self):
+        meta = read_job_metadata._tool_meta
+        assert meta["kind"] == "sensor"
+        assert meta["refresh_hz"] == 0.2
+
+
+class TestReadJobMetadata:
+    def test_reads_job_filename_and_material(self):
+        _inject(lambda r: _json_response(PRUSA_JOB))
+        result = read_job_metadata()
+        assert result["job.filename"] == "Benchy PLA.bgcode"
+        assert result["job.material"] == "PLA"
+
+    def test_defaults_when_job_is_missing(self):
+        _inject(lambda r: _json_response({}))
+        result = read_job_metadata()
+        assert result["job.filename"] == ""
+        assert result["job.material"] == "unknown"
 
 
 def _phase_status(state="IDLE", temp_nozzle=23.0, target_nozzle=0, temp_bed=22.0,

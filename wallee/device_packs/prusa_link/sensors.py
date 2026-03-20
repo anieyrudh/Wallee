@@ -10,6 +10,7 @@ HTTP sensors provide:
 
 import logging
 import os
+import re
 import threading as _threading
 import time as _time
 
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 _http = None
 _http_lock = _threading.Lock()
+_MATERIAL_RE = re.compile(
+    r'(?:^|[_\-.\s/])(PLA|PETG|ASA|ABS|TPU|PC|PA|PP|PVB|HIPS)(?:$|[_\-.\s/\d])',
+    re.IGNORECASE,
+)
 
 
 def _get_http():
@@ -37,6 +42,44 @@ def _get_http():
                 _http = HTTPClient(base_url=base_url, api_key=api_key, timeout=5.0)
                 logger.info(f"PrusaLink HTTP client initialized: {base_url}")
     return _http
+
+
+def _detect_job_material(filename: str, file_data: dict | None = None) -> str:
+    match = _MATERIAL_RE.search(filename or "")
+    if match:
+        return match.group(1).upper()
+    if isinstance(file_data, dict):
+        material = file_data.get("material")
+        if material:
+            return str(material).upper()
+    return "unknown"
+
+
+def _read_job_metadata_payload() -> dict:
+    """Fetch generic job metadata for the whiteboard."""
+    http = _get_http()
+    if http is None:
+        return {}
+
+    job = http.get("/api/v1/job")
+    if "error" in job:
+        return {}
+
+    file_data = job.get("file", {}) if isinstance(job, dict) else {}
+    filename = file_data.get("display_name") or file_data.get("name") or ""
+    material = _detect_job_material(filename, file_data)
+    return {
+        "job.filename": filename or "",
+        "job.material": material,
+    }
+
+
+def publish_job_metadata(whiteboard=None, ttl: int = 30) -> dict:
+    """Refresh job metadata immediately, optionally publishing it."""
+    payload = _read_job_metadata_payload()
+    if whiteboard is not None and payload:
+        whiteboard.publish_many(payload, ttl=ttl)
+    return payload
 
 
 @tool(kind="sensor", refresh_hz=0.5, history_depth=0)
@@ -148,6 +191,12 @@ def read_file_list() -> dict:
         file_list.append(entry)
 
     return {"printer.files": file_list}
+
+
+@tool(kind="sensor", refresh_hz=0.2, history_depth=0)
+def read_job_metadata() -> dict:
+    """Read current job metadata for generic job context building."""
+    return _read_job_metadata_payload()
 
 
 # Module-level state for phase tracking

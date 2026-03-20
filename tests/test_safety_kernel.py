@@ -10,6 +10,11 @@ from wallee.safety.kernel import SafetyKernel
 from wallee.safety.estop import estop_printer
 from wallee.whiteboard.client import Whiteboard
 
+FAULT_MONITORS = [
+    {"key": "printer.oc_nozzle", "label": "heater channel"},
+    {"key": "printer.oc_input", "label": "input power"},
+]
+
 
 @pytest.fixture
 def wb():
@@ -31,13 +36,17 @@ def _no_grace(kernel):
     return kernel
 
 
+def _kernel(wb, fn, **kwargs):
+    return _no_grace(SafetyKernel(wb, call_human_fn=fn, fault_monitors=FAULT_MONITORS, **kwargs))
+
+
 class TestHeartbeatChecks:
     def test_both_alive(self, wb, alerts):
         msgs, fn = alerts
         wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn, heartbeat_timeout=3.0))
+        kernel = _kernel(wb, fn, heartbeat_timeout=3.0)
         status = kernel.check_once()
 
         assert status["agent_ok"] is True
@@ -49,7 +58,7 @@ class TestHeartbeatChecks:
         # Only engine heartbeat
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
 
         assert status["agent_ok"] is False
@@ -62,7 +71,7 @@ class TestHeartbeatChecks:
         msgs, fn = alerts
         wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
 
         assert status["agent_ok"] is True
@@ -72,7 +81,7 @@ class TestHeartbeatChecks:
 
     def test_both_missing(self, wb, alerts):
         msgs, fn = alerts
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
 
         assert status["agent_ok"] is False
@@ -86,7 +95,7 @@ class TestHeartbeatChecks:
         wb.publish("agent.heartbeat", stale, ttl=30)
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn, heartbeat_timeout=3.0))
+        kernel = _kernel(wb, fn, heartbeat_timeout=3.0)
         status = kernel.check_once()
 
         assert status["agent_ok"] is False
@@ -97,7 +106,7 @@ class TestHeartbeatChecks:
 class TestAlertDedup:
     def test_only_alerts_once_per_failure(self, wb, alerts):
         msgs, fn = alerts
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
 
         kernel.check_once()
         kernel.check_once()
@@ -111,7 +120,7 @@ class TestAlertDedup:
 
     def test_re_alerts_after_recovery_and_failure(self, wb, alerts):
         msgs, fn = alerts
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn, heartbeat_timeout=3.0))
+        kernel = _kernel(wb, fn, heartbeat_timeout=3.0)
 
         # First failure
         kernel.check_once()
@@ -136,7 +145,7 @@ class TestOvercurrentMonitoring:
         wb.publish("printer.oc_nozzle", 0)
         wb.publish("printer.oc_input", 0)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
         assert status["overcurrent_ok"] is True
         assert len(msgs) == 0
@@ -147,12 +156,12 @@ class TestOvercurrentMonitoring:
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
         wb.publish("printer.oc_nozzle", 1)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
         assert status["overcurrent_ok"] is False
         assert len(msgs) == 1
-        assert "OVERCURRENT" in msgs[0][0]
-        assert "nozzle" in msgs[0][0]
+        assert "SAFETY FAULT" in msgs[0][0]
+        assert "heater channel" in msgs[0][0]
 
     def test_input_overcurrent(self, wb, alerts):
         msgs, fn = alerts
@@ -160,7 +169,7 @@ class TestOvercurrentMonitoring:
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
         wb.publish("printer.oc_input", 1)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
         assert status["overcurrent_ok"] is False
         assert len(msgs) == 1
@@ -172,11 +181,11 @@ class TestOvercurrentMonitoring:
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
         wb.publish("printer.oc_nozzle", 1)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         kernel.check_once()
         kernel.check_once()
         kernel.check_once()
-        oc_msgs = [m for m in msgs if "OVERCURRENT" in m[0]]
+        oc_msgs = [m for m in msgs if "SAFETY FAULT" in m[0]]
         assert len(oc_msgs) == 1  # only alerts once
 
     def test_overcurrent_recovery(self, wb, alerts):
@@ -185,9 +194,9 @@ class TestOvercurrentMonitoring:
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
         wb.publish("printer.oc_nozzle", 1)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         kernel.check_once()
-        assert len([m for m in msgs if "OVERCURRENT" in m[0]]) == 1
+        assert len([m for m in msgs if "SAFETY FAULT" in m[0]]) == 1
 
         # Overcurrent clears
         wb.publish("printer.oc_nozzle", 0)
@@ -196,7 +205,7 @@ class TestOvercurrentMonitoring:
         # Re-triggers
         wb.publish("printer.oc_nozzle", 1)
         kernel.check_once()
-        assert len([m for m in msgs if "OVERCURRENT" in m[0]]) == 2
+        assert len([m for m in msgs if "SAFETY FAULT" in m[0]]) == 2
 
     def test_no_oc_keys_is_ok(self, wb, alerts):
         """If oc keys haven't been published yet, don't alert."""
@@ -204,7 +213,7 @@ class TestOvercurrentMonitoring:
         wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
         assert status["overcurrent_ok"] is True
         assert len(msgs) == 0
@@ -217,7 +226,7 @@ class TestEstopMonitoring:
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
         wb.publish("safety.estop", True, ttl=30)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         status = kernel.check_once()
         assert status["estop_ok"] is False
         assert len(msgs) == 1
@@ -231,7 +240,7 @@ class TestEstopMonitoring:
         wb.publish("agent.heartbeat", time.monotonic(), ttl=5)
         wb.publish("engine.heartbeat", time.monotonic(), ttl=5)
 
-        kernel = _no_grace(SafetyKernel(wb, call_human_fn=fn))
+        kernel = _kernel(wb, fn)
         wb.publish("safety.estop", True, ttl=30)
         kernel.check_once()
         assert len(msgs) == 1
@@ -246,36 +255,32 @@ class TestEstopMonitoring:
 
 
 class TestEstopPrinter:
-    """Tests for wallee.safety.estop.estop_printer — direct M25 bypass."""
+    """Tests for wallee.safety.estop.estop_printer — direct stop bypass."""
 
-    @patch("wallee.safety.estop.httpx.post")
-    def test_estop_sends_m25(self, mock_post):
+    @patch("wallee.safety.estop.httpx.request")
+    def test_estop_sends_primary_request(self, mock_request):
         """ESTOP sends M25 to printer via direct HTTP, bypassing engine."""
-        mock_post.return_value = MagicMock(status_code=204)
+        mock_request.return_value = MagicMock(status_code=204)
         result = estop_printer("192.168.1.50", "test-key")
         assert result is True
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert "/api/v1/gcode" in call_args[0][0]
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert "/api/v1/gcode" in call_args[0][1]
         assert call_args[1]["json"] == {"command": "M25"}
 
-    @patch("wallee.safety.estop.httpx.delete")
-    @patch("wallee.safety.estop.httpx.post")
-    def test_estop_falls_back_to_cancel(self, mock_post, mock_delete):
+    @patch("wallee.safety.estop.httpx.request")
+    def test_estop_falls_back_to_cancel(self, mock_request):
         """If M25 fails, ESTOP tries DELETE /api/v1/job."""
-        mock_post.side_effect = Exception("connection refused")
-        mock_delete.return_value = MagicMock(status_code=204)
+        mock_request.side_effect = [Exception("connection refused"), MagicMock(status_code=204)]
         result = estop_printer("192.168.1.50", "test-key")
         assert result is True
-        mock_delete.assert_called_once()
-        assert "/api/v1/job" in mock_delete.call_args[0][0]
+        assert mock_request.call_count == 2
+        assert "/api/v1/job" in mock_request.call_args_list[1][0][1]
 
-    @patch("wallee.safety.estop.httpx.delete")
-    @patch("wallee.safety.estop.httpx.post")
-    def test_estop_all_fail(self, mock_post, mock_delete):
+    @patch("wallee.safety.estop.httpx.request")
+    def test_estop_all_fail(self, mock_request):
         """If both M25 and cancel fail, returns False."""
-        mock_post.side_effect = Exception("post failed")
-        mock_delete.side_effect = Exception("delete failed")
+        mock_request.side_effect = [Exception("post failed"), Exception("delete failed")]
         result = estop_printer("192.168.1.50", "test-key")
         assert result is False
 
@@ -291,7 +296,7 @@ class TestRunLoop:
         wb.publish("agent.heartbeat", time.monotonic(), ttl=30)
         wb.publish("engine.heartbeat", time.monotonic(), ttl=30)
 
-        kernel = SafetyKernel(wb, call_human_fn=fn, check_interval=0.05)
+        kernel = SafetyKernel(wb, call_human_fn=fn, check_interval=0.05, fault_monitors=FAULT_MONITORS)
         t = threading.Thread(target=kernel.run, daemon=True)
         t.start()
         time.sleep(0.2)
