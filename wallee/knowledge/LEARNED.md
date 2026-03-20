@@ -1,168 +1,19 @@
-# Wallee — Printing Knowledge
+## Diagnosis reasoning
 
-This is what experienced 3D printer operators know. Use this knowledge alongside your sensor data and camera feeds to make informed decisions about print quality and diagnosis.
+Treat diagnosis as evidence fusion, not threshold matching. A single camera spike can be lighting, geometry, purge behavior, or a transient after a parameter change. A single sensor wobble can be control lag or normal switching noise. Confidence rises when different signal types tell the same physical story across multiple cycles. Vision says “surface changed”; telemetry says whether the machine’s energy, motion, or material delivery changed in a way that could have caused it. When vision and telemetry disagree, prefer the explanation that preserves causality and watch one more cycle unless safety is involved.
 
----
+## Intervention reasoning
 
-## Quick visual diagnosis
+Use the smallest reversible lever that matches the physics. If the problem looks thermal, change temperature by one step before stacking speed and flow. If it looks pressure or throughput limited, reduce speed before adding more flow. If it looks local and cosmetic, do not spend the print on aggressive recovery. Reversible actions are information-gathering actions: they test a hypothesis while keeping the print alive. Once reversible changes stop producing meaningful improvement, repeated tweaking usually means the root cause is physical, not parametric. When you encounter a defect you haven't seen before, or when two different interventions have both failed, investigate before improvising — use lookup_issue or web_search. Curiosity before confidence.
 
-Vision sensor score → Diagnosis → Action:
-- vision.stringing > 0.5 → Stringing/ooze → Reduce nozzle temp 5°C
-- vision.overextrusion > 0.5 → Over-extrusion → Reduce flow 3-5%
-- vision.underextrusion > 0.5 → Under-extrusion → Increase flow 3-5%
-- vision.warping > 0.5 → Warping → Increase bed temp 5°C, reduce speed 10%
-- vision.spaghetti > 0.7 → Print detached → PAUSE immediately, call human
-- vision.blob > 0.7 → Nozzle blob → PAUSE, call human
-- vision.burn_marks > 0.5 → Overheating → Reduce nozzle temp 10°C, increase fan
-- vision.layer_shift > 0.5 → Layer shift → Call human (mechanical issue)
-- vision.bed_adhesion_ok < 0.3 → Poor adhesion → Increase bed temp 5°C or reduce speed
-- vision.normal > 0.7 → Print is fine → WAIT
+## Signal interpretation
 
-CRITICAL: Only take destructive actions (pause/cancel) when vision.confidence > 0.7
-AND the relevant defect score > 0.7. When in doubt, WAIT one more cycle.
+Think in relationships. Falling flow with rising resistance means the path is constricting. Falling flow with normal motion but a loaded spool sensor suggests feed-path resistance. Rising heatbreak temperature with worsening extrusion means heat is moving upstream faster than cooling removes it. Real-vs-interpolated position error means the machine did not go where firmware expected; that is a motion problem, not a pure extrusion problem. Voltage sag with weak heating means power delivery is limiting temperature control. A vision defect without any matching physical signal is lower-confidence than one supported by temperature, current, flow, RPM, or position.
 
----
+## Material intuition
 
-## Printing fundamentals
+PLA is easy to melt but easy to soften in the wrong place, so it punishes heat buildup and chamber warmth. PETG tolerates more baseline stringing and stickiness, so act on trends that feed buildup, not every hair. ASA tolerates heat but punishes drafts and shrink mismatch, so enclosure logic matters more than small cosmetic signals. TPU punishes compression, abrupt pull, and speed before it punishes absolute temperature, so slower and gentler is usually smarter than more aggressive retraction-style thinking.
 
-A good print has: consistent layer lines, no gaps, no excess material, no warping, and dimensional accuracy. The key variables you can control are nozzle temperature, bed temperature, chamber temperature, print speed, and flow rate. Small adjustments (5-10°C, 5-10% speed/flow) are safe to try. Large adjustments need more caution.
+## Escalation reasoning
 
-PLA: nozzle 190-220°C, bed 50-65°C. Sensitive to heat creep and stringing at high temps.
-PETG: nozzle 220-250°C, bed 70-90°C. Strings more than PLA, needs slower speeds and higher retraction.
-ASA/ABS: nozzle 240-260°C, bed 90-110°C, chamber 35-45°C. Warps without enclosure. Needs stable chamber temp.
-TPU: nozzle 210-230°C, bed 40-60°C. Very slow printing, flexible — don't retract aggressively.
-
-The material being used is visible in the metrics (material field from OctoPrint compat endpoint) and in the print filename convention.
-
-## Print phases — what's physically happening
-
-### Startup / Preparing
-Bed heats first (60-110°C depending on material), then nozzle. Firmware runs a purge line
-along the bed edge to prime the nozzle. Blobs during purge are NORMAL. Temps climbing toward
-target is NORMAL. Do not adjust anything during this phase — nothing has stabilized yet.
-
-### First layer
-The most critical phase. Nozzle moves slowly, close to the bed. Look for: consistent squish
-(slightly wider than nozzle diameter), no gaps between lines, no curling at corners. First
-layer problems are usually bed temp, Z-offset, or speed — not nozzle temp.
-
-### Cruise (bulk of the print)
-Steady state. Temps should be stable (±1°C), speed consistent, fan at slicer settings.
-This is where stringing, overextrusion, and underextrusion become visible. Small adjustments
-here have the most impact — one change at a time, observe for 2-3 cycles.
-
-### Final layers / top surface
-Speed often drops for top solid infill. Overextrusion shows as bumpy top surface.
-Underextrusion shows as gaps. Fan usually at max for bridging and overhangs.
-
-### Cooldown / Finished
-Nozzle and bed cool toward ambient. Parts may pop off PEI sheets as bed cools below 40°C.
-This is normal. Nothing to do — observe and log the outcome.
-
-## Sensor patterns — what telemetry tells you
-
-### Developing clog
-Nozzle temp stable but printer.fsensor_flow dropping over 5+ cycles. Extruder motor working
-harder (printer.curr_nozzle rising) but less filament coming out. Action: reduce speed 10%,
-increase temp 5°C. If flow continues dropping, call human — may need cold pull.
-
-### Wet filament
-Inconsistent extrusion, popping sounds (visible as heater PWM micro-fluctuations in
-printer.pwm_nozzle). Surface looks rough/bubbly. Stringing worse than expected for the temp.
-Action: note in observations for human. Can't fix mid-print — filament needs drying.
-
-### Loose belt / mechanical issue
-printer.stepper_stall incrementing during normal moves (not homing). Layer shifts visible
-in vision.layer_shift score. Position jumps in printer.pos_x/y. Action: call human —
-mechanical intervention needed.
-
-### Failing heater
-printer.pwm_nozzle at 100% but temp not reaching target. Or temp oscillating ±5°C around
-target. Voltage dropping (printer.volt_nozzle). Action: call human — heater cartridge or
-thermistor issue.
-
-### Normal patterns to ignore
-- Stepper stall count incrementing during homing — normal
-- Brief temp dip when fan kicks in at layer 2-3 — normal
-- Serial disconnects every 1-3s — normal Core One+ behavior
-- Filament sensor noise during retraction — normal
----
-
-## What you can fix autonomously
-
-### Stringing / oozing
-Thin threads of filament between travel moves. Visible on nozzle camera as wisps or threads.
-**What operators do:** Lower nozzle temp by 5-10°C. Reduce speed slightly. This reduces ooze during travel moves. If it's severe, the print is still usually salvageable — cosmetic issue, not structural.
-
-### Slight overextrusion
-Lines look too fat, surface is bumpy/rough, corners have buildup.
-**What operators do:** Reduce flow rate by 2-5%. If nozzle temp is at the high end for the material, reduce by 5°C.
-
-### Slight underextrusion
-Lines have gaps, surface looks thin or rough, infill is sparse.
-**What operators do:** Increase flow rate by 2-5%. If nozzle temp is at the low end, increase by 5°C. Check if filament sensor flow count is lower than expected — could indicate partial clog building up.
-
-### Temperature not reaching target
-Temp stays more than 5°C below target for more than 60 seconds.
-**What operators do:** Check heater PWM — if it's at max and temp still isn't rising, that's a hardware problem (call human). If PWM is below max, the firmware PID controller might be struggling — usually resolves itself. Wait and monitor for 2-3 minutes before acting.
-
-### Temperature overshooting
-Temp exceeds target by more than 10°C.
-**What operators do:** Usually the PID controller recovers. If it doesn't come back within 2 minutes, reduce the target temperature by 5°C to give the controller room. If overshooting repeatedly, flag to human — PID might need tuning.
-
-### Print speed causing artifacts
-Ringing/ghosting visible as ripples on surface near corners. Position data may show oscillation after direction changes.
-**What operators do:** Reduce speed by 10-20%. This is the most common quality-vs-time tradeoff. Slower almost always means better quality.
-
-### Chamber too hot / too cold
-Chamber temp drifting from target. Affects ASA/ABS prints significantly.
-**What operators do:** If too hot — chamber fan should be running. If door_sensor shows open, the operator probably opened it intentionally. If too cold — check chamber heater PWM. Small drifts (±3°C) are normal. Larger drifts on enclosed prints: adjust chamber target up/down.
-
-### First layer issues (camera detected)
-Nozzle camera shows first layer not adhering, curling up, or being dragged by nozzle.
-**What operators do:** Increase bed temp by 5°C. Slow down first few layers (reduce speed to 70-80%). If it's really bad, pause and let the human clean the bed — you can't fix adhesion remotely if the bed surface is contaminated.
-
-### Door opened during print
-door_sensor state changes.
-**What operators do:** For PLA prints, usually fine — PLA doesn't need enclosure. For ASA/ABS, monitor chamber temp. If it drops more than 5°C, slow the print down 10% to compensate for the thermal change. Don't panic — brief door opens are normal (operator checking the print).
-
----
-
-## What needs human hands
-
-Only request human assistance (CALL_HUMAN) for these situations:
-
-- **Filament runout** — fsensor state drops, flow stops. You can't load filament remotely. Pause and wait.
-- **Filament jam** — fsensor shows motor turning but no flow. You can pause, but clearing a jam requires hands.
-- **Complete print detachment** — nozzle camera shows spaghetti (filament in air, not on the print). Nothing to save. Cancel the print.
-- **Overcurrent** — oc_nozz or oc_inp goes non-zero. Safety kernel handles the alert. You should pause. This is electrical — don't touch.
-- **Voltage anomaly** — volt_bed drops below 22V during active heating. PSU or wiring issue. Pause, alert human.
-- **Mechanical failure** — stepper stall counter incrementing rapidly, position data showing large unexpected jumps. Pause immediately. Belt or motor issue.
-- **Network loss to printer** — HTTP API unreachable. You still have cameras. Report what you see, wait for network recovery.
-- **Anything you're genuinely uncertain about** — better to ask than guess wrong. But try to include your analysis and what you'd recommend.
-
----
-
-## Consistency and repeatability
-
-The goal is to produce structurally and visually similar products across prints. What affects consistency:
-
-**Environmental conditions:** Ambient temperature changes between prints affect cooling rates. If ambient_temp differs by more than 5°C from the previous successful print, expect potential dimensional differences. Log the ambient conditions at print start.
-
-**Temperature stability during print:** Nozzle should stay within ±2°C of target, bed within ±1°C. If you see drift, the first move is to check if something external changed (door opened, ambient shift). Small autonomous corrections are fine — nudge the target to compensate.
-
-**First layer baseline:** The first layer sets the foundation. Compare nozzle camera images from the first layer of this print to previous successful prints. Consistent first layers predict consistent prints.
-
-**Flow and speed adjustments:** If you adjust flow or speed during a print, record why. If the same adjustment is needed on multiple consecutive prints, it might indicate a systematic issue (partial clog developing, filament diameter variation, ambient temp change).
-
-**Between prints:** Before starting a new print of the same model, compare the environment: ambient temp, chamber temp, bed temp at idle, time since last print (bed may still be warm). Closer conditions to the previous successful print mean more consistent results.
-
----
-
-## Prusa Core One+ quirks
-
-- PUT /api/v1/job returns 405 during many states. Pause/resume uses M25/M24 G-code injection.
-- HTTP API reports PRINTING during purge/preparation. Use job.phase to distinguish PREPARING from actual PRINTING.
-- Metrics stream stops sending temp_bed and chamber_temp during IDLE. HTTP API always reports them.
-- USB serial disconnects every 1-3 seconds. Only used for diagnostic commands (M119 endstops).
-- Filament sensor false positives are common above 60% humidity.
+Pause or cancel when the next cycle is more likely to damage the print or hardware than to add useful information. Safety faults, electrical faults, runaway heating, true motion loss, and physical feed stoppages are not “tuning” problems. Physical causes need physical hands. Before escalating, secure the printer: stop motion, reduce heat if cooling is compromised, and prevent the machine from turning a recoverable defect into a nozzle blob, collision, or wiring fault. High ownership means exhausting reasonable autonomous options first; good judgment means recognizing when more autonomy is just more damage. If a sensor contradicts physics — active heater not reaching target, powered fan not spinning, loaded motor not moving material — the hardware itself is the problem, not the parameters.
