@@ -287,4 +287,18 @@ def read_vision_analysis() -> dict:
         result["vision.status"] = f"INCONSISTENT:{worst_status}"
         result["vision.confidence"] = 0.5  # Medium confidence — signals disagree
 
+    # Hysteresis: if we detected a defect last cycle and current reading is ambiguous,
+    # maintain the previous assessment with reduced confidence instead of flipping to NORMAL.
+    # This prevents flip-flopping on borderline readings (e.g., blob 0.65 → 0.3 → 0.65).
+    current_status = result.get("vision.status", "NORMAL")
+    if current_status == "NORMAL":
+        prev_status = _read_wb(r, "vision.status") or "NORMAL"
+        if "DEFECT" in str(prev_status) or "POSSIBLE" in str(prev_status):
+            current_normal = result.get("vision.nozzle.normal", result.get("vision.normal", 0))
+            if current_normal < 0.8:  # Not clearly normal
+                prev_defect = str(prev_status).split(":")[-1] if ":" in str(prev_status) else "unknown"
+                result["vision.status"] = f"FADING:{prev_defect}"
+                result["vision.confidence"] = max(result.get("vision.confidence", 0), 0.4)
+                logger.info(f"Vision hysteresis: maintaining {prev_defect} detection with reduced confidence (normal={current_normal})")
+
     return result
