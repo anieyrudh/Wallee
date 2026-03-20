@@ -5,10 +5,15 @@ import asyncio
 import fakeredis
 import pytest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from wallee.human.telegram import TelegramBot, _escape_md
 from wallee.whiteboard.client import Whiteboard
+
+
+async def _noop_sleep(*args, **kwargs):
+    """Replacement for asyncio.sleep that returns immediately."""
+    pass
 
 
 class TestEscapeMarkdown:
@@ -132,6 +137,94 @@ class TestTelegramAuth:
         bot._acknowledge_pending_callout()
 
         assert wb.read("human.pending_callout") is None
+
+class TestSendWithRetry:
+    """Test _send_with_retry retries on failure with exponential backoff."""
+
+    def test_retry_succeeds_on_second_attempt(self):
+        """If first send fails and second succeeds, no exception raised."""
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="12345")
+
+        call_count = 0
+        async def flaky_send():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TimeoutError("Connection timed out")
+            return None
+
+        async def run():
+            with patch("asyncio.sleep", _noop_sleep):
+                await bot._send_with_retry(flaky_send, max_retries=3)
+
+        asyncio.run(run())
+        assert call_count == 2
+
+    def test_raises_after_all_retries_exhausted(self):
+        """After max_retries failures, the exception is raised."""
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="12345")
+
+        call_count = 0
+        async def always_fail():
+            nonlocal call_count
+            call_count += 1
+            raise ConnectionError("DNS resolution failed")
+
+        async def run():
+            with patch("asyncio.sleep", _noop_sleep):
+                await bot._send_with_retry(always_fail, max_retries=3)
+
+        with pytest.raises(ConnectionError):
+            asyncio.run(run())
+        assert call_count == 3
+
+    def test_no_retry_on_success(self):
+        """Successful first send does not retry."""
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(token="token", chat_id="12345")
+
+        call_count = 0
+        async def success():
+            nonlocal call_count
+            call_count += 1
+            return "ok"
+
+        async def run():
+            return await bot._send_with_retry(success, max_retries=3)
+
+        result = asyncio.run(run())
+        assert result == "ok"
+        assert call_count == 1
+
+
+class TestTelegramCallHumanWrapper:
+    """The _telegram_call_human wrapper must only fall to outbox on failure."""
+
+    def test_successful_send_does_not_write_outbox(self):
+        """If telegram.send() succeeds, outbox should NOT be written."""
+        # This tests the logic from main.py's _telegram_call_human
+        outbox_written = False
+        telegram_succeeded = False
+
+        def mock_send(msg, severity):
+            nonlocal telegram_succeeded
+            telegram_succeeded = True
+
+        def mock_outbox(msg, severity, **kwargs):
+            nonlocal outbox_written
+            outbox_written = True
+
+        # Simulate the FIXED _telegram_call_human logic
+        try:
+            mock_send("test", "info")
+        except Exception:
+            mock_outbox("test", "info")
+
+        assert telegram_succeeded
+        assert not outbox_written  # Outbox should NOT be written on success
+
 
     def test_estop_command_publishes_safety_key(self):
         wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))

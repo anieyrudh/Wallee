@@ -198,9 +198,10 @@ def main():
             def _telegram_call_human(msg, severity="info"):
                 try:
                     telegram_bot.send(msg, severity)
+                    return  # Telegram succeeded — do NOT write to outbox
                 except Exception as e:
-                    logger.error(f"Telegram send failed: {e}")
-                # Also write to outbox as backup
+                    logger.error(f"Telegram send failed after retries: {e}")
+                # Only fall to outbox if Telegram delivery failed
                 call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox",
                            telegram_fn=None)  # don't recurse
             agent.call_human_fn = _telegram_call_human
