@@ -60,6 +60,8 @@ If the image is blurry or unclear, set all defect scores low and normal high.
 
 Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation. Good: "White fuzzy residue on overhangs, rough bumpy texture on top surface." Bad: "Moisture in filament causing steam bubbles during extrusion."
 
+CRITICAL: Your numerical scores and your text description MUST agree. If you describe something concerning in the description, the corresponding defect score MUST be above 0.3. If all scores are below 0.3, the description must say the print looks normal. Do not describe "detachment" or "failure" while scoring spaghetti at 0.0.
+
 Respond with JSON only:
 {"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Clean bead, smooth top surface, no threads or blobs visible"}"""
 
@@ -69,6 +71,8 @@ Score each defect 0.0 (absent) to 1.0 (clearly present). Focus on: spaghetti (fi
 If the image is blurry or unclear, set all defect scores low and normal high.
 
 Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation.
+
+CRITICAL: Your numerical scores and your text description MUST agree. If you describe something concerning, the corresponding defect score MUST be above 0.3. If all scores are below 0.3, the description must say the print looks normal.
 
 Respond with JSON only:
 {"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Object centered on bed, no loose filament, corners flat"}"""
@@ -254,8 +258,33 @@ def read_vision_analysis() -> dict:
 
     matched_words = [w for w in concerning_words if w in combined_desc]
     if matched_words and max_defect_val < 0.5:
-        logger.warning(f"Vision inconsistency: description mentions {matched_words} but max defect score is {max_defect_val:.2f}. Flagging.")
-        result["vision.status"] = f"INCONSISTENT:{result.get('vision.status', 'unknown')}"
-        result["vision.confidence"] = min(result.get("vision.confidence", 0.0), 0.4)
+        logger.warning(f"Vision inconsistency: description mentions {matched_words} but max defect score is {max_defect_val:.2f}. Re-deriving from description.")
+
+        # Trust the description over the scores — the LLM saw something but scored it wrong
+        word_to_defect = [
+            ("detach", "spaghetti"), ("spaghetti", "spaghetti"),
+            ("blob", "blob"), ("string", "stringing"),
+            ("warp", "warping"), ("shift", "layer_shift"),
+            ("loose", "spaghetti"), ("empty bed", "spaghetti"),
+            ("no adhesion", "spaghetti"), ("fail", "spaghetti"),
+        ]
+        re_derived = False
+        for word, defect in word_to_defect:
+            if word in combined_desc:
+                # Bump the score to at least 0.5 across all camera prefixes that have results
+                for prefix in ("vision.nozzle", "vision.buddy", "vision.buddy2"):
+                    key = f"{prefix}.{defect}"
+                    if key in result:
+                        result[key] = max(result[key], 0.5)
+                        re_derived = True
+                # Also set the top-level defect key if nozzle has it
+                nk = f"vision.nozzle.{defect}"
+                if nk in result:
+                    result[nk] = max(result[nk], 0.5)
+
+        # Re-derive combined status from updated scores
+        worst_status = result.get("vision.status", "NORMAL")
+        result["vision.status"] = f"INCONSISTENT:{worst_status}"
+        result["vision.confidence"] = 0.5  # Medium confidence — signals disagree
 
     return result
