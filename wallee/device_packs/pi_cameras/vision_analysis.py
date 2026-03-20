@@ -18,6 +18,7 @@ _api_key = ""
 _vision_model = "google/gemini-3.1-flash-lite-preview"
 _redis_url = "redis://localhost:6379"
 _redis_client = None
+_last_human_image_hash: int | None = None
 
 
 def configure_vision(api_key: str, vision_model: str, redis_url: str):
@@ -300,5 +301,28 @@ def read_vision_analysis() -> dict:
                 result["vision.status"] = f"FADING:{prev_defect}"
                 result["vision.confidence"] = max(result.get("vision.confidence", 0), 0.4)
                 logger.info(f"Vision hysteresis: maintaining {prev_defect} detection with reduced confidence (normal={current_normal})")
+
+    # Analyze human-submitted image if present and new
+    global _last_human_image_hash
+    human_image = _read_wb(r, "human.image")
+    if human_image and isinstance(human_image, str):
+        img_hash = hash(human_image[:100])  # Hash first 100 chars to detect new images
+        if img_hash != _last_human_image_hash:
+            _last_human_image_hash = img_hash
+            logger.info("Vision: analyzing human-submitted image")
+            human_prompt = """You are a 3D print quality inspector analyzing an image sent by the printer operator.
+
+Score each defect 0.0 (absent) to 1.0 (clearly present). Be conservative.
+Write a one-sentence description of ONLY what you physically see. No diagnosis.
+
+CRITICAL: Your numerical scores and your text description MUST agree.
+
+Respond with JSON only:
+{"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Description of what is visible in the image"}"""
+            human_scores = _analyze_frame(human_image, human_prompt)
+            if human_scores:
+                human_result = _scores_to_result(human_scores, "vision.human")
+                result.update(human_result)
+                logger.info(f"Vision human image: {human_result.get('vision.human.status', '?')}")
 
     return result

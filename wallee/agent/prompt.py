@@ -187,6 +187,13 @@ def build_user_message(
     if vision_status != "NO_DATA":
         sections.append(f"=== VISION: {vision_status} (conf: {vision_conf}) — {vision_desc} ===")
 
+    # 1c. Human-submitted image analysis (if operator sent a photo)
+    human_vision = state.get("vision.human.status")
+    if human_vision:
+        human_desc = state.get("vision.human.description", "")
+        human_conf = state.get("vision.human.confidence", "")
+        sections.append(f"=== HUMAN SENT IMAGE: {human_vision} (conf: {human_conf}) — {human_desc} ===")
+
     # 2. External changes
     if external_changes:
         lines = ["!!! EXTERNAL CHANGES (not caused by Wallee) !!!"]
