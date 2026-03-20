@@ -199,9 +199,11 @@ def resume_print(whiteboard=None, **kwargs) -> dict:
 
 @tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_cancel_print, state_effects=["printer.state", "printer.job_state"])
 def cancel_print(whiteboard=None, **kwargs) -> dict:
-    """Cancel the current print via DELETE /api/v1/job. Irreversible.
+    """Cancel the current print. Irreversible.
 
-    This is the only way to permanently stop a print. HTTP pause auto-resumes.
+    Tries DELETE /api/v1/job first (standard PrusaLink v1). If the firmware
+    returns 405 (common on Core One+ in transitional states), falls back to
+    M603 abort G-code via POST /api/v1/gcode.
     """
     http = _get_http()
     if http is None:
@@ -211,11 +213,19 @@ def cancel_print(whiteboard=None, **kwargs) -> dict:
     if job_state in ("IDLE", None):
         return {"error": f"Cannot cancel: no active job (state={job_state})"}
 
+    # Primary: DELETE /api/v1/job (standard PrusaLink v1)
     result = http.delete("/api/v1/job")
-    if "error" in result:
-        return result
+    if "error" not in result:
+        return {"status": "success", "action": "cancel_print", "method": "DELETE"}
 
-    return {"status": "success", "action": "cancel_print"}
+    # Fallback: M603 abort G-code (works in all states on Core One+)
+    logger.warning(f"cancel_print: DELETE /api/v1/job failed ({result.get('error', '?')}), trying M603 G-code abort")
+    gcode_result = http.post("/api/v1/gcode", json_body={"command": "M603"})
+    if "error" not in gcode_result:
+        return {"status": "success", "action": "cancel_print", "method": "M603"}
+
+    # Both failed — return the original error
+    return {"error": f"cancel_print failed: DELETE returned {result.get('error', '?')}, M603 returned {gcode_result.get('error', '?')}"}
 
 
 @tool(kind="actuator", requires_approval=True, max_proposal_age_ms=60000, precheck_fn=_precheck_start_print, state_effects=["printer.state", "printer.job_state"])
