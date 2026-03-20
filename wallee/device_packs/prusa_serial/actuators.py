@@ -23,7 +23,10 @@ PRUSA_M115_SPAM = frozenset({
     "MACHINE_TYPE:", "EXTRUDER_COUNT:", "UUID:", "Cap:",
 })
 
+import threading as _threading
+
 _serial: SerialBus | None = None
+_serial_lock = _threading.Lock()
 
 
 def _find_prusa_port() -> str | None:
@@ -32,15 +35,17 @@ def _find_prusa_port() -> str | None:
 
 
 def _get_serial() -> SerialBus:
-    """Get or create the shared serial bus with Prusa-specific config."""
+    """Get or create the shared serial bus. Thread-safe."""
     global _serial
     if _serial is None:
-        _serial = SerialBus(
-            blacklisted_commands=PRUSA_BLACKLISTED,
-            spam_patterns=PRUSA_M115_SPAM,
-            find_port_fn=_find_prusa_port,
-        )
-        logger.info("Prusa serial bus initialized")
+        with _serial_lock:
+            if _serial is None:
+                _serial = SerialBus(
+                    blacklisted_commands=PRUSA_BLACKLISTED,
+                    spam_patterns=PRUSA_M115_SPAM,
+                    find_port_fn=_find_prusa_port,
+                )
+                logger.info("Prusa serial bus initialized")
     return _serial
 
 

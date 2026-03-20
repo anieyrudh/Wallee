@@ -101,7 +101,7 @@ class AgentLoop:
         OBSERVATIONS.md and JOB_CONTEXT.md are re-read every cycle.
         """
         if not self._knowledge_cache:
-            for name in ["SOUL.md", "HARDWARE.md", "LEARNED.md"]:
+            for name in ["SOUL.md", "LEARNED.md"]:
                 path = self.knowledge_dir / name
                 if path.exists():
                     self._knowledge_cache[name] = path.read_text()
@@ -525,7 +525,11 @@ class AgentLoop:
         pattern. Only flag when three consecutive ACTION decisions flip-flop between
         two different tools (e.g., pause → resume → pause).
         """
-        current_key = decision.type + ":" + getattr(decision, "tool", "")
+        # Key on first tool in chain for ACTION_CHAIN, otherwise tool name
+        if decision.type == "ACTION_CHAIN" and decision.actions:
+            current_key = f"ACTION_CHAIN:{decision.actions[0].get('tool', '')}"
+        else:
+            current_key = decision.type + ":" + getattr(decision, "tool", "")
 
         if decision.type in ("ACTION", "ACTION_CHAIN"):
             if len(self._recent_decisions) >= 2:
@@ -833,6 +837,8 @@ class AgentLoop:
         pre_call_intent = self.wb.read("human.intent")
         pre_call_pending = self.wb.read("human.pending_callout")
         pre_call_state = self.wb.read("printer.state")
+        pre_call_phase = self.wb.read("job.phase")
+        pre_call_vision = self.wb.read("vision.status")
 
         # 11. Call LLM (pass available tool names for output validation)
         tool_names = [t["name"] for t in self.tools.list_for_llm()]
@@ -852,6 +858,14 @@ class AgentLoop:
         post_call_state = self.wb.read("printer.state")
         if post_call_state != pre_call_state:
             logger.info(f"Printer state changed during LLM call ({pre_call_state} → {post_call_state}).")
+            stale = True
+        post_call_phase = self.wb.read("job.phase")
+        if post_call_phase != pre_call_phase:
+            logger.info(f"Job phase changed during LLM call ({pre_call_phase} → {post_call_phase}).")
+            stale = True
+        post_call_vision = self.wb.read("vision.status")
+        if post_call_vision != pre_call_vision:
+            logger.info(f"Vision status changed during LLM call ({pre_call_vision} → {post_call_vision}).")
             stale = True
 
         if stale and self._stale_retries < 3:

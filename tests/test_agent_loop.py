@@ -55,7 +55,7 @@ def ledger(tmp_path):
 @pytest.fixture
 def knowledge_dir(tmp_path):
     (tmp_path / "SOUL.md").write_text("You are Wallee.")
-    (tmp_path / "HARDWARE.md").write_text("Pi 5, no sensors yet.")
+    # HARDWARE.md no longer loaded by agent (removed in P2.5)
     return tmp_path
 
 
@@ -457,7 +457,6 @@ class TestKnowledge:
     def test_loads_knowledge_files(self, agent):
         k = agent._load_knowledge()
         assert "Wallee" in k["SOUL.md"]
-        assert "Pi 5" in k["HARDWARE.md"]
 
     def test_missing_knowledge_file(self, wb, mock_llm, registry, tmp_path):
         (tmp_path / "SOUL.md").write_text("Mission briefing.")
@@ -467,5 +466,4 @@ class TestKnowledge:
         )
         k = agent._load_knowledge()
         assert k["SOUL.md"] == "Mission briefing."
-        assert k["HARDWARE.md"] == ""
         assert k["LEARNED.md"] == ""

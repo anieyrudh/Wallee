@@ -12,19 +12,24 @@ from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
 
+import threading as _threading
+
 # Shared listener and buffer — initialized once, used by all sensors
 _listener: UDPListener | None = None
 _buffer: MetricsBuffer | None = None
+_buffer_lock = _threading.Lock()
 
 
 def get_buffer() -> MetricsBuffer | None:
-    """Get the shared metrics buffer, starting the listener if needed."""
+    """Get the shared metrics buffer, starting the listener if needed. Thread-safe."""
     global _listener, _buffer
     if _buffer is None:
-        _buffer = MetricsBuffer()
-        _listener = UDPListener(bind_addr="0.0.0.0", port=8514, buffer=_buffer)
-        _listener.start()
-        logger.info("Prusa metrics UDP listener started")
+        with _buffer_lock:
+            if _buffer is None:
+                _buffer = MetricsBuffer()
+                _listener = UDPListener(bind_addr="0.0.0.0", port=8514, buffer=_buffer)
+                _listener.start()
+                logger.info("Prusa metrics UDP listener started")
     return _buffer
 
 

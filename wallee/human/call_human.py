@@ -35,7 +35,11 @@ def _try_outbox(message: str, severity: str, outbox_dir: Path) -> bool:
             "timestamp": time.time(),
             "delivered": False,
         }
-        (outbox_dir / filename).write_text(json.dumps(payload, indent=2))
+        outbox_path = outbox_dir / filename
+        outbox_path.write_text(json.dumps(payload, indent=2))
+        if not outbox_path.exists():
+            logger.error(f"Outbox write verification failed: {outbox_path}")
+            return False
         logger.info(f"Message written to outbox: {filename}")
         return True
     except Exception as e:

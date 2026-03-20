@@ -226,12 +226,25 @@ class Engine:
         hb_thread.start()
         logger.info("Engine started")
 
+        last_reconcile = time.monotonic()
+        reconcile_interval = 60.0  # Check for stuck rows every 60s
+
         try:
             while self._running:
                 try:
                     self.poll_once()
                 except Exception as e:
                     logger.error(f"Engine poll error: {e}")
+
+                # Periodic reconcile — catch stuck PROPOSED/DISPATCHED rows
+                if time.monotonic() - last_reconcile > reconcile_interval:
+                    try:
+                        from wallee.engine.reconcile import reconcile
+                        reconcile(self.ledger, lambda dg: self._get_diary(dg))
+                        last_reconcile = time.monotonic()
+                    except Exception as e:
+                        logger.error(f"Periodic reconcile error: {e}")
+
                 time.sleep(self.poll_interval)
         finally:
             self._running = False

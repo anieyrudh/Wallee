@@ -163,6 +163,7 @@ def build_user_message(
     sections = []
 
     # 0. Pending callout — FIRST, before everything else
+    # Runtime deletes the key on human response (not ACKNOWLEDGED), so only PENDING or absent
     if pending_callout and pending_callout.get("status") == "PENDING":
         msg = pending_callout.get("message", "")[:100]
         sections.append(
@@ -170,9 +171,6 @@ def build_user_message(
             f"Message: {msg}\n"
             "Do NOT claim the human acknowledged this. Do NOT re-escalate the same issue."
         )
-    elif pending_callout and pending_callout.get("status") == "ACKNOWLEDGED":
-        msg = pending_callout.get("message", "")[:100]
-        sections.append(f"Human acknowledged your escalation: {msg}")
     else:
         sections.append("No pending escalation.")
 

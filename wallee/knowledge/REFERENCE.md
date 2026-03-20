@@ -50,7 +50,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Lower nozzle temperature one step | `set_temperature(target=temp_nozzle_target - 5, heater="nozzle")` | 1 | High | Yes |
 | Trim flow if strands are thick rather than wispy | `set_flow_factor(percent=95)` | 1 | Medium | Yes |
-| Escalate when moisture is more likely than tuning | `call_human(message="Persistent stringing suggests wet filament or a retraction-limited setup. Check spool dryness and profile.", severity="low")` | 4 | High | No |
+| Escalate when moisture is more likely than tuning | `call_human(message="Persistent stringing suggests wet filament or a retraction-limited setup. Check spool dryness and profile.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Lower nozzle temperature one step → observe 2-3 cycles.
@@ -85,7 +85,7 @@
 | Add melt capacity | `set_temperature(target=temp_nozzle_target + 5, heater="nozzle")` | 1 | High | Yes |
 | Test whether flow can recover under pause | `pause_print()` | 2 | High | Yes |
 | Probe flow while paused | `extrude(length_mm=10)` | 2 | Medium | Yes |
-| Escalate when the path still cannot move material | `call_human(message="Persistent underextrusion suggests a clog, feed-path friction, or extruder slip. Inspect nozzle and filament path.", severity="medium")` | 4 | High | No |
+| Escalate when the path still cannot move material | `call_human(message="Persistent underextrusion suggests a clog, feed-path friction, or extruder slip. Inspect nozzle and filament path.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed → observe 2-3 cycles.
@@ -119,7 +119,7 @@
 | Reduce flow one step | `set_flow_factor(percent=95)` | 1 | High | Yes |
 | Lower nozzle temperature slightly | `set_temperature(target=temp_nozzle_target - 5, heater="nozzle")` | 1 | Medium | Yes |
 | Stretch lines by running a little faster | `set_speed_factor(percent=110)` | 1 | Medium | Yes |
-| Escalate if the profile itself is wrong | `call_human(message="Persistent overextrusion suggests a profile or filament-size mismatch. Verify spool/profile pairing.", severity="low")` | 4 | High | No |
+| Escalate if the profile itself is wrong | `call_human(message="Persistent overextrusion suggests a profile or filament-size mismatch. Verify spool/profile pairing.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce flow one step → observe 2-3 cycles.
@@ -153,7 +153,7 @@
 | Slow the print to reduce pressure swings | `set_speed_factor(percent=75)` | 1 | High | Yes |
 | Purge a short amount after a pause | `pause_print()` | 2 | High | Yes |
 | Probe whether the nozzle can deliver steadily | `extrude(length_mm=10)` | 2 | Medium | Yes |
-| Escalate when the pattern still cycles | `call_human(message="Inconsistent extrusion suggests spool drag, gear contamination, or a cycling partial clog. Inspect feed path and nozzle.", severity="medium")` | 4 | High | No |
+| Escalate when the pattern still cycles | `call_human(message="Inconsistent extrusion suggests spool drag, gear contamination, or a cycling partial clog. Inspect feed path and nozzle.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Slow the print → observe 2-3 cycles.
@@ -186,7 +186,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Reduce flow slightly | `set_flow_factor(percent=97)` | 1 | Medium | Yes |
 | Lower nozzle temperature one step | `set_temperature(target=temp_nozzle_target - 5, heater="nozzle")` | 1 | Medium | Yes |
-| Escalate when this is clearly a profile-level seam problem | `call_human(message="Seam zits persist. Likely needs seam/restart tuning in the profile rather than more live changes.", severity="low")` | 4 | High | No |
+| Escalate when this is clearly a profile-level seam problem | `call_human(message="Seam zits persist. Likely needs seam/restart tuning in the profile rather than more live changes.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Trim flow slightly → observe 2-3 cycles.
@@ -220,7 +220,7 @@
 | Freeze motion before the mass grows | `pause_print()` | 2 | High | Yes |
 | Move the head clear for inspection | `set_position(x=x_real, y=y_real, z=z_real + 20)` | 2 | Medium | Yes |
 | Abandon the print if the blob is already large or wiring is threatened | `cancel_print()` | 2 | High | No |
-| Request physical cleanup | `call_human(message="Nozzle blob detected. Remove hot plastic carefully and inspect heater block, wiring, and nozzle seal before resuming.", severity="high")` | 4 | High | No |
+| Request physical cleanup | `call_human(message="Nozzle blob detected. Remove hot plastic carefully and inspect heater block, wiring, and nozzle seal before resuming.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Pause immediately → observe one cycle only.
@@ -256,7 +256,7 @@
 | Raise bed temperature one step | `set_temperature(target=temp_bed_target + 5, heater="bed")` | 1 | High | Yes |
 | Slow the first layer | `set_speed_factor(percent=70)` | 1 | Medium | Yes |
 | Abort once first-layer spaghetti is clear | `cancel_print()` | 2 | High | No |
-| Request cleaning / recalibration | `call_human(message="First layer is failing. Clean the build surface and verify first-layer setup before restarting.", severity="medium")` | 4 | High | No |
+| Request cleaning / recalibration | `call_human(message="First layer is failing. Clean the build surface and verify first-layer setup before restarting.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Raise bed temperature → observe 2-3 cycles.
@@ -290,7 +290,7 @@
 | Raise bed temperature slightly | `set_temperature(target=temp_bed_target + 5, heater="bed")` | 1 | High | Yes |
 | Reduce print speed to lower peel and impact forces | `set_speed_factor(percent=80)` | 1 | Medium | Yes |
 | Pause before corners become collision points | `pause_print()` | 2 | High | Yes |
-| Request environmental correction | `call_human(message="Warping is growing. Check drafts, enclosure state, and restart strategy if corners keep lifting.", severity="medium")` | 4 | High | No |
+| Request environmental correction | `call_human(message="Warping is growing. Check drafts, enclosure state, and restart strategy if corners keep lifting.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Raise bed temperature one step → observe 2-3 cycles.
@@ -324,7 +324,7 @@
 | Stop motion immediately | `pause_print()` | 2 | High | Yes |
 | Lift away from loose filament | `set_position(x=x_real, y=y_real, z=z_real + 30)` | 2 | Medium | Yes |
 | End the job once detachment is confirmed | `cancel_print()` | 2 | High | No |
-| Request cleanup and restart prep | `call_human(message="Mid-print detachment confirmed. Clear loose filament, inspect the nozzle, and restart with stronger adhesion.", severity="high")` | 4 | High | No |
+| Request cleanup and restart prep | `call_human(message="Mid-print detachment confirmed. Clear loose filament, inspect the nozzle, and restart with stronger adhesion.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Pause immediately → observe one cycle only.
@@ -393,7 +393,7 @@
 | Reduce dynamic load | `set_speed_factor(percent=70)` | 1 | Medium | Yes |
 | Stop before more layers are misplaced | `pause_print()` | 2 | High | Yes |
 | End the job if the geometry is already lost | `cancel_print()` | 2 | High | No |
-| Request mechanical inspection | `call_human(message="Layer shift detected. Inspect belts, pulleys, and possible collision causes before continuing.", severity="high")` | 4 | High | No |
+| Request mechanical inspection | `call_human(message="Layer shift detected. Inspect belts, pulleys, and possible collision causes before continuing.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed immediately → observe one cycle.
@@ -426,7 +426,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Reduce mechanical load | `set_speed_factor(percent=65)` | 1 | High | Yes |
 | Pause before the stall becomes a shift | `pause_print()` | 2 | High | Yes |
-| Request inspection for obstruction or binding | `call_human(message="Repeated stepper stalls suggest collision, binding, or marginal belt/driver behavior. Inspect mechanics.", severity="medium")` | 4 | High | No |
+| Request inspection for obstruction or binding | `call_human(message="Repeated stepper stalls suggest collision, binding, or marginal belt/driver behavior. Inspect mechanics.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed → observe 2-3 cycles.
@@ -460,7 +460,7 @@
 | Reduce speed modestly | `set_speed_factor(percent=80)` | 1 | High | Yes |
 | Reduce speed further if the first drop barely helps | `set_speed_factor(percent=65)` | 1 | High | Yes |
 | Record the resonance pattern for later tuning | `remember(observation="Ringing improved only after speed reduction; likely resonance-limited setup.")` | 1 | Medium | Yes |
-| Request mechanical / profile follow-up | `call_human(message="Ringing persists. Check belt tension, printer support surface, and future resonance tuning.", severity="low")` | 4 | High | No |
+| Request mechanical / profile follow-up | `call_human(message="Ringing persists. Check belt tension, printer support surface, and future resonance tuning.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed modestly → observe 2-3 cycles.
@@ -493,7 +493,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Reduce speed slightly to equalize layer timing | `set_speed_factor(percent=85)` | 1 | Medium | Yes |
 | Record the repeat interval for diagnosis | `remember(observation="Z-banding appears periodic rather than random; likely a mechanical Z source.")` | 1 | High | Yes |
-| Request Z-system inspection | `call_human(message="Periodic Z-banding detected. Inspect lead screw, coupler, lubrication, and alignment.", severity="medium")` | 4 | High | No |
+| Request Z-system inspection | `call_human(message="Periodic Z-banding detected. Inspect lead screw, coupler, lubrication, and alignment.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed slightly → observe 2-3 cycles.
@@ -529,7 +529,7 @@
 | Lower nozzle temperature one step | `set_temperature(target=temp_nozzle_target - 5, heater="nozzle")` | 1 | High | Yes |
 | Increase throughput only if the fan looks healthy and the job is very slow | `set_speed_factor(percent=110)` | 1 | Medium | Yes |
 | Pause before a soft jam becomes a hard jam | `pause_print()` | 2 | High | Yes |
-| Request chamber/fan intervention | `call_human(message="Heat creep is likely. Check heatbreak fan, chamber heat, and cooling path before resuming.", severity="high")` | 4 | High | No |
+| Request chamber/fan intervention | `call_human(message="Heat creep is likely. Check heatbreak fan, chamber heat, and cooling path before resuming.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Lower nozzle temperature one step → observe 2-3 cycles.
@@ -562,7 +562,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Pause rather than printing through a heating fault | `pause_print()` | 2 | High | Yes |
 | Cancel if the print is already active and the nozzle cannot recover | `cancel_print()` | 2 | High | No |
-| Request heater-path inspection | `call_human(message="Nozzle is not reaching target temperature. Inspect heater cartridge, thermistor, cooling path, and connector health.", severity="high")` | 5 | High | No |
+| Request heater-path inspection | `call_human(message="Nozzle is not reaching target temperature. Inspect heater cartridge, thermistor, cooling path, and connector health.", severity="critical")` | 5 | High | No |
 
 **Decision ladder:**
 1. If the nozzle is merely slow but still climbing, give it the allowed warmup window.
@@ -595,7 +595,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Pause before adhesion fails invisibly | `pause_print()` | 2 | High | Yes |
 | Cancel if the bed is clearly not recovering or warping risk is high | `cancel_print()` | 2 | High | No |
-| Request bed-heating inspection | `call_human(message="Bed is not reaching target temperature. Inspect bed heater, thermistor, power delivery, and ambient conditions.", severity="high")` | 5 | High | No |
+| Request bed-heating inspection | `call_human(message="Bed is not reaching target temperature. Inspect bed heater, thermistor, power delivery, and ambient conditions.", severity="critical")` | 5 | High | No |
 
 **Decision ladder:**
 1. Allow the normal soak window if the bed is still rising.
@@ -663,7 +663,7 @@
 | Reduce dynamic load slightly | `set_speed_factor(percent=85)` | 1 | Medium | Yes |
 | Pause if oscillation is clearly degrading print quality | `pause_print()` | 2 | Medium | Yes |
 | Record the pattern for later tuning | `remember(observation="Temperature oscillation appears periodic enough to suggest a control or sensor issue.")` | 1 | High | Yes |
-| Request thermal-control maintenance | `call_human(message="Sustained temperature oscillation suggests tuning or sensor-path work. Inspect before the next critical print.", severity="medium")` | 4 | High | No |
+| Request thermal-control maintenance | `call_human(message="Sustained temperature oscillation suggests tuning or sensor-path work. Inspect before the next critical print.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce dynamic load → observe 2-3 cycles.
@@ -700,7 +700,7 @@
 | Reduce pressure demand | `set_speed_factor(percent=75)` | 1 | High | Yes |
 | Pause and attempt a short purge | `pause_print()` | 2 | High | Yes |
 | Probe recovery with a purge | `extrude(length_mm=20)` | 2 | Medium | Yes |
-| Escalate when the restriction returns quickly | `call_human(message="Partial clog likely. Inspect nozzle cleanliness, material history, and feed path before continuing.", severity="medium")` | 4 | High | No |
+| Escalate when the restriction returns quickly | `call_human(message="Partial clog likely. Inspect nozzle cleanliness, material history, and feed path before continuing.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Raise nozzle temperature one step → observe 2-3 cycles.
@@ -735,7 +735,7 @@
 | Try a single soften-and-purge attempt | `set_temperature(target=temp_nozzle_target + 15, heater="nozzle")` | 2 | Medium | Yes |
 | Test whether any path remains open | `extrude(length_mm=10)` | 2 | Low | Yes |
 | End the job if the path is still blocked | `cancel_print()` | 2 | High | No |
-| Request manual clearing | `call_human(message="Full clog likely. Manual cold-pull, nozzle clearing, or nozzle swap is required.", severity="high")` | 4 | High | No |
+| Request manual clearing | `call_human(message="Full clog likely. Manual cold-pull, nozzle clearing, or nozzle swap is required.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Pause immediately.
@@ -768,7 +768,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Slow the print slightly | `set_speed_factor(percent=85)` | 1 | Medium | Yes |
 | Lower nozzle temperature one step if stringing dominates | `set_temperature(target=temp_nozzle_target - 5, heater="nozzle")` | 1 | Medium | Yes |
-| Request drying and storage correction | `call_human(message="Wet filament is likely. Dry the spool and improve storage before expecting cleaner output.", severity="medium")` | 4 | High | No |
+| Request drying and storage correction | `call_human(message="Wet filament is likely. Dry the spool and improve storage before expecting cleaner output.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Slow the print slightly → observe 2-3 cycles.
@@ -801,7 +801,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Reduce pull force while confidence is still low | `set_speed_factor(percent=70)` | 1 | Medium | Yes |
 | Stop before the extruder grinds the filament | `pause_print()` | 2 | High | Yes |
-| Request physical untangling | `call_human(message="Filament tangle or severe spool-path drag detected. Free the spool and check the feed path before resuming.", severity="medium")` | 4 | High | No |
+| Request physical untangling | `call_human(message="Filament tangle or severe spool-path drag detected. Free the spool and check the feed path before resuming.", severity="warning")` | 4 | High | No |
 | Continue only after the path is physically clear | `resume_print()` | 3 | High | Yes |
 
 **Decision ladder:**
@@ -834,7 +834,7 @@
 | Option | Tool call | Independence | Effectiveness | Reversible |
 |--------|-----------|-------------|---------------|------------|
 | Pause if firmware has not already done so | `pause_print()` | 2 | High | Yes |
-| Request a new spool | `call_human(message="Filament runout detected. Load fresh filament and confirm the feed path is clear.", severity="medium")` | 4 | High | No |
+| Request a new spool | `call_human(message="Filament runout detected. Load fresh filament and confirm the feed path is clear.", severity="warning")` | 4 | High | No |
 | Re-prime after reload | `extrude(length_mm=20)` | 3 | High | Yes |
 | Continue the job after prime looks healthy | `resume_print()` | 3 | High | Yes |
 
@@ -906,7 +906,7 @@
 | Stop motion immediately if the heatbreak fan has stalled | `pause_print()` | 2 | High | Yes |
 | Kill nozzle heat if the heatbreak fan is truly gone | `set_temperature(target=0, heater="nozzle")` | 2 | High | No |
 | Slow the print if only the print fan is affected | `set_speed_factor(percent=70)` | 1 | Medium | Yes |
-| Request fan inspection | `call_human(message="Fan stall detected. Inspect for blockage, connector faults, and true fan failure before continuing.", severity="high")` | 4 | High | No |
+| Request fan inspection | `call_human(message="Fan stall detected. Inspect for blockage, connector faults, and true fan failure before continuing.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. If the heatbreak fan stalls, pause immediately.
@@ -941,7 +941,7 @@
 | Ease bed demand one step | `set_temperature(target=temp_bed_target - 5, heater="bed")` | 1 | Medium | Yes |
 | Pause if rails still sag and thermal performance is degrading | `pause_print()` | 2 | High | Yes |
 | Cancel if the sag remains severe | `cancel_print()` | 2 | High | No |
-| Request power-path inspection | `call_human(message="Sustained voltage sag detected under load. Inspect PSU health, mains quality, and heater wiring.", severity="high")` | 4 | High | No |
+| Request power-path inspection | `call_human(message="Sustained voltage sag detected under load. Inspect PSU health, mains quality, and heater wiring.", severity="critical")` | 4 | High | No |
 
 **Decision ladder:**
 1. Reduce speed and ease bed demand → observe 2-3 cycles.
@@ -976,7 +976,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Lower nozzle temperature clearly | `set_temperature(target=temp_nozzle_target - 10, heater="nozzle")` | 1 | High | Yes |
 | Increase throughput if the print is moving very slowly | `set_speed_factor(percent=110)` | 1 | Medium | Yes |
-| Request nozzle cleaning or leak inspection | `call_human(message="Burn marks suggest nozzle contamination or overheating. Clean the nozzle and inspect for leaks.", severity="low")` | 4 | High | No |
+| Request nozzle cleaning or leak inspection | `call_human(message="Burn marks suggest nozzle contamination or overheating. Clean the nozzle and inspect for leaks.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Lower nozzle temperature → observe 2-3 cycles.
@@ -1010,7 +1010,7 @@
 | Slow top layers substantially | `set_speed_factor(percent=70)` | 1 | High | Yes |
 | Add a small flow increase | `set_flow_factor(percent=103)` | 1 | Medium | Yes |
 | Raise nozzle temperature one step if the surface still looks starved | `set_temperature(target=temp_nozzle_target + 5, heater="nozzle")` | 1 | Medium | Yes |
-| Request future-profile correction | `call_human(message="Top surface gaps persist. Adjust top-layer strategy or flow margin for future runs.", severity="low")` | 4 | High | No |
+| Request future-profile correction | `call_human(message="Top surface gaps persist. Adjust top-layer strategy or flow margin for future runs.", severity="info")` | 4 | High | No |
 
 **Decision ladder:**
 1. Slow the top layers → observe 2-3 cycles.
@@ -1043,7 +1043,7 @@
 |--------|-----------|-------------|---------------|------------|
 | Trim flow slightly | `set_flow_factor(percent=95)` | 1 | High | Yes |
 | Slow the print modestly | `set_speed_factor(percent=80)` | 1 | Medium | Yes |
-| Request profile cleanup when appearance matters | `call_human(message="Top surface remains rough. Review top-skin strategy, cooling assumptions, and flow margin for future runs.", severity="low")` | 4 | Medium | No |
+| Request profile cleanup when appearance matters | `call_human(message="Top surface remains rough. Review top-skin strategy, cooling assumptions, and flow margin for future runs.", severity="info")` | 4 | Medium | No |
 
 **Decision ladder:**
 1. Trim flow slightly → observe 2-3 cycles.
@@ -1077,7 +1077,7 @@
 | Reduce the amount of raised material | `set_flow_factor(percent=95)` | 1 | High | Yes |
 | Reduce collision energy | `set_speed_factor(percent=75)` | 1 | Medium | Yes |
 | Pause if the marks are becoming impacts rather than cosmetics | `pause_print()` | 2 | High | Yes |
-| Request profile-level correction | `call_human(message="Scarring suggests nozzle drag. Check for warp, raised material, and whether the profile needs Z-hop or gentler restart behavior.", severity="medium")` | 4 | High | No |
+| Request profile-level correction | `call_human(message="Scarring suggests nozzle drag. Check for warp, raised material, and whether the profile needs Z-hop or gentler restart behavior.", severity="warning")` | 4 | High | No |
 
 **Decision ladder:**
 1. Trim flow slightly → observe 2-3 cycles.

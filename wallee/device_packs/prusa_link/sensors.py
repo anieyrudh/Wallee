@@ -16,22 +16,27 @@ from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
 
+import threading as _threading
+
 _http = None
+_http_lock = _threading.Lock()
 
 
 def _get_http():
-    """Get or create the shared HTTP client from env config."""
+    """Get or create the shared HTTP client from env config. Thread-safe."""
     global _http
     if _http is None:
-        host = os.environ.get("PRUSALINK_HOST", "").strip()
-        api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
-        if not host:
-            logger.warning("PRUSALINK_HOST not set, prusa_link sensors disabled")
-            return None
-        from wallee.bus.network import HTTPClient
-        base_url = host if host.startswith("http") else f"http://{host}"
-        _http = HTTPClient(base_url=base_url, api_key=api_key, timeout=5.0)
-        logger.info(f"PrusaLink HTTP client initialized: {base_url}")
+        with _http_lock:
+            if _http is None:  # Double-checked locking
+                host = os.environ.get("PRUSALINK_HOST", "").strip()
+                api_key = os.environ.get("PRUSALINK_API_KEY", "").strip()
+                if not host:
+                    logger.warning("PRUSALINK_HOST not set, prusa_link sensors disabled")
+                    return None
+                from wallee.bus.network import HTTPClient
+                base_url = host if host.startswith("http") else f"http://{host}"
+                _http = HTTPClient(base_url=base_url, api_key=api_key, timeout=5.0)
+                logger.info(f"PrusaLink HTTP client initialized: {base_url}")
     return _http
 
 
