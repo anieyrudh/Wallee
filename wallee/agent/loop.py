@@ -685,6 +685,11 @@ class AgentLoop:
                     except Exception as e:
                         logger.error(f"call_human delivery failed: {e}")
 
+                # Agent investigated — clear external pause if set
+                if self.wb.read("agent.external_pause"):
+                    self.wb.r.delete("agent.external_pause")
+                    logger.info("External pause cleared — agent called human to investigate")
+
                 # Publish pending callout
                 self.wb.publish("human.pending_callout", json.dumps({
                     "hash": msg_hash,
@@ -783,6 +788,13 @@ class AgentLoop:
         # 5. Detect external changes
         external_changes = self._change_detector.detect(state, episode, ledger=self.ledger)
 
+        # 5b. External pause detection — block resume until investigated
+        if external_changes:
+            for change in external_changes:
+                if "printer.state" in change and "PAUSED" in change:
+                    self.wb.publish("agent.external_pause", "true", ttl=600)
+                    logger.info("External pause detected — blocking automatic resume until investigated")
+
         # 6. Load knowledge
         knowledge = self._load_knowledge()
 
@@ -863,6 +875,10 @@ class AgentLoop:
         if raw_intent and raw_intent != self._last_responded_intent:
             self._last_responded_intent = raw_intent
             self.wb.r.delete("human.intent")
+            # Human responded — clear external pause block (they've acknowledged the situation)
+            if self.wb.read("agent.external_pause"):
+                self.wb.r.delete("agent.external_pause")
+                logger.info("External pause cleared — human has responded")
             logger.info(f"Human intent consumed and cleared: {raw_intent[:50]}")
 
         # 19. Clear human image after the agent has seen it (one-off, not persistent)

@@ -122,6 +122,12 @@ class Engine:
             self.ledger.reject(action_id, "blocked by safety.estop")
             return "REJECTED"
 
+        # Gate 0b: External pause — block resume_print until investigated
+        if tool_name == "resume_print" and self.wb.read("agent.external_pause"):
+            logger.warning(f"REJECTED resume_print: external pause active — investigate before resuming")
+            self.ledger.reject(action_id, "External pause active — investigate before resuming. Use call_human or check sensors first.")
+            return "REJECTED"
+
         # Gate 1: Queue guard — no double-dispatch per device group
         device_group = tool.device_group
         if self.ledger.has_inflight(device_group):
