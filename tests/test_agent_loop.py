@@ -148,7 +148,8 @@ class TestRunOnce:
         })
         agent.run_once()
 
-    def test_call_human_records_episode_boundary(self, wb, mock_llm, registry, knowledge_dir, ledger):
+    def test_call_human_proposes_to_ledger(self, wb, mock_llm, registry, knowledge_dir, ledger):
+        """CALL_HUMAN decisions are routed through the engine via ledger.propose."""
         agent = AgentLoop(
             whiteboard=wb,
             llm=mock_llm,
@@ -163,14 +164,15 @@ class TestRunOnce:
 
         agent.run_once()
 
-        event = ledger.conn.execute(
-            "SELECT message, details_json FROM events ORDER BY event_id DESC LIMIT 1"
+        # CALL_HUMAN is proposed as a call_human tool action for engine dispatch
+        row = ledger.conn.execute(
+            "SELECT tool, params_json, status FROM actions ORDER BY created_ts DESC LIMIT 1"
         ).fetchone()
-        assert event["message"] == "CALL_HUMAN"
-        details = json.loads(event["details_json"])
-        assert details["details"] == "need operator"
-        assert details["observation"] == "issue"
-        assert details["reasoning"] == "escalating"
+        assert row["tool"] == "call_human"
+        assert row["status"] == "PROPOSED"
+        params = json.loads(row["params_json"])
+        assert params["message"] == "need operator"
+        assert params["severity"] == "warning"
 
     def test_handles_empty_llm_response(self, agent, mock_llm):
         mock_llm.call.return_value = ""

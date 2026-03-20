@@ -218,8 +218,7 @@ def main():
                 # Only fall to outbox if Telegram delivery failed
                 call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox",
                            telegram_fn=None)  # don't recurse
-            agent.call_human_fn = _telegram_call_human
-            # Safety kernel runs as separate process — communicates via Redis, not fn injection
+            # call_human routed through engine — tool dispatch handles Telegram delivery
             from wallee.tools.builtins.call_human_tool import set_call_human_fn
             set_call_human_fn(_telegram_call_human)
             logger.info("Telegram bot started and wired to agent + safety kernel + call_human tool")
@@ -229,7 +228,6 @@ def main():
         logger.info("Telegram not configured (no TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)")
 
     # 10. CLI or headless mode
-    import sys
     if sys.stdin.isatty():
         logger.info("All systems running — starting CLI")
         cli = CLI(wb, ledger, intent_ttl=cfg.human_intent_ttl_s, urgent_ttl=cfg.human_urgent_ttl_s, estop_ttl=cfg.human_estop_ttl_s, wake_agent_fn=_agent_loop.wake)

@@ -71,7 +71,7 @@ class AgentLoop:
         self.heartbeat_ttl = heartbeat_ttl
         self.last_decision_ttl = last_decision_ttl
         self.ledger = ledger
-        self.call_human_fn = None  # Set by main.py to wire Telegram
+        # call_human routed through engine via ledger.propose (gate_bypass tool)
         self._running = False
         self._knowledge_cache: dict[str, str] = {}
         self._change_detector = ExternalChangeDetector(registry=tools)
@@ -333,20 +333,22 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Failed to archive job context: {e}")
 
-        # Request feedback via Telegram
-        if self.call_human_fn:
-            try:
-                self.call_human_fn(
-                    f"Print complete: {filename}. How did it turn out? Reply: great, ok, or failed",
-                    "info",
-                )
-                self.state.publish("agent.awaiting_feedback", json.dumps({
-                    "filename": filename,
-                    "completed_at": time.time(),
-                }), ttl=3600)  # Wait up to 1 hour for feedback
-                logger.info(f"Requested print feedback for {filename}")
-            except Exception as e:
-                logger.error(f"Failed to request print feedback: {e}")
+        # Request feedback via engine (call_human tool with gate_bypass)
+        if self.ledger and hasattr(self.ledger, "propose"):
+            feedback_msg = f"Print complete: {filename}. How did it turn out? Reply: great, ok, or failed"
+            tool_meta = self.tools.get("call_human")
+            self.ledger.propose(
+                tool="call_human",
+                params={"message": feedback_msg, "severity": "info"},
+                reason="requesting post-print feedback",
+                device_group=tool_meta.device_group if tool_meta else "builtin",
+                requires_approval=False,
+            )
+            self.state.publish("agent.awaiting_feedback", json.dumps({
+                "filename": filename,
+                "completed_at": time.time(),
+            }), ttl=3600)
+            logger.info(f"Requested print feedback for {filename}")
 
         # Clean up
         try:
@@ -665,7 +667,7 @@ class AgentLoop:
                     self._append_to_job_context("Issues observed", observation)
 
         elif decision.type == "CALL_HUMAN":
-            # Change 7: CALL_HUMAN dedup
+            # Dedup: don't re-escalate the same message if it's still pending
             msg_hash = hashlib.md5(decision.message[:100].encode()).hexdigest()[:8]
             pending = self._get_pending_callout()
 
@@ -678,21 +680,25 @@ class AgentLoop:
             else:
                 summary = f"CALL_HUMAN [{decision.severity}]: {decision.message}"
                 logger.warning(f"CALL_HUMAN [{decision.severity}]: {decision.message}")
-                if self.ledger and hasattr(self.ledger, "record_call_human"):
-                    self.ledger.record_call_human(decision.message,
-                                                  observation=observation, reasoning=reasoning)
-                if self.call_human_fn:
-                    try:
-                        self.call_human_fn(decision.message, decision.severity)
-                    except Exception as e:
-                        logger.error(f"call_human delivery failed: {e}")
 
-                # Agent investigated — clear external pause if set
+                # Route through engine via ledger proposal (call_human has gate_bypass)
+                if self.ledger and hasattr(self.ledger, "propose"):
+                    tool_meta = self.tools.get("call_human")
+                    self.ledger.propose(
+                        tool="call_human",
+                        params={"message": decision.message, "severity": decision.severity},
+                        reason=reasoning,
+                        device_group=tool_meta.device_group if tool_meta else "builtin",
+                        requires_approval=False,
+                        observation=observation,
+                    )
+
+                # Clear external pause — agent is investigating
                 if self.wb.read("agent.external_pause"):
                     self.state.delete("agent.external_pause")
                     logger.info("External pause cleared — agent called human to investigate")
 
-                # Publish pending callout
+                # Publish pending callout so future cycles see it
                 self.state.publish("human.pending_callout", json.dumps({
                     "hash": msg_hash,
                     "message": decision.message[:200],
