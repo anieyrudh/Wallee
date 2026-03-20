@@ -50,8 +50,6 @@ _HARDCODED_TOOL_NAMES = [
     "discover_hardware",
     "remember",
     "web_search",
-    "trends",
-    "differential",
     "get_sensor_history",
 ]
 

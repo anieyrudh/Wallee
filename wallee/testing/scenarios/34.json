@@ -27,7 +27,6 @@
     "expected_tool": null,
     "acceptable_tools": [
         "get_sensor_history",
-        "trends",
         "call_human"
     ],
     "unacceptable_tools": [

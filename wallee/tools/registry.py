@@ -123,8 +123,6 @@ class ToolRegistry:
     def load_builtins(self):
         """Load all built-in tools from wallee.tools.builtins."""
         builtin_modules = [
-            "wallee.tools.builtins.trends",
-            "wallee.tools.builtins.differential",
             "wallee.tools.builtins.sensor_history",
             "wallee.tools.builtins.call_human_tool",
             "wallee.tools.builtins.discover",

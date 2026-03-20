@@ -15,7 +15,7 @@ LLM (OpenRouter, GPT 5.4, strict JSON, max_tokens=512)
         ↓ proposes (JSON, text only — no images)
 Agent Loop (thread) ─── reads ──→ Whiteboard (Redis, ~80 live keys)
   ├─ stale decision check (discard if state changed during LLM call)
-  ├─ post-rejection cooldown (3 min)
+  ├─ post-rejection cooldown (90s)
   ├─ oscillation detector (A-B-A → forced WAIT)
   └─ auto-start from print queue (when bed cooled)
         ↓ writes proposal
@@ -29,7 +29,7 @@ Safety Kernel (thread) ── heartbeats + overcurrent + ESTOP
 **Main LLM receives text only, no images.** Vision handled by separate Gemini Flash Lite sensor (`read_vision_analysis`, every 10s). Publishes structured defect scores (`vision.*` keys) to the whiteboard.
 
 **Gate sequence:** ESTOP → Queue guard → Deadline → Approval → TOCTOU precheck → Dispatch
-**Gate bypass:** Non-hardware builtins (remember, web_search, call_human, discover, trends, differential, sensor_history) execute immediately, skipping all engine gates. Safety for these tools is inherent — they don't touch hardware.
+**Gate bypass:** Non-hardware builtins (remember, web_search, call_human, discover, sensor_history, lookup_issue) execute immediately, skipping all engine gates. Safety for these tools is inherent — they don't touch hardware.
 
 **ESTOP bypasses the engine entirely.** Sends M25 directly to printer via `wallee/safety/estop.py`. Telegram, CLI, and safety kernel all use this shared helper.
 
@@ -79,7 +79,7 @@ wallee/
 │   ├── serial.py            # USB serial for G-code
 │   └── udp_listener.py      # UDP InfluxDB metrics parser (port 8514)
 ├── whiteboard/
-│   └── client.py            # Redis client: SET with TTL, ring buffers, trends
+│   └── client.py            # Redis client: SET with TTL, ring buffers, derived annotations
 ├── tools/
 │   ├── decorator.py         # @tool decorator
 │   ├── registry.py          # Auto-discovers device packs, registers tools, sensor wake triggers
@@ -88,8 +88,6 @@ wallee/
 │       ├── discover.py          # Probe all buses for connected hardware
 │       ├── remember.py          # Persist observations to OBSERVATIONS.md
 │       ├── web_search.py        # Separate OpenRouter call with web search enabled
-│       ├── differential.py      # Rate of change for whiteboard keys
-│       ├── trends.py            # Trend direction + magnitude
 │       └── sensor_history.py    # Raw ring buffer values
 ├── device_packs/
 │   ├── host_pi/             # CPU temp, system stats, USB, network
@@ -166,8 +164,6 @@ wallee/
 | discover_hardware | builtin | No (gate_bypass) | (none) |
 | remember | builtin | No (gate_bypass) | observation |
 | web_search | builtin | No (gate_bypass) | query |
-| trends | builtin | No (gate_bypass) | key |
-| differential | builtin | No (gate_bypass) | key |
 | get_sensor_history | builtin | No (gate_bypass) | key |
 | lookup_issue | builtin | No (gate_bypass) | query |
 
@@ -214,7 +210,7 @@ GPT 5.4 with `strict: true` JSON schema — model can only emit valid tokens. ma
 ## Stabilization guards
 
 - **Stale decision check:** Before routing, compare whiteboard state (intent, printer.state, pending callout) from before/after LLM call. If anything changed during inference, discard decision and re-run cycle.
-- **Post-rejection cooldown:** When a human rejects an action, the tool is suppressed for 3 minutes. Agent proposes the same tool → converted to WAIT.
+- **Post-rejection cooldown:** When a human rejects an action, the tool is suppressed for 90 seconds. Agent proposes the same tool → converted to WAIT.
 - **Oscillation detector:** Tracks last 3 decision type+tool pairs. A-B-A pattern (flip-flop) → forced 60s WAIT.
 - **Post-print feedback:** On FINISHED, Telegram asks "great/ok/failed". Response recorded in OBSERVATIONS.md.
 - **Print queue:** `/queue` in Telegram. Auto-starts next file when IDLE + bed < 35°C.

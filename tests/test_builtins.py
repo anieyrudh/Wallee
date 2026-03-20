@@ -5,8 +5,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from wallee.whiteboard.client import Whiteboard
-from wallee.tools.builtins.trends import trends
-from wallee.tools.builtins.differential import differential
 from wallee.tools.builtins.sensor_history import get_sensor_history
 from wallee.tools.builtins.call_human_tool import call_human
 from wallee.tools.builtins.discover import discover_hardware
@@ -31,45 +29,6 @@ def wb():
     for val in [20.0, 20.5, 21.0, 21.5, 22.0]:
         w.publish("env.temperature", val, history_depth=10)
     return w
-
-
-class TestTrends:
-    def test_rising_trend(self, wb):
-        result = trends(key="env.temperature", whiteboard=wb)
-        assert "rising" in result["trend"]
-        assert result["readings"] == 5
-
-    def test_no_key(self, wb):
-        result = trends(key="", whiteboard=wb)
-        assert "error" in result
-
-    def test_no_history(self, wb):
-        result = trends(key="nonexistent", whiteboard=wb)
-        assert "no history" in result["trend"]
-
-    def test_has_tool_metadata(self):
-        assert trends._tool_meta["kind"] == "actuator"
-        assert trends._tool_meta["requires_approval"] is False
-
-
-class TestDifferential:
-    def test_positive_rate(self, wb):
-        result = differential(key="env.temperature", whiteboard=wb)
-        assert result["rate"] == "+0.500/s"
-        assert result["readings"] == 5
-
-    def test_falls_back_without_timestamps(self, wb):
-        wb.r.delete("env.temperature:history_ts")
-        result = differential(key="env.temperature", whiteboard=wb)
-        assert result["rate"] == "+0.500/s"
-
-    def test_no_key(self, wb):
-        result = differential(key="", whiteboard=wb)
-        assert "error" in result
-
-    def test_no_history(self, wb):
-        result = differential(key="nonexistent", whiteboard=wb)
-        assert "no history" in result["rate"]
 
 
 class TestGetSensorHistory:
@@ -150,8 +109,6 @@ class TestRegistryLoadBuiltins:
     def test_loads_all_builtins(self):
         reg = ToolRegistry()
         reg.load_builtins()
-        assert "trends" in reg
-        assert "differential" in reg
         assert "get_sensor_history" in reg
         assert "call_human" in reg
         assert "discover_hardware" in reg
@@ -168,5 +125,5 @@ class TestRegistryLoadBuiltins:
         reg.load_builtins()
         llm_tools = reg.list_for_llm()
         names = [t["name"] for t in llm_tools]
-        assert "trends" in names
+        assert "get_sensor_history" in names
         assert "discover_hardware" in names
