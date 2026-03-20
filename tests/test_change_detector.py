@@ -60,11 +60,17 @@ class TestWalleeCausedChanges:
         changes = detector.detect({"printer.flow": 120}, episode)
         assert not any("printer.flow" in c for c in changes)
 
-    def test_state_change_always_flagged(self, detector):
-        """printer.state has no expected_tool — always flagged."""
+    def test_state_change_filtered_when_agent_caused(self, detector):
+        """printer.state change caused by start_print should NOT be flagged as external."""
         detector.detect({"printer.state": "IDLE"}, [])
         episode = [{"tool": "start_print", "status": "DONE"}]
         changes = detector.detect({"printer.state": "PRINTING"}, episode)
+        assert not any("printer.state" in c for c in changes)
+
+    def test_state_change_flagged_when_no_matching_action(self, detector):
+        """printer.state change with no matching episode action IS external."""
+        detector.detect({"printer.state": "PRINTING"}, [])
+        changes = detector.detect({"printer.state": "PAUSED"}, [])
         assert any("printer.state" in c for c in changes)
 
     def test_failed_action_does_not_mask_external_change(self, detector):

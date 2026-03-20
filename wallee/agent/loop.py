@@ -754,7 +754,7 @@ class AgentLoop:
                     logger.error(f"Failed to process print queue: {e}")
 
         # 5. Detect external changes
-        external_changes = self._change_detector.detect(state, episode)
+        external_changes = self._change_detector.detect(state, episode, ledger=self.ledger)
 
         # 6. Load knowledge
         knowledge = self._load_knowledge()
