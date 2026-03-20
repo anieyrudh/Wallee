@@ -20,10 +20,11 @@ def configure_observations_dir(path: Path):
 
 @tool(kind="actuator", requires_approval=False, gate_bypass=True)
 def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
-    """Persist an observation to knowledge/OBSERVATIONS.md.
+    """Persist an observation to OBSERVATIONS.md. Parameter: observation (required string).
 
-    Use to record patterns, operator instructions, or visual observations
-    that should persist across restarts. Capped at 50 most recent entries.
+    Call as: remember(observation="what you learned")
+    Use to record patterns, operator feedback, print outcomes, or lessons learned.
+    Capped at 50 most recent entries. Skips near-duplicates of the last entry.
     """
     if not observation:
         return {"error": "observation parameter required"}
@@ -48,6 +49,14 @@ def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
             else:
                 if not entry_lines:
                     header_lines.append(line)
+
+        # Dedup: skip if the last entry is substantially similar (same first 50 chars after timestamp)
+        if entry_lines:
+            # Strip timestamp prefix "- [YYYY-MM-DD HH:MM:SS] " to compare content
+            last_content = entry_lines[0].split("] ", 1)[-1] if "] " in entry_lines[0] else entry_lines[0]
+            if last_content[:50] == observation[:50]:
+                logger.info(f"Remember skipped (duplicate of last entry): {observation[:50]}")
+                return {"status": "skipped", "reason": "duplicate of last observation"}
 
         # Prepend new entry, cap at MAX_ENTRIES
         entry_lines.insert(0, entry)
