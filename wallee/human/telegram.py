@@ -157,8 +157,22 @@ class TelegramBot:
             self._thread.join(timeout=5)
         logger.info("Telegram bot stopped")
 
+    async def _send_with_retry(self, coro_fn, max_retries=3):
+        """Retry an async send operation with exponential backoff."""
+        for attempt in range(max_retries):
+            try:
+                return await coro_fn()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    delay = 2 ** attempt
+                    logger.warning(f"Telegram send attempt {attempt+1}/{max_retries} failed: {e}. Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(f"Telegram send failed after {max_retries} attempts: {e}")
+                    raise
+
     def send(self, message: str, severity: str = "info"):
-        """Synchronous send — for use in call_human chain."""
+        """Synchronous send — for use in call_human chain. Retries 3x with backoff."""
         if not self._loop or not self._running:
             raise RuntimeError("Telegram bot not running")
 
@@ -170,17 +184,17 @@ class TelegramBot:
             text = text[:4000] + "\n... (truncated)"
 
         future = asyncio.run_coroutine_threadsafe(
-            self._app.bot.send_message(
+            self._send_with_retry(lambda: self._app.bot.send_message(
                 chat_id=self.chat_id,
                 text=text,
-            ),
+            )),
             self._loop,
         )
-        future.result(timeout=30)
+        future.result(timeout=60)
 
     def send_approval_request(self, action_id: str, tool: str, params: dict,
                               reason: str = "", observation: str = ""):
-        """Send an approval request with inline keyboard buttons."""
+        """Send an approval request with inline keyboard buttons. Retries 3x."""
         if not self._loop or not self._running:
             return
 
@@ -201,18 +215,18 @@ class TelegramBot:
         ])
 
         future = asyncio.run_coroutine_threadsafe(
-            self._app.bot.send_message(
+            self._send_with_retry(lambda: self._app.bot.send_message(
                 chat_id=self.chat_id,
                 text=text,
                 parse_mode="MarkdownV2",
                 reply_markup=keyboard,
-            ),
+            )),
             self._loop,
         )
         try:
-            future.result(timeout=30)
+            future.result(timeout=60)
         except Exception as e:
-            logger.error(f"Failed to send approval request: {e}")
+            logger.error(f"Failed to send approval request after retries: {e}")
 
     @staticmethod
     def _load_allowed_user_ids() -> list[str]:
