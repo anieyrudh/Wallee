@@ -193,7 +193,8 @@ def build_user_message(
                 reject_reason = error or reason or "unknown"
                 line = f"  !! YOUR ACTION REJECTED: {tool_name}({params}) — REASON: {reject_reason}"
             elif status == "FAILED":
-                line = f"  !! FAILED: {tool_name}({params}) — {error or reason}"
+                fail_detail = error or reason or "unknown"
+                line = f"  !! YOUR ACTION FAILED: {tool_name}({params}) — ERROR: {fail_detail}"
             elif status == "DONE":
                 line = f"  OK: {tool_name}"
                 if result:

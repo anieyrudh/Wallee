@@ -174,14 +174,17 @@ def read_vision_analysis() -> dict:
 
     # Read camera frames (whiteboard stores as json.dumps(b64_string), so _read_wb unwraps)
     nozzle_frame = _read_wb(r, "camera.nozzle_frame")
-    buddy_frame = _read_wb(r, "camera.buddy1_frame")
+    buddy1_frame = _read_wb(r, "camera.buddy1_frame")
+    buddy2_frame = _read_wb(r, "camera.buddy2_frame")
 
     if nozzle_frame:
         logger.info(f"Vision: got nozzle frame, length={len(str(nozzle_frame))}, type={type(nozzle_frame).__name__}")
-    if buddy_frame:
-        logger.info(f"Vision: got buddy frame, length={len(str(buddy_frame))}, type={type(buddy_frame).__name__}")
+    if buddy1_frame:
+        logger.info(f"Vision: got buddy1 frame, length={len(str(buddy1_frame))}, type={type(buddy1_frame).__name__}")
+    if buddy2_frame:
+        logger.info(f"Vision: got buddy2 frame, length={len(str(buddy2_frame))}, type={type(buddy2_frame).__name__}")
 
-    if not nozzle_frame and not buddy_frame:
+    if not nozzle_frame and not buddy1_frame and not buddy2_frame:
         # Log available camera keys for debugging
         all_keys = [k for k in r.keys("camera.*") if not k.endswith(":history")]
         logger.warning(f"Vision: no camera frames available. Camera keys in Redis: {all_keys}")
@@ -199,14 +202,18 @@ def read_vision_analysis() -> dict:
             all_statuses.append(nozzle_result.get("vision.nozzle.status", "NORMAL"))
             logger.info(f"Vision nozzle: {nozzle_result.get('vision.nozzle.status', '?')}")
 
-    # Analyze buddy camera (wide-angle: spaghetti, detachment, warping)
-    if buddy_frame and isinstance(buddy_frame, str):
-        scores = _analyze_frame(buddy_frame, _BUDDY_PROMPT)
-        if scores:
-            buddy_result = _scores_to_result(scores, "vision.buddy")
-            result.update(buddy_result)
-            all_statuses.append(buddy_result.get("vision.buddy.status", "NORMAL"))
-            logger.info(f"Vision buddy: {buddy_result.get('vision.buddy.status', '?')}")
+    # Analyze buddy cameras (wide-angle: spaghetti, detachment, warping)
+    for buddy_key, buddy_frame, buddy_prefix in [
+        ("buddy1", buddy1_frame, "vision.buddy"),
+        ("buddy2", buddy2_frame, "vision.buddy2"),
+    ]:
+        if buddy_frame and isinstance(buddy_frame, str):
+            scores = _analyze_frame(buddy_frame, _BUDDY_PROMPT)
+            if scores:
+                buddy_result = _scores_to_result(scores, buddy_prefix)
+                result.update(buddy_result)
+                all_statuses.append(buddy_result.get(f"{buddy_prefix}.status", "NORMAL"))
+                logger.info(f"Vision {buddy_key}: {buddy_result.get(f'{buddy_prefix}.status', '?')}")
 
     # Combined status: worst across all cameras
     if any(s.startswith("DEFECT:") for s in all_statuses):
@@ -218,10 +225,37 @@ def read_vision_analysis() -> dict:
     elif all_statuses:
         result["vision.status"] = "NORMAL"
 
-    # Copy nozzle confidence as the primary confidence (backward compat)
+    # Combined description from all cameras
+    descriptions = []
+    nozzle_desc = result.get("vision.nozzle.description", "")
+    buddy_desc = result.get("vision.buddy.description", "")
+    buddy2_desc = result.get("vision.buddy2.description", "")
+    if nozzle_desc:
+        descriptions.append(f"Nozzle: {nozzle_desc}")
+    if buddy_desc:
+        descriptions.append(f"Bed: {buddy_desc}")
+    if buddy2_desc:
+        descriptions.append(f"Bed2: {buddy2_desc}")
+    result["vision.description"] = " | ".join(descriptions) if descriptions else "No visual data"
+
+    # Primary confidence from nozzle (backward compat)
     if "vision.nozzle.confidence" in result:
         result["vision.confidence"] = result["vision.nozzle.confidence"]
-    if "vision.nozzle.description" in result:
-        result["vision.description"] = result["vision.nozzle.description"]
+
+    # Cross-check: if description contains concerning keywords but scores are low, flag inconsistency
+    combined_desc = result.get("vision.description", "").lower()
+    concerning_words = ["detach", "spaghetti", "blob", "fail", "loose", "empty bed", "no adhesion"]
+    max_defect_val = 0.0
+    for k, v in result.items():
+        if k.startswith("vision.") and k.endswith((".stringing", ".spaghetti", ".blob", ".warping",
+                                                     ".layer_shift", ".underextrusion", ".overextrusion",
+                                                     ".burn_marks")):
+            max_defect_val = max(max_defect_val, float(v))
+
+    matched_words = [w for w in concerning_words if w in combined_desc]
+    if matched_words and max_defect_val < 0.5:
+        logger.warning(f"Vision inconsistency: description mentions {matched_words} but max defect score is {max_defect_val:.2f}. Flagging.")
+        result["vision.status"] = f"INCONSISTENT:{result.get('vision.status', 'unknown')}"
+        result["vision.confidence"] = min(result.get("vision.confidence", 0.0), 0.4)
 
     return result
