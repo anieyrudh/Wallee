@@ -1,7 +1,6 @@
 """Safety kernel — independent watchdog process for heartbeat monitoring."""
 
 import logging
-import os
 import time
 
 from wallee.safety.estop import estop_printer
@@ -25,16 +24,25 @@ class SafetyKernel:
         call_human_fn=None,
         check_interval: float = 0.5,
         heartbeat_timeout: float = 3.0,
+        control_host: str = "",
+        control_api_key: str = "",
+        primary_stop: dict | None = None,
+        fallback_stop: dict | None = None,
+        fault_monitors: list[dict] | None = None,
     ):
         self.wb = whiteboard
         self.call_human_fn = call_human_fn or self._default_call_human
         self.check_interval = check_interval
         self.heartbeat_timeout = heartbeat_timeout
+        self.control_host = control_host
+        self.control_api_key = control_api_key
+        self.primary_stop = primary_stop
+        self.fallback_stop = fallback_stop
+        self.fault_monitors = fault_monitors or []
         self._running = False
         self._agent_alerted = False
         self._engine_alerted = False
-        self._oc_nozzle_alerted = False
-        self._oc_input_alerted = False
+        self._fault_alerted: dict[str, bool] = {}
         self._estop_alerted = False
         self._boot_time = time.monotonic()
         self._boot_grace_s = 10.0  # suppress heartbeat alerts for 10s after boot
@@ -91,39 +99,30 @@ class SafetyKernel:
             else:
                 self._engine_alerted = False
 
-        # Check overcurrent flags from metrics stream
-        oc_nozz = self.wb.read("printer.oc_nozzle")
-        if oc_nozz is not None and oc_nozz != 0:
-            if not self._oc_nozzle_alerted:
-                self.call_human_fn(
-                    f"OVERCURRENT DETECTED: nozzle heater (oc_nozz={oc_nozz}). "
-                    "Possible heater failure or short circuit.",
-                    "critical",
-                )
-                self._oc_nozzle_alerted = True
-            status["overcurrent_ok"] = False
-        else:
-            self._oc_nozzle_alerted = False
-
-        oc_inp = self.wb.read("printer.oc_input")
-        if oc_inp is not None and oc_inp != 0:
-            if not self._oc_input_alerted:
-                self.call_human_fn(
-                    f"OVERCURRENT DETECTED: input power (oc_inp={oc_inp}). "
-                    "Possible power supply overload.",
-                    "critical",
-                )
-                self._oc_input_alerted = True
-            status["overcurrent_ok"] = False
-        else:
-            self._oc_input_alerted = False
+        # Check configured device fault monitors
+        for monitor in self.fault_monitors:
+            key = monitor.get("key", "")
+            label = monitor.get("label", "configured fault")
+            raw_value = self.wb.read(key) if key else None
+            if raw_value is not None and raw_value != 0:
+                if not self._fault_alerted.get(key):
+                    self.call_human_fn(
+                        f"SAFETY FAULT DETECTED: {label} ({key}={raw_value}).",
+                        "critical",
+                    )
+                    self._fault_alerted[key] = True
+                status["overcurrent_ok"] = False
+            else:
+                self._fault_alerted[key] = False
 
         estop_active = self.wb.read("safety.estop")
         if estop_active:
             if not self._estop_alerted:
-                estop_printer(os.environ.get("PRUSALINK_HOST", ""), os.environ.get("PRUSALINK_API_KEY", ""))
+                estop_printer(self.control_host, self.control_api_key,
+                              primary_request=self.primary_stop,
+                              fallback_request=self.fallback_stop)
                 self.call_human_fn(
-                    "ESTOP ACTIVATED — printer paused. Manual intervention required.",
+                    "ESTOP ACTIVATED — stop request sent. Manual intervention required.",
                     "critical",
                 )
                 self._estop_alerted = True

@@ -322,15 +322,19 @@ class TestJobPhaseLifecycle:
             whiteboard=wb, llm=mock_llm, tools=registry,
             knowledge_dir=knowledge_dir,
         )
-        wb.publish("printer.print_filename", "widget_PLA.gcode")
+        wb.publish("job.filename", "widget_batch.gcode")
+        wb.publish("job.material", "PLA")
         # First call records initial phase
         agent._handle_job_phase_transition({"job.phase": "IDLE"})
         # Transition to PREPARING
         agent._handle_job_phase_transition({"job.phase": "PREPARING",
-                                             "printer.print_filename": "widget_PLA.gcode"})
+                                            "job.filename": "widget_batch.gcode",
+                                            "job.material": "PLA"})
         ctx_path = knowledge_dir / "JOB_CONTEXT.md"
         assert ctx_path.exists()
-        assert "widget_PLA.gcode" in ctx_path.read_text()
+        content = ctx_path.read_text()
+        assert "widget_batch.gcode" in content
+        assert "PLA" in content
 
     def test_finished_archives_job_context(self, wb, mock_llm, registry, knowledge_dir):
         agent = AgentLoop(
@@ -367,14 +371,15 @@ class TestMidPrintRestart:
             whiteboard=wb, llm=mock_llm, tools=registry,
             knowledge_dir=knowledge_dir,
         )
-        wb.publish("printer.print_filename", "benchy_PLA_0.2mm.gcode")
-        state = {"job.phase": "PRINTING", "printer.print_filename": "benchy_PLA_0.2mm.gcode"}
+        wb.publish("job.filename", "benchy_job.gcode")
+        wb.publish("job.material", "PLA")
+        state = {"job.phase": "PRINTING", "job.filename": "benchy_job.gcode", "job.material": "PLA"}
         agent._handle_job_phase_transition(state)
 
         ctx_path = knowledge_dir / "JOB_CONTEXT.md"
         assert ctx_path.exists()
         content = ctx_path.read_text()
-        assert "benchy_PLA_0.2mm.gcode" in content
+        assert "benchy_job.gcode" in content
         assert "PLA" in content
 
     def test_restart_idle_does_not_create_job_context(self, wb, mock_llm, registry, knowledge_dir):
@@ -389,68 +394,28 @@ class TestMidPrintRestart:
         assert not ctx_path.exists()
 
 
-class TestMaterialDetection:
-    def test_regex_detects_pla(self, wb, mock_llm, registry, knowledge_dir):
+class TestJobMetadata:
+    def test_job_context_uses_generic_metadata_keys(self, wb, mock_llm, registry, knowledge_dir):
         agent = AgentLoop(
             whiteboard=wb, llm=mock_llm, tools=registry,
             knowledge_dir=knowledge_dir,
         )
-        assert agent._detect_material("benchy_PLA_0.2mm.gcode", {}) == "PLA"
+        wb.publish("job.filename", "batch_run.bgcode")
+        wb.publish("job.material", "ABS")
+        agent._create_job_context({})
+        content = (knowledge_dir / "JOB_CONTEXT.md").read_text()
+        assert "batch_run.bgcode" in content
+        assert "ABS" in content
 
-    def test_regex_detects_petg(self, wb, mock_llm, registry, knowledge_dir):
+    def test_job_context_falls_back_to_existing_whiteboard_filename(self, wb, mock_llm, registry, knowledge_dir):
         agent = AgentLoop(
             whiteboard=wb, llm=mock_llm, tools=registry,
             knowledge_dir=knowledge_dir,
         )
-        assert agent._detect_material("part_PETG_fast.gcode", {}) == "PETG"
-
-    def test_regex_case_insensitive(self, wb, mock_llm, registry, knowledge_dir):
-        agent = AgentLoop(
-            whiteboard=wb, llm=mock_llm, tools=registry,
-            knowledge_dir=knowledge_dir,
-        )
-        assert agent._detect_material("widget_asa_0.15mm.gcode", {}) == "ASA"
-
-    def test_unknown_when_no_match(self, wb, mock_llm, registry, knowledge_dir):
-        agent = AgentLoop(
-            whiteboard=wb, llm=mock_llm, tools=registry,
-            knowledge_dir=knowledge_dir,
-        )
-        assert agent._detect_material("mystery_file.gcode", {}) == "unknown"
-
-
-class TestJobFilename:
-    @patch("wallee.agent.loop.httpx.get")
-    def test_job_filename_from_http(self, mock_get, wb, mock_llm, registry, knowledge_dir):
-        """Filename fetched from PrusaLink HTTP API as primary source."""
-        import os
-        os.environ["PRUSALINK_HOST"] = "192.168.1.50"
-        os.environ["PRUSALINK_API_KEY"] = "test"
-        try:
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {"file": {"display_name": "Benchy.bgcode", "name": "BENCH~1.BGC"}}
-            mock_get.return_value = mock_resp
-
-            agent = AgentLoop(whiteboard=wb, llm=mock_llm, tools=registry, knowledge_dir=knowledge_dir)
-            result = agent._fetch_job_filename({})
-            assert result == "Benchy.bgcode"
-        finally:
-            os.environ.pop("PRUSALINK_HOST", None)
-            os.environ.pop("PRUSALINK_API_KEY", None)
-
-    @patch("wallee.agent.loop.httpx.get")
-    def test_job_filename_falls_back_to_whiteboard(self, mock_get, wb, mock_llm, registry, knowledge_dir):
-        """If HTTP fails, filename comes from whiteboard."""
-        import os
-        os.environ["PRUSALINK_HOST"] = "192.168.1.50"
-        try:
-            mock_get.side_effect = Exception("connection refused")
-            agent = AgentLoop(whiteboard=wb, llm=mock_llm, tools=registry, knowledge_dir=knowledge_dir)
-            result = agent._fetch_job_filename({"printer.print_filename": "fallback.gcode"})
-            assert result == "fallback.gcode"
-        finally:
-            os.environ.pop("PRUSALINK_HOST", None)
+        wb.publish("printer.print_filename", "fallback.gcode")
+        agent._create_job_context({})
+        content = (knowledge_dir / "JOB_CONTEXT.md").read_text()
+        assert "fallback.gcode" in content
 
 
 class TestKnowledge:

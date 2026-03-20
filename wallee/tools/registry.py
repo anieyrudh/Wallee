@@ -5,6 +5,7 @@ import logging
 import threading
 import time
 
+from wallee.device_packs.callbacks import CompositeDeviceCallbacks
 from wallee.whiteboard.client import Whiteboard
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class ToolRegistry:
         self._tools: dict[str, RegisteredTool] = {}
         self._sensor_threads: list[threading.Thread] = []
         self._running = False
+        self._device_callbacks = CompositeDeviceCallbacks()
 
     def register(self, name: str, fn, meta: dict, pack_name: str):
         """Register a single tool."""
@@ -115,6 +117,14 @@ class ToolRegistry:
 
         pack_meta = getattr(pack_mod, "PACK_META", {})
         pack_name = pack_meta.get("name", pack_module_path.split(".")[-1])
+
+        try:
+            callbacks_mod = importlib.import_module(f"{pack_module_path}.callbacks")
+            callbacks = getattr(callbacks_mod, "CALLBACKS", None)
+            if callbacks is not None:
+                self._device_callbacks.add(callbacks)
+        except ImportError:
+            pass
 
         # Look for sensors.py and actuators.py in the pack
         for sub in ("sensors", "actuators"):
@@ -207,3 +217,7 @@ class ToolRegistry:
     def stop_sensors(self):
         """Signal sensor threads to stop."""
         self._running = False
+
+    def get_device_callbacks(self):
+        """Return the aggregate device callback interface."""
+        return self._device_callbacks

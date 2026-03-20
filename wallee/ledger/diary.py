@@ -40,7 +40,7 @@ class Diary:
     def write_inflight(self, idempotency_key: str, action_id: str, tool: str):
         """Record that a command is about to be sent to hardware. fsync."""
         self.conn.execute(
-            """INSERT OR REPLACE INTO idempotency_exec
+            """insert or replace into idempotency_exec
                (idempotency_key, action_id, tool, status, started_ts)
                VALUES (?, ?, ?, 'IN_FLIGHT', ?)""",
             (idempotency_key, action_id, tool, time.time()),
