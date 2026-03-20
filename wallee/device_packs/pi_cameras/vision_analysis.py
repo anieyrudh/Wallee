@@ -19,6 +19,27 @@ _vision_model = "google/gemini-3.1-flash-lite-preview"
 _redis_url = "redis://localhost:6379"
 _redis_client = None
 
+# Previous frames for temporal comparison (camera_type → base64 string)
+_prev_frames: dict[str, str] = {}
+
+# Camera geometry descriptions — helps the vision LLM understand what it's looking at
+CAMERA_DESCRIPTIONS = {
+    "nozzle": (
+        "This is from a camera mounted on the printhead, looking DOWN at roughly 45 degrees. "
+        "You see the nozzle tip at the top of frame and the print surface below. "
+        "Filament extrudes downward from the nozzle onto the part. "
+        "If you see filament loops, curls, or accumulation BELOW the nozzle with no part surface "
+        "underneath them, that is spaghetti — the print has failed and filament is extruding into air. "
+        "This is NOT stringing. Stringing is thin whiskers between two solid parts of the print."
+    ),
+    "buddy": (
+        "This is from a wide-angle camera mounted on the frame, looking at the full build plate. "
+        "You see the bed surface, the print growing upward, and the gantry above. "
+        "If the bed area where the print should be is empty, or you see loose filament piled up, "
+        "the print has detached — that is spaghetti/detachment."
+    ),
+}
+
 
 def configure_vision(api_key: str, vision_model: str, redis_url: str):
     """Set vision config at boot from central config. Called by main.py."""
@@ -73,6 +94,11 @@ Write a one-sentence description of ONLY what you physically see. No diagnosis, 
 
 CRITICAL: Your numerical scores and your text description MUST agree. If you describe something concerning in the description, the corresponding defect score MUST be above 0.3. If all scores are below 0.3, the description must say the print looks normal. Do not describe "detachment" or "failure" while scoring spaghetti at 0.0.
 
+If two frames are provided, compare them. Look for:
+- Filament accumulation growing between frames = spaghetti (print failing)
+- Defect getting worse between frames = escalate urgency
+- Defect stable or improving between frames = note but lower urgency
+
 Respond with JSON only:
 {"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Clean bead, smooth top surface, no threads or blobs visible"}"""
 
@@ -96,6 +122,11 @@ Write a one-sentence description of ONLY what you physically see. No diagnosis, 
 
 CRITICAL: Your numerical scores and your text description MUST agree. If you describe something concerning, the corresponding defect score MUST be above 0.3. If all scores are below 0.3, the description must say the print looks normal.
 
+If two frames are provided, compare them. Look for:
+- Filament accumulation growing between frames = spaghetti (print failing)
+- Defect getting worse between frames = escalate urgency
+- Defect stable or improving between frames = note but lower urgency
+
 Respond with JSON only:
 {"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Object centered on bed, no loose filament, corners flat"}"""
 
@@ -107,8 +138,23 @@ def _prompt_with_phase(prompt: str, phase: str | None) -> str:
     return f"{prompt}\n\nCurrent print phase: {phase}. Calibrate your judgment to what is normal for this phase."
 
 
-def _analyze_frame(frame_b64: str, prompt: str) -> dict | None:
-    """Send a single frame to Gemini Flash Lite for analysis. Returns scores dict or None."""
+def _analyze_frame(frame_b64: str, prompt: str, prev_frame: str | None = None) -> dict | None:
+    """Send frame(s) to Gemini Flash Lite for analysis. Returns scores dict or None.
+
+    If prev_frame is provided, sends both frames for temporal comparison
+    so the LLM can detect changes (growing spaghetti, worsening defects).
+    """
+    # Build content blocks with optional temporal comparison
+    content = []
+    if prev_frame:
+        content.append({"type": "text", "text": "PREVIOUS frame (~10 seconds ago):"})
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{prev_frame}"}})
+        content.append({"type": "text", "text": "CURRENT frame (now):"})
+    else:
+        content.append({"type": "text", "text": "First frame (no previous available):"})
+    content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{frame_b64}"}})
+    content.append({"type": "text", "text": prompt})
+
     try:
         response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -118,13 +164,7 @@ def _analyze_frame(frame_b64: str, prompt: str) -> dict | None:
             },
             json={
                 "model": _vision_model,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{frame_b64}"}},
-                        {"type": "text", "text": prompt},
-                    ],
-                }],
+                "messages": [{"role": "user", "content": content}],
                 "max_tokens": 200,
                 "temperature": 0.1,
                 "stream": False,
@@ -228,7 +268,10 @@ def read_vision_analysis() -> dict:
 
     # Analyze nozzle camera (close-up: stringing, extrusion quality, blob)
     if nozzle_frame and isinstance(nozzle_frame, str):
-        scores = _analyze_frame(nozzle_frame, _prompt_with_phase(_NOZZLE_PROMPT, phase))
+        nozzle_prompt = f"Camera: {CAMERA_DESCRIPTIONS['nozzle']}\n\n{_prompt_with_phase(_NOZZLE_PROMPT, phase)}"
+        prev_nozzle = _prev_frames.get("nozzle")
+        _prev_frames["nozzle"] = nozzle_frame
+        scores = _analyze_frame(nozzle_frame, nozzle_prompt, prev_frame=prev_nozzle)
         if scores:
             nozzle_result = _scores_to_result(scores, "vision.nozzle")
             result.update(nozzle_result)
@@ -241,7 +284,10 @@ def read_vision_analysis() -> dict:
         ("buddy2", buddy2_frame, "vision.buddy2"),
     ]:
         if buddy_frame and isinstance(buddy_frame, str):
-            scores = _analyze_frame(buddy_frame, _prompt_with_phase(_BUDDY_PROMPT, phase))
+            buddy_prompt = f"Camera: {CAMERA_DESCRIPTIONS['buddy']}\n\n{_prompt_with_phase(_BUDDY_PROMPT, phase)}"
+            prev_buddy = _prev_frames.get(buddy_key)
+            _prev_frames[buddy_key] = buddy_frame
+            scores = _analyze_frame(buddy_frame, buddy_prompt, prev_frame=prev_buddy)
             if scores:
                 buddy_result = _scores_to_result(scores, buddy_prefix)
                 result.update(buddy_result)
