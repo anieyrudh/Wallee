@@ -187,13 +187,6 @@ def build_user_message(
     if vision_status != "NO_DATA":
         sections.append(f"=== VISION: {vision_status} (conf: {vision_conf}) — {vision_desc} ===")
 
-    # 1c. Human-submitted image analysis (if operator sent a photo)
-    human_vision = state.get("vision.human.status")
-    if human_vision:
-        human_desc = state.get("vision.human.description", "")
-        human_conf = state.get("vision.human.confidence", "")
-        sections.append(f"=== HUMAN SENT IMAGE: {human_vision} (conf: {human_conf}) — {human_desc} ===")
-
     # 2. External changes
     if external_changes:
         lines = ["!!! EXTERNAL CHANGES (not caused by Wallee) !!!"]
@@ -275,27 +268,43 @@ def build_messages(
     state: dict,
     knowledge_dir: Path | None = None,
     data_dir: Path | None = None,
+    human_image: str | None = None,
 ) -> list[dict]:
-    """Build the full messages list for the LLM — text only, no images.
+    """Build the full messages list for the LLM — normally text only.
 
-    Vision is handled by the Gemini Flash Lite sensor (vision_analysis.py).
-    The main LLM reads structured vision.* keys from the whiteboard instead
-    of interpreting raw camera frames directly. This makes calls faster and cheaper.
+    Camera vision is handled by the Gemini Flash Lite sensor (vision_analysis.py).
+    The main LLM reads structured vision.* keys from the whiteboard.
+
+    Exception: when the human sends a photo via Telegram, it is included as a
+    one-off image block for that single cycle. This is an explicit human request,
+    not routine camera data.
 
     Args:
         system_prompt: Cached system message from build_system_prompt().
         user_text: Dynamic user message from build_user_message().
-        state: Whiteboard snapshot (unused for images, kept for signature compat).
-        knowledge_dir: Path to knowledge/ dir (unused, kept for signature compat).
-        data_dir: Path to data directory (unused, kept for signature compat).
+        state: Whiteboard snapshot (kept for signature compat).
+        knowledge_dir: Path to knowledge/ dir (kept for signature compat).
+        data_dir: Path to data directory (kept for signature compat).
+        human_image: Base64-encoded JPEG from human (one-off, cleared after use).
 
     Returns:
         List of message dicts for the LLM client.
     """
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_text},
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if human_image:
+        # Include human-sent image as vision block for this cycle only
+        user_content = [
+            {"type": "text", "text": "=== HUMAN SENT YOU THIS IMAGE FOR INSPECTION ==="},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{human_image}"}},
+            {"type": "text", "text": "The human wants you to look at this. Describe what you see and whether it affects your current assessment."},
+            {"type": "text", "text": user_text},
+        ]
+        messages.append({"role": "user", "content": user_content})
+    else:
+        messages.append({"role": "user", "content": user_text})
+
+    return messages
 
 
 # ── BACKWARD COMPAT ─────────────────────────────────────────────────

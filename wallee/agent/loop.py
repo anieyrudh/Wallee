@@ -706,6 +706,9 @@ class AgentLoop:
         # 3b. Scan episode for human rejections → publish cooldown
         self._scan_episode_for_rejections(episode)
 
+        # 3c. Read human image (one-off, cleared after this cycle)
+        human_image = self.wb.read("human.image")
+
         # 4. Read human intent (skip if already responded)
         raw_intent = self.wb.read("human.intent")
         if raw_intent and raw_intent == self._last_responded_intent:
@@ -777,10 +780,11 @@ class AgentLoop:
             pending_callout=pending_callout,
         )
 
-        # 9. Build messages with vision content
+        # 9. Build messages (text-only unless human sent a photo)
         messages = build_messages(system_prompt, user_text, state,
                                   knowledge_dir=self.knowledge_dir,
-                                  data_dir=self.data_dir)
+                                  data_dir=self.data_dir,
+                                  human_image=human_image)
 
         # 10. Capture pre-call state for stale decision check
         pre_call_intent = self.wb.read("human.intent")
@@ -836,6 +840,11 @@ class AgentLoop:
             self._last_responded_intent = raw_intent
             self.wb.r.delete("human.intent")
             logger.info(f"Human intent consumed and cleared: {raw_intent[:50]}")
+
+        # 19. Clear human image after the agent has seen it (one-off, not persistent)
+        if human_image:
+            self.wb.r.delete("human.image")
+            logger.info("Human image consumed and cleared from whiteboard")
 
         return raw_response
 
