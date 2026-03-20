@@ -25,6 +25,26 @@ from wallee.tools.registry import ToolRegistry
 logger = logging.getLogger(__name__)
 
 
+def _extract_rejection_reason(entry: dict) -> str:
+    """Extract the actual rejection reason from a ledger episode entry.
+
+    The `reason` column holds the LLM's original proposal reasoning (e.g.,
+    "temperature looks high"). The engine's rejection reason (e.g., "TOCTOU:
+    percent is required") is stored in `error_json`. We must prefer error_json
+    for rejection classification to avoid misclassifying engine rejections.
+    """
+    error_raw = entry.get("error_json", "")
+    if error_raw:
+        try:
+            parsed = json.loads(error_raw) if isinstance(error_raw, str) else error_raw
+            if isinstance(parsed, dict):
+                return parsed.get("reason", "") or str(parsed)
+            return str(parsed)
+        except (json.JSONDecodeError, TypeError):
+            return str(error_raw)
+    return entry.get("reason", "")
+
+
 class AgentLoop:
     def __init__(
         self,
@@ -418,6 +438,7 @@ class AgentLoop:
         "cannot extrude", "cannot retract",
         "not paused", "not printing", "not idle",
         "out of range", "503", "timeout", "not configured",
+        "not approved", "timed out",
     ]
 
     def _is_human_rejection(self, reason: str) -> bool:
@@ -447,7 +468,10 @@ class AgentLoop:
             self._processed_rejections.add(action_id)
 
             tool = entry.get("tool", "")
-            reason = entry.get("reason", "") or entry.get("error_json", "")
+            # For REJECTED actions, the rejection reason is in error_json (set by
+            # engine's reject()), NOT in the reason column (which holds the original
+            # proposal reasoning from the LLM). Prefer error_json for classification.
+            reason = _extract_rejection_reason(entry)
             if not tool:
                 continue
 
