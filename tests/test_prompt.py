@@ -79,7 +79,7 @@ class TestBuildPrompt:
             knowledge=sample_knowledge, tools=sample_tools, current_time=time.time(),
         )
         assert "OK: set_temperature" in prompt
-        assert "!! FAILED: resume_print" in prompt
+        assert "!! YOUR ACTION FAILED: resume_print" in prompt
         assert "not paused" in prompt
 
     def test_empty_state(self, sample_tools, sample_knowledge):

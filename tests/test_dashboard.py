@@ -20,15 +20,15 @@ def wb():
 class TestDashboardHTML:
     def test_html_contains_key_sections(self):
         assert "WALLEE" in DASHBOARD_HTML
-        assert "Print Status" in DASHBOARD_HTML
-        assert "Temperatures" in DASHBOARD_HTML
-        assert "Electrical" in DASHBOARD_HTML
-        assert "Nozzle Camera" in DASHBOARD_HTML
+        assert "Key Metrics" in DASHBOARD_HTML
+        assert "Vision Analysis" in DASHBOARD_HTML
+        assert "Agent Log" in DASHBOARD_HTML
+        assert "Cameras" in DASHBOARD_HTML
 
     def test_html_contains_summary_cards(self):
         assert "Phase" in DASHBOARD_HTML
-        assert "Job Progress" in DASHBOARD_HTML
-        assert "Operator Intent" in DASHBOARD_HTML
+        assert "Progress" in DASHBOARD_HTML
+        assert "Adjustments" in DASHBOARD_HTML
 
     def test_no_inline_event_handlers(self):
         """Ensure no onclick/onerror XSS vectors in HTML."""

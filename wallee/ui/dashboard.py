@@ -35,684 +35,412 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <style>
 :root { --bg: #0d1117; --card: rgba(22,27,34,0.9); --border: #30363d; --text: #e6edf3;
         --muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922;
-        --blue: #58a6ff; --shadow: 0 18px 60px rgba(0,0,0,0.32); --card-glow: rgba(88,166,255,0.12); }
+        --blue: #58a6ff; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'SF Mono', 'Fira Code', monospace; background:
-       radial-gradient(circle at top, rgba(88,166,255,0.08), transparent 28%),
-       linear-gradient(180deg, #0b1016 0%, var(--bg) 35%);
-       color: var(--text); font-size: 13px; padding: 20px; }
-.shell { max-width: 1760px; margin: 0 auto; }
-h1 { font-size: 28px; margin-bottom: 6px; color: var(--blue); letter-spacing: 1px; }
-h2 { font-size: 14px; margin-bottom: 10px; color: var(--muted); text-transform: uppercase;
-     letter-spacing: 1px; }
-.hero { margin-bottom: 16px; padding: 16px 18px; border-radius: 14px;
-        border: 1px solid rgba(88,166,255,0.16); background:
-        linear-gradient(135deg, rgba(88,166,255,0.12), rgba(22,27,34,0.94) 55%);
-        box-shadow: var(--shadow); }
-.subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-        padding: 14px; box-shadow: 0 10px 28px rgba(0,0,0,0.18); backdrop-filter: blur(8px); }
-.card:hover { border-color: rgba(88,166,255,0.28); }
-.card-wide { grid-column: 1 / -1; }
-.status-bar { display: flex; gap: 16px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
-.status-meta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-.indicator { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
-             border-radius: 999px; background: rgba(13,17,23,0.55); border: 1px solid var(--border); }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.dot.green { background: var(--green); }
-.dot.red { background: var(--red); animation: pulse 1s infinite; }
-.dot.yellow { background: var(--yellow); }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.stat-card { padding: 12px 14px; border-radius: 12px; background: rgba(13,17,23,0.52);
-             border: 1px solid rgba(88,166,255,0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
-.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
-.stat-value { margin-top: 8px; font-size: 22px; font-weight: 700; color: var(--text); }
-.stat-meta { margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.4; min-height: 16px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg);
+       color: var(--text); font-size: 12px; height: 100vh; overflow: hidden; }
+.shell { display: grid; grid-template-rows: auto auto 1fr auto; height: 100vh; padding: 10px; gap: 8px; }
+h2 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
-td { padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-td:first-child { color: var(--muted); white-space: nowrap; width: 40%; }
-.progress-bar { height: 8px; background: rgba(48,54,61,0.9); border-radius: 999px;
-                overflow: hidden; margin-top: 6px; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), #5ee37b); border-radius: 999px;
-                 transition: width 0.5s; }
-canvas { width: 100%; height: 120px; margin-top: 8px; }
-.camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; grid-column: 1 / -1; }
-.camera-card { min-height: 250px; }
-.cam-shell { position: relative; min-height: 210px; margin-top: 4px; border-radius: 10px;
-             overflow: hidden; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(88,166,255,0.06), rgba(13,17,23,0.88)); }
-img.cam { display: block; width: 100%; min-height: 210px; object-fit: cover; }
+td { padding: 2px 6px; border-bottom: 1px solid rgba(48,54,61,0.5); vertical-align: top; font-size: 11px; }
+td:first-child { color: var(--muted); white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot.green { background: var(--green); } .dot.red { background: var(--red); animation: pulse 1s infinite; } .dot.yellow { background: var(--yellow); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.indicator { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px;
+             background: rgba(13,17,23,0.55); border: 1px solid var(--border); font-size: 11px; }
+.progress-bar { height: 6px; background: rgba(48,54,61,0.9); border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), #5ee37b); border-radius: 999px; transition: width 0.5s; }
+canvas { width: 100%; height: 90px; }
+img.cam { display: block; width: 100%; height: 160px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.cam-shell { position: relative; }
 .cam-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-             color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 16px; text-align: center; }
-.cam-status { position: absolute; top: 10px; right: 10px; font-size: 10px; font-weight: 700;
-              text-transform: uppercase; letter-spacing: 1px; padding: 4px 8px; border-radius: 999px;
-              border: 1px solid var(--border); background: rgba(13,17,23,0.72); color: var(--muted); }
-.cam-status.live { color: var(--green); border-color: rgba(63,185,80,0.4); }
-.cam-status.stale { color: var(--yellow); border-color: rgba(210,153,34,0.4); }
-.cam-status.offline { color: var(--red); border-color: rgba(248,81,73,0.4); }
-#conn { font-size: 11px; }
-@media (max-width: 900px) { body { padding: 14px; } h1 { font-size: 24px; } .hero { padding: 14px; } }
-/* --- Feed panels (intent + agent activity) --- */
-.feed { max-height: 340px; overflow-y: auto; scrollbar-width: thin;
-        scrollbar-color: var(--border) transparent; }
-.feed-entry { padding: 8px 10px; border-left: 3px solid transparent;
-              cursor: default; transition: background 0.15s; position: relative; }
-.feed-entry:not(:last-child) { border-bottom: 1px solid var(--border); }
-.feed-entry:hover { background: rgba(88,166,255,0.04); }
-.feed-entry.expanded { background: rgba(88,166,255,0.06); }
-.feed-head { display: flex; align-items: center; gap: 8px; }
-.feed-ts { color: var(--muted); font-size: 11px; min-width: 58px; font-variant-numeric: tabular-nums; }
-.feed-badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600;
-              text-transform: uppercase; letter-spacing: 0.5px; }
+             color: var(--muted); font-size: 11px; text-transform: uppercase; border-radius: 6px; background: rgba(13,17,23,0.7); }
+.cam-status { position: absolute; top: 6px; right: 6px; font-size: 9px; font-weight: 700;
+              text-transform: uppercase; padding: 2px 6px; border-radius: 999px;
+              border: 1px solid var(--border); background: rgba(13,17,23,0.7); color: var(--muted); }
+.cam-status.live { color: var(--green); } .cam-status.stale { color: var(--yellow); } .cam-status.offline { color: var(--red); }
+/* Hero row */
+.hero { display: flex; gap: 10px; align-items: stretch; }
+.hero-card { flex: 1; padding: 10px 14px; border-radius: 8px; background: rgba(13,17,23,0.52);
+             border: 1px solid rgba(88,166,255,0.12); }
+.hero-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.hero-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.hero-meta { font-size: 11px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Key metrics row */
+.metrics-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 10px; background: var(--card);
+               border: 1px solid var(--border); border-radius: 8px; }
+.metric { display: flex; gap: 4px; align-items: baseline; padding: 2px 8px; font-size: 11px; }
+.metric-label { color: var(--muted); }
+.metric-value { font-weight: 700; }
+.metric-adjusted { color: var(--yellow); }
+/* Main grid */
+.main { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; min-height: 0; overflow: hidden; }
+.col { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.feed { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; min-height: 0; }
+.feed-entry { padding: 4px 8px; border-left: 3px solid transparent; font-size: 11px; }
+.feed-entry:not(:last-child) { border-bottom: 1px solid rgba(48,54,61,0.4); }
+.feed-entry.active { border-left-color: var(--blue); }
+.feed-entry.stale { opacity: 0.55; }
+.feed-head { display: flex; align-items: center; gap: 6px; }
+.feed-ts { color: var(--muted); font-size: 10px; min-width: 50px; font-variant-numeric: tabular-nums; }
+.feed-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; text-transform: uppercase; }
 .feed-badge.wait { background: #21262d; color: var(--muted); }
 .feed-badge.action { background: rgba(88,166,255,0.15); color: var(--blue); }
 .feed-badge.call-human { background: rgba(248,81,73,0.15); color: var(--red); }
-.feed-text { font-size: 12px; line-height: 1.5; margin-top: 4px; color: var(--text); }
-.feed-text.truncated { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-                       overflow: hidden; cursor: pointer; }
-.feed-text.truncated:hover { color: var(--blue); }
-.feed-entry.active { border-left-color: var(--blue); }
-.feed-entry.stale { opacity: 0.6; }
-.feed-empty { color: var(--muted); padding: 12px 0; font-style: italic; font-size: 12px; }
-.intent-current { padding: 10px 12px; background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(88,166,255,0.02));
-                  border: 1px solid rgba(88,166,255,0.2); border-radius: 6px; }
-.intent-current .feed-text { font-size: 14px; color: var(--text); }
-.intent-history { margin-top: 8px; }
-.intent-history .feed-entry { padding: 4px 10px; opacity: 0.5; }
-.urgent-flag { display: inline-block; background: var(--red); color: #fff; font-size: 10px;
-               font-weight: 700; padding: 2px 8px; border-radius: 3px; margin-left: 8px;
-               animation: pulse 1s infinite; letter-spacing: 1px; }
+.feed-text { font-size: 11px; color: var(--text); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-empty { color: var(--muted); padding: 8px 0; font-style: italic; }
+/* Bottom bar */
+.bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.urgent-flag { display: inline-block; background: var(--red); color: #fff; font-size: 9px;
+               font-weight: 700; padding: 1px 6px; border-radius: 3px; animation: pulse 1s infinite; }
+@media (max-width: 1200px) { .main { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 800px) { .main { grid-template-columns: 1fr; } .hero { flex-wrap: wrap; } .bottom { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="shell">
+  <!-- HEADER -->
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:20px;font-weight:700;color:var(--blue);letter-spacing:1px;">WALLEE</span>
+      <span id="conn" class="indicator"></span>
+      <span id="safety" class="indicator"></span>
+    </div>
+    <span id="clock" style="color:var(--muted);font-size:11px;"></span>
+  </div>
+
+  <!-- HERO ROW: Phase, Progress, Agent, Vision -->
   <div class="hero">
-    <div class="status-bar">
-      <div>
-        <h1>WALLEE</h1>
-        <div class="subtitle">Autonomous printer oversight dashboard — live whiteboard, cameras, and agent reasoning context.</div>
+    <div class="hero-card">
+      <div class="hero-label">Phase</div>
+      <div id="summary-state" class="hero-value">--</div>
+      <div id="summary-state-meta" class="hero-meta"></div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-label">Progress</div>
+      <div id="summary-progress" class="hero-value">--</div>
+      <div class="progress-bar" style="margin-top:6px;"><div id="progress-fill" class="progress-fill" style="width:0%"></div></div>
+      <div id="summary-progress-meta" class="hero-meta"></div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-label">Agent</div>
+      <div id="summary-agent" class="hero-value">--</div>
+      <div id="summary-agent-meta" class="hero-meta"></div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-label">Vision</div>
+      <div id="summary-vision" class="hero-value">--</div>
+      <div id="summary-vision-meta" class="hero-meta"></div>
+    </div>
+  </div>
+
+  <!-- MAIN 3-COLUMN GRID -->
+  <div class="main">
+    <!-- LEFT: Cameras + Key Metrics -->
+    <div class="col">
+      <div class="card">
+        <h2>Key Metrics</h2>
+        <table id="key-metrics"></table>
       </div>
-      <div class="status-meta">
-        <span id="conn" class="indicator"></span>
-        <span id="safety" class="indicator"></span>
+      <div class="card" style="flex:1;">
+        <h2>Cameras</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div class="cam-shell"><img id="cam-nozzle" class="cam" alt=""><div id="cam-nozzle-empty" class="cam-empty">Nozzle offline</div><span id="cam-nozzle-status" class="cam-status offline">offline</span></div>
+          <div class="cam-shell"><img id="cam-buddy1" class="cam" alt=""><div id="cam-buddy1-empty" class="cam-empty">Buddy offline</div><span id="cam-buddy1-status" class="cam-status offline">offline</span></div>
+        </div>
+        <div id="cam-buddy2-wrap" style="margin-top:6px;display:none;">
+          <div class="cam-shell"><img id="cam-buddy2" class="cam" alt=""><div id="cam-buddy2-empty" class="cam-empty">Buddy 2 offline</div><span id="cam-buddy2-status" class="cam-status offline">offline</span></div>
+        </div>
+        <canvas id="temp-chart" style="margin-top:6px;"></canvas>
       </div>
     </div>
 
-    <div class="summary-grid">
-      <div class="stat-card">
-        <div class="stat-label">Phase</div>
-        <div id="summary-state" class="stat-value">--</div>
-        <div id="summary-state-meta" class="stat-meta"></div>
+    <!-- CENTER: Agent Log -->
+    <div class="col">
+      <div class="card" style="flex:1;display:flex;flex-direction:column;">
+        <h2>Agent Log</h2>
+        <div id="agent-log" class="feed"></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Job Progress</div>
-        <div id="summary-progress" class="stat-value">--</div>
-        <div id="summary-progress-meta" class="stat-meta"></div>
+    </div>
+
+    <!-- RIGHT: Vision + Human + Adjustments -->
+    <div class="col">
+      <div class="card">
+        <h2>Vision Analysis</h2>
+        <div id="vision-panel"></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Agent</div>
-        <div id="summary-agent" class="stat-value">--</div>
-        <div id="summary-agent-meta" class="stat-meta"></div>
+      <div class="card">
+        <h2>Human</h2>
+        <div id="intent"></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Operator Intent</div>
-        <div id="summary-intent" class="stat-value">--</div>
-        <div id="summary-intent-meta" class="stat-meta"></div>
+      <div class="card" style="flex:1;display:flex;flex-direction:column;">
+        <h2>Adjustments</h2>
+        <div id="adjustments" class="feed"></div>
       </div>
     </div>
   </div>
 
-  <div class="grid">
-    <div class="card"><div class="card-header"><h2>Print Status</h2></div><div id="print-status"></div></div>
-    <div class="card"><div class="card-header"><h2>Temperatures</h2></div><table id="temps"></table><canvas id="temp-chart"></canvas></div>
-    <div class="card"><div class="card-header"><h2>Electrical</h2></div><table id="electrical"></table></div>
-    <div class="card"><div class="card-header"><h2>Fans</h2></div><table id="fans"></table></div>
-    <div class="card"><div class="card-header"><h2>Vision Analysis</h2></div><div id="vision-panel"></div></div>
-    <div class="card"><div class="card-header"><h2>Position</h2></div><table id="position"></table></div>
-    <div class="card"><div class="card-header"><h2>Firmware Health</h2></div><table id="health"></table></div>
-    <div class="card"><div class="card-header"><h2>Human Intent</h2></div><div id="intent"></div></div>
-    <div class="card card-wide"><div class="card-header"><h2>Agent Activity</h2></div><div id="agent-log" class="feed"></div></div>
-    <div class="camera-grid">
-      <div class="card camera-card"><div class="card-header"><h2>Nozzle Camera</h2></div><div class="cam-shell"><img id="cam-nozzle" class="cam" alt="No frame"><div id="cam-nozzle-empty" class="cam-empty">Awaiting nozzle frame</div><span id="cam-nozzle-status" class="cam-status offline">offline</span></div></div>
-      <div class="card camera-card"><div class="card-header"><h2>Buddy Camera 1</h2></div><div class="cam-shell"><img id="cam-buddy1" class="cam" alt="No frame"><div id="cam-buddy1-empty" class="cam-empty">Awaiting buddy camera 1</div><span id="cam-buddy1-status" class="cam-status offline">offline</span></div></div>
-      <div class="card camera-card"><div class="card-header"><h2>Buddy Camera 2</h2></div><div class="cam-shell"><img id="cam-buddy2" class="cam" alt="No frame"><div id="cam-buddy2-empty" class="cam-empty">Awaiting buddy camera 2</div><span id="cam-buddy2-status" class="cam-status offline">offline</span></div></div>
-    </div>
-    <div class="card card-wide"><div class="card-header"><h2>All Whiteboard Keys</h2></div><table id="all-keys"></table></div>
-  </div>
+  <!-- BOTTOM: All Keys (collapsible) -->
+  <details style="margin-top:4px;">
+    <summary style="color:var(--muted);font-size:11px;cursor:pointer;padding:4px;">All Whiteboard Keys</summary>
+    <div class="card" style="margin-top:4px;max-height:200px;overflow-y:auto;"><table id="all-keys"></table></div>
+  </details>
 </div>
 
 <script>
 "use strict";
 let ws;
-const tempHistory = {nozzle: [], bed: [], chamber: [], heatbreak: []};
+const tempHistory = {nozzle:[], bed:[], chamber:[], heatbreak:[]};
 const MAX_HISTORY = 60;
+var lastActivityLog = null;
 
-/* --- Safe DOM helpers (no innerHTML, XSS-safe) --- */
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
-
-function makeRow(label, value, cls) {
-  const tr = document.createElement('tr');
-  const td1 = document.createElement('td');
-  td1.textContent = label;
-  const td2 = document.createElement('td');
-  td2.textContent = String(value);
-  if (cls) td2.className = cls;
-  tr.appendChild(td1); tr.appendChild(td2);
-  return tr;
+function makeRow(label, value) {
+  var tr = document.createElement('tr');
+  var td1 = document.createElement('td'); td1.textContent = label;
+  var td2 = document.createElement('td'); td2.textContent = String(value);
+  tr.appendChild(td1); tr.appendChild(td2); return tr;
 }
-
 function setIndicator(el, dotClass, text) {
-  clearEl(el);
-  const dot = document.createElement('span');
-  dot.className = 'dot ' + dotClass;
-  el.appendChild(dot);
-  el.appendChild(document.createTextNode(' ' + text));
+  clearEl(el); var dot = document.createElement('span'); dot.className = 'dot ' + dotClass;
+  el.appendChild(dot); el.appendChild(document.createTextNode(' ' + text));
 }
-
 function setStat(id, value, meta) {
-  var valueEl = document.getElementById(id);
-  var metaEl = document.getElementById(id + '-meta');
-  if (valueEl) valueEl.textContent = value;
-  if (metaEl) metaEl.textContent = meta || '';
+  var v = document.getElementById(id), m = document.getElementById(id + '-meta');
+  if (v) v.textContent = value; if (m) m.textContent = meta || '';
 }
 
 function connect() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.hostname + ':WS_PORT');
   ws.onopen = function() { setIndicator(document.getElementById('conn'), 'green', 'live'); };
-  ws.onclose = function() {
-    setIndicator(document.getElementById('conn'), 'red', 'disconnected');
-    setTimeout(connect, 3000);
-  };
+  ws.onclose = function() { setIndicator(document.getElementById('conn'), 'red', 'disconnected'); setTimeout(connect, 3000); };
   ws.onmessage = function(e) { try { update(JSON.parse(e.data)); } catch(err) { console.error(err); } };
 }
 
 function update(s) {
-  updatePrintStatus(s); updateTemps(s); updateElectrical(s);
-  updateFans(s); updatePosition(s); updateHealth(s);
-  updateVision(s); updateIntent(s); updateAgentLog(s);
-  updateCameras(s); updateSafety(s); updateSummary(s); updateAllKeys(s);
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+  updateSummary(s); updateKeyMetrics(s); updateVision(s);
+  updateCameras(s); updateTempChart(s); updateAgentLog(s);
+  updateIntent(s); updateAdjustments(s); updateSafety(s); updateAllKeys(s);
 }
 
+/* --- HERO ROW --- */
 function updateSummary(s) {
   var phase = s['job.phase'] || s['printer.state'] || 'UNKNOWN';
-  var detail = s['job.phase_detail'] || s['printer.job_state'] || '';
+  var detail = s['job.phase_detail'] || '';
   setStat('summary-state', phase, detail);
 
   var progress = s['printer.job_progress'];
   var remaining = s['printer.job_time_remaining_s'];
-  var progressValue = progress != null ? Math.round(progress) + '%' : '--';
-  var progressMeta = remaining != null ? (Math.round(remaining / 60) + ' min remaining') : (s['printer.print_filename'] || 'No file loaded');
-  setStat('summary-progress', progressValue, progressMeta);
+  var pv = progress != null ? Math.round(progress) + '%' : '--';
+  var pm = remaining != null ? Math.round(remaining / 60) + 'm left' : (s['printer.print_filename'] || '');
+  setStat('summary-progress', pv, pm);
+  var fill = document.getElementById('progress-fill');
+  if (fill) fill.style.width = (progress != null ? Math.round(progress) : 0) + '%';
 
-  var decision = s['agent.last_decision'] || 'No recent decision';
-  var decisionLabel = decision.split(':')[0] || 'Agent';
-  if (decisionLabel.length > 18) decisionLabel = 'Decision';
-  var decisionMeta = decision;
-  if (decisionMeta.indexOf(': ') > 0) decisionMeta = decisionMeta.substring(decisionMeta.indexOf(': ') + 2);
-  setStat('summary-agent', decisionLabel.toUpperCase(), decisionMeta);
+  var dec = s['agent.last_decision'] || '';
+  var dl = dec.split(':')[0] || '--'; if (dl.length > 14) dl = 'Decision';
+  var dm = dec.indexOf(': ') > 0 ? dec.substring(dec.indexOf(': ') + 2) : dec;
+  setStat('summary-agent', dl.toUpperCase(), dm);
 
-  var intent = s['human.intent'];
-  var urgent = s['human.urgent'];
-  if (intent) setStat('summary-intent', urgent ? 'URGENT' : 'ACTIVE', intent);
-  else setStat('summary-intent', 'CLEAR', 'No active operator intent');
-}
-
-function updatePrintStatus(s) {
-  var el = document.getElementById('print-status');
-  clearEl(el);
-  var tbl = document.createElement('table');
-  tbl.appendChild(makeRow('Printer', s['printer.state'] || 'UNKNOWN'));
-  tbl.appendChild(makeRow('Job', s['printer.job_state'] || '-'));
-  if (s['printer.print_filename']) tbl.appendChild(makeRow('File', s['printer.print_filename']));
-  if (s['printer.job_progress'] != null) {
-    var pct = Math.round(s['printer.job_progress']);
-    tbl.appendChild(makeRow('Progress', pct + '%'));
-    var pRow = document.createElement('tr');
-    var pTd = document.createElement('td'); pTd.colSpan = 2;
-    var bar = document.createElement('div'); bar.className = 'progress-bar';
-    var fill = document.createElement('div'); fill.className = 'progress-fill';
-    fill.style.width = pct + '%';
-    bar.appendChild(fill); pTd.appendChild(bar); pRow.appendChild(pTd);
-    tbl.appendChild(pRow);
+  /* Vision hero */
+  var vs = s['vision.status'] || 'NO_DATA';
+  var vc = s['vision.confidence'] || '';
+  var vd = s['vision.description'] || '';
+  var vts = s['vision.last_analysis_ts'];
+  var vage = vts ? Math.round(Date.now()/1000 - parseFloat(vts)) : 999;
+  if (vage > 30) { vs = 'OFFLINE'; vd = 'No vision data'; }
+  setStat('summary-vision', vs + (vc ? ' (' + vc + ')' : ''), vd);
+  var vel = document.getElementById('summary-vision');
+  if (vel) {
+    vel.style.color = vs.startsWith('DEFECT') ? 'var(--red)' :
+                      vs.startsWith('POSSIBLE') ? 'var(--yellow)' :
+                      vs === 'OFFLINE' ? 'var(--red)' : 'var(--text)';
   }
-  if (s['printer.job_time_remaining_s'] != null)
-    tbl.appendChild(makeRow('Remaining', Math.round(s['printer.job_time_remaining_s'] / 60) + ' min'));
-  el.appendChild(tbl);
 }
 
-function updateTemps(s) {
-  var el = document.getElementById('temps');
-  clearEl(el);
-  var pairs = [
-    ['Nozzle', s['printer.temp_nozzle'], s['printer.target_nozzle']],
-    ['Bed', s['printer.temp_bed'], s['printer.target_bed']],
-    ['Chamber', s['printer.temp_chamber'], null],
-    ['Heatbreak', s['printer.temp_heatbreak'], null],
-    ['Board', s['printer.temp_board'], null],
-    ['MCU', s['printer.temp_mcu'], null],
+/* --- KEY METRICS --- */
+function updateKeyMetrics(s) {
+  var el = document.getElementById('key-metrics'); clearEl(el);
+  var items = [
+    ['Nozzle', s['printer.temp_nozzle'], s['printer.target_nozzle'], '\u00B0C'],
+    ['Bed', s['printer.temp_bed'], s['printer.target_bed'], '\u00B0C'],
+    ['Heatbreak', s['printer.temp_heatbreak'], null, '\u00B0C'],
+    ['Speed', s['printer.speed'], 100, '%'],
+    ['Flow', s['printer.flow'], 100, '%'],
+    ['Fan HB', s['printer.fan_heatbreak_rpm'], null, 'rpm'],
+    ['Fan Print', s['printer.fan_print_rpm'], null, 'rpm'],
+    ['Nozzle A', s['printer.curr_nozzle'], null, 'A'],
+    ['Bed V', s['printer.volt_bed'], null, 'V'],
   ];
-  for (var i = 0; i < pairs.length; i++) {
-    var name = pairs[i][0], actual = pairs[i][1], target = pairs[i][2];
-    if (actual == null) continue;
-    var t = target != null ? ' / ' + target + '\u00B0C' : '';
-    el.appendChild(makeRow(name, actual + '\u00B0C' + t));
-  }
-  if (s['printer.temp_nozzle'] != null) pushHistory('nozzle', s['printer.temp_nozzle']);
-  if (s['printer.temp_bed'] != null) pushHistory('bed', s['printer.temp_bed']);
-  if (s['printer.temp_chamber'] != null) pushHistory('chamber', s['printer.temp_chamber']);
-  if (s['printer.temp_heatbreak'] != null) pushHistory('heatbreak', s['printer.temp_heatbreak']);
-  drawChart();
-}
-
-function pushHistory(key, val) {
-  tempHistory[key].push(val);
-  if (tempHistory[key].length > MAX_HISTORY) tempHistory[key].shift();
-}
-
-function drawChart() {
-  var canvas = document.getElementById('temp-chart');
-  var ctx = canvas.getContext('2d');
-  var W = canvas.offsetWidth * 2, H = 260;
-  canvas.width = W; canvas.height = H;
-  ctx.clearRect(0, 0, W, H);
-  var colors = {nozzle: '#f85149', bed: '#d29922', chamber: '#58a6ff', heatbreak: '#8b949e'};
-  var labels = {nozzle: 'Nozzle', bed: 'Bed', chamber: 'Chamber', heatbreak: 'Heatbreak'};
-  var PAD_L = 50, PAD_R = 10, PAD_T = 10, PAD_B = 40;
-  var plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
-  var maxVal = 50;
-  for (var k in tempHistory) for (var i = 0; i < tempHistory[k].length; i++) maxVal = Math.max(maxVal, tempHistory[k][i]);
-  maxVal = Math.ceil(maxVal / 10) * 10 + 10;
-
-  // Y-axis gridlines and labels
-  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1; ctx.fillStyle = '#8b949e'; ctx.font = '18px monospace';
-  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  for (var t = 0; t <= maxVal; t += Math.max(10, Math.round(maxVal / 5 / 10) * 10)) {
-    var y = PAD_T + plotH - (t / maxVal) * plotH;
-    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
-    ctx.fillText(t + '\u00B0C', PAD_L - 6, y);
-  }
-
-  // X-axis label
-  ctx.fillStyle = '#8b949e'; ctx.font = '16px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('Time \u2192', W / 2, H - 4);
-
-  // Plot lines
-  for (var key in tempHistory) {
-    var data = tempHistory[key]; if (data.length < 2) continue;
-    ctx.beginPath(); ctx.strokeStyle = colors[key]; ctx.lineWidth = 3;
-    for (var j = 0; j < data.length; j++) {
-      var x = PAD_L + (j / (MAX_HISTORY - 1)) * plotW;
-      var y = PAD_T + plotH - (data[j] / maxVal) * plotH;
-      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-
-  // Legend
-  var lx = PAD_L + 8, ly = PAD_T + 6;
-  ctx.font = '16px monospace'; ctx.textAlign = 'left';
-  for (var key in labels) {
-    if (tempHistory[key].length < 1) continue;
-    ctx.fillStyle = colors[key];
-    ctx.fillRect(lx, ly, 16, 10);
-    ctx.fillStyle = '#e6edf3';
-    ctx.fillText(labels[key], lx + 22, ly + 9);
-    lx += ctx.measureText(labels[key]).width + 40;
-  }
-}
-
-function updateElectrical(s) {
-  var el = document.getElementById('electrical'); clearEl(el);
-  var items = [['Bed V', s['printer.volt_bed'], 'V'], ['Nozzle V', s['printer.volt_nozzle'], 'V'],
-               ['Nozzle A', s['printer.curr_nozzle'], 'A'], ['OC Nozzle', s['printer.oc_nozzle'], ''],
-               ['OC Input', s['printer.oc_input'], '']];
   for (var i = 0; i < items.length; i++) {
-    if (items[i][1] == null) continue;
-    el.appendChild(makeRow(items[i][0], items[i][1] + (items[i][2] ? ' ' + items[i][2] : '')));
-  }
-}
-
-function updateFans(s) {
-  var el = document.getElementById('fans'); clearEl(el);
-  if (s['printer.fan_heatbreak_rpm'] != null) el.appendChild(makeRow('Heatbreak', s['printer.fan_heatbreak_rpm'] + ' RPM'));
-  if (s['printer.fan_print_rpm'] != null) el.appendChild(makeRow('Print', s['printer.fan_print_rpm'] + ' RPM'));
-}
-
-function updateVision(s) {
-  var el = document.getElementById('vision-panel');
-  clearEl(el);
-  var tbl = document.createElement('table');
-
-  /* Check if vision sensor is alive */
-  var lastTs = s['vision.last_analysis_ts'];
-  var age = lastTs ? Math.round((Date.now() / 1000) - parseFloat(lastTs)) : null;
-
-  if (!lastTs || age > 30) {
-    tbl.appendChild(makeRow('Status', 'OFFLINE — no vision data'));
-    el.appendChild(tbl);
-    return;
-  }
-
-  /* Combined status */
-  var status = s['vision.status'] || s['vision.nozzle.status'] || 'NO_DATA';
-  var statusCls = status.startsWith('DEFECT') ? 'color:var(--red)' :
-                  status.startsWith('POSSIBLE') ? 'color:var(--yellow)' : '';
-  var statusRow = makeRow('Status', status);
-  if (statusCls) statusRow.lastChild.style.cssText = statusCls + ';font-weight:700';
-  tbl.appendChild(statusRow);
-
-  /* Confidence */
-  var conf = s['vision.confidence'] || s['vision.nozzle.confidence'];
-  if (conf != null) tbl.appendChild(makeRow('Confidence', conf));
-
-  /* Description */
-  var desc = s['vision.description'] || s['vision.nozzle.description'];
-  if (desc) tbl.appendChild(makeRow('Description', desc));
-
-  /* Defect scores — nozzle */
-  var defects = ['stringing', 'spaghetti', 'blob', 'warping', 'layer_shift',
-                 'underextrusion', 'overextrusion', 'burn_marks', 'bed_adhesion_ok', 'normal'];
-  for (var i = 0; i < defects.length; i++) {
-    var key = defects[i];
-    var val = s['vision.nozzle.' + key] || s['vision.' + key];
+    var name = items[i][0], val = items[i][1], ref = items[i][2], unit = items[i][3];
     if (val == null) continue;
-    var row = makeRow(key.replace('_', ' '), val);
-    if (val > 0.7 && key !== 'normal' && key !== 'bed_adhesion_ok')
-      row.lastChild.style.cssText = 'color:var(--red);font-weight:700';
-    else if (val > 0.4 && key !== 'normal' && key !== 'bed_adhesion_ok')
-      row.lastChild.style.cssText = 'color:var(--yellow)';
-    tbl.appendChild(row);
-  }
-
-  /* Buddy camera status if available */
-  var buddyStatus = s['vision.buddy.status'];
-  if (buddyStatus) {
-    var bRow = makeRow('Buddy cam', buddyStatus);
-    if (buddyStatus.startsWith('DEFECT')) bRow.lastChild.style.cssText = 'color:var(--red);font-weight:700';
-    tbl.appendChild(bRow);
-  }
-
-  tbl.appendChild(makeRow('Last update', age + 's ago'));
-  el.appendChild(tbl);
-}
-
-function updatePosition(s) {
-  var el = document.getElementById('position'); clearEl(el);
-  for (var a of ['x','y','z']) { var v = s['printer.pos_'+a]; if (v != null) el.appendChild(makeRow(a.toUpperCase(), v + ' mm')); }
-}
-
-function updateHealth(s) {
-  var el = document.getElementById('health'); clearEl(el);
-  if (s['printer.cpu_usage'] != null) el.appendChild(makeRow('CPU', s['printer.cpu_usage'] + '%'));
-  if (s['printer.heap_free'] != null) el.appendChild(makeRow('Heap', s['printer.heap_free'] + ' / ' + (s['printer.heap_total']||'?') + ' free'));
-  if (s['printer.stepper_stall'] != null) el.appendChild(makeRow('Stall', s['printer.stepper_stall']));
-}
-
-function updateCamCard(imgId, statusKey, frameKey, s) {
-  var img = document.getElementById(imgId);
-  var empty = document.getElementById(imgId + '-empty');
-  var badge = document.getElementById(imgId + '-status');
-  var status = s[statusKey] || 'offline';
-  if (badge) {
-    badge.className = 'cam-status ' + status;
-    badge.textContent = status;
-  }
-  if (status === 'live' && s[frameKey]) {
-    img.src = 'data:image/jpeg;base64,' + s[frameKey];
-    img.alt = '';
-    if (empty) empty.style.display = 'none';
-  } else {
-    img.removeAttribute('src');
-    img.alt = status === 'stale' ? 'Camera stale (frozen frame)' : 'Camera offline';
-    if (empty) {
-      empty.style.display = 'flex';
-      empty.textContent = status === 'stale' ? 'Camera stale — last frame frozen' : 'Camera offline';
-    }
-  }
-}
-
-function updateCameras(s) {
-  updateCamCard('cam-nozzle', 'camera.nozzle_status', 'camera.nozzle_frame', s);
-  updateCamCard('cam-buddy1', 'camera.buddy1_status', 'camera.buddy1_frame', s);
-  updateCamCard('cam-buddy2', 'camera.buddy2_status', 'camera.buddy2_frame', s);
-}
-
-function updateSafety(s) {
-  var el = document.getElementById('safety');
-  var ocn = s['printer.oc_nozzle'], oci = s['printer.oc_input'];
-  if (s['safety.estop']) setIndicator(el, 'red', 'ESTOP ACTIVE');
-  else if (ocn != null && ocn !== 0) setIndicator(el, 'red', 'OC NOZZLE');
-  else if (oci != null && oci !== 0) setIndicator(el, 'red', 'OC INPUT');
-  else setIndicator(el, 'green', 'safe');
-}
-
-function formatValue(key, v) {
-  if (v === null || v === undefined) return '-';
-  // Camera frames — just show size
-  if (typeof v === 'string' && v.length > 200) return '[' + v.length + ' chars]';
-  // Arrays — summarize
-  if (Array.isArray(v)) {
-    if (key === 'printer.files') return v.length + ' files';
-    return JSON.stringify(v).substring(0, 80);
-  }
-  // Objects — show top-level keys with stringified values
-  if (typeof v === 'object') {
-    var parts = [];
-    for (var k in v) {
-      var sub = v[k];
-      if (typeof sub === 'object' && sub !== null) sub = JSON.stringify(sub);
-      parts.push(k + '=' + sub);
-      if (parts.length > 4) { parts.push('...'); break; }
-    }
-    return parts.join(', ');
-  }
-  // Booleans
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  return String(v);
-}
-
-/* --- Intent panel with history --- */
-function updateIntent(s) {
-  var el = document.getElementById('intent');
-  clearEl(el);
-  var intent = s['human.intent'];
-  var urgent = s['human.urgent'];
-  var intentLog = s['human.intent_log'];
-
-  /* Parse intent log from Redis list */
-  var entries = [];
-  if (Array.isArray(intentLog)) {
-    for (var i = 0; i < intentLog.length; i++) {
-      try {
-        var parsed = typeof intentLog[i] === 'string' ? JSON.parse(intentLog[i]) : intentLog[i];
-        entries.push(parsed);
-      } catch(e) {}
-    }
-  }
-
-  /* Current active intent */
-  if (intent) {
-    var box = document.createElement('div');
-    box.className = 'intent-current';
-    var head = document.createElement('div');
-    head.className = 'feed-head';
-    if (entries.length > 0) {
-      var ts = document.createElement('span');
-      ts.className = 'feed-ts';
-      ts.textContent = entries[0].ts || '';
-      head.appendChild(ts);
-    }
-    var label = document.createElement('span');
-    label.textContent = 'ACTIVE';
-    label.style.cssText = 'font-size:10px;color:var(--green);font-weight:700;letter-spacing:1px';
-    head.appendChild(label);
-    if (urgent) {
-      var uf = document.createElement('span');
-      uf.className = 'urgent-flag';
-      uf.textContent = 'URGENT';
-      head.appendChild(uf);
-    }
-    box.appendChild(head);
-    var txt = document.createElement('div');
-    txt.className = 'feed-text';
-    txt.textContent = intent;
-    box.appendChild(txt);
-    el.appendChild(box);
-  } else if (entries.length > 0) {
-    /* No active intent but we have history — show last as expired */
-    var box = document.createElement('div');
-    box.className = 'feed-entry stale';
-    var head = document.createElement('div');
-    head.className = 'feed-head';
-    var ts = document.createElement('span');
-    ts.className = 'feed-ts';
-    ts.textContent = entries[0].ts || '';
-    head.appendChild(ts);
-    var label = document.createElement('span');
-    label.textContent = 'EXPIRED';
-    label.style.cssText = 'font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px';
-    head.appendChild(label);
-    box.appendChild(head);
-    var txt = document.createElement('div');
-    txt.className = 'feed-text';
-    txt.style.fontSize = '13px';
-    txt.textContent = entries[0].text || '';
-    box.appendChild(txt);
-    el.appendChild(box);
-  } else {
-    var empty = document.createElement('div');
-    empty.className = 'feed-empty';
-    empty.textContent = 'No intent history';
-    el.appendChild(empty);
-  }
-
-  /* Show older intents (always visible from Redis log) */
-  var startIdx = intent ? 1 : 1;  /* skip first entry (shown above) */
-  if (entries.length > startIdx) {
-    var hist = document.createElement('div');
-    hist.className = 'intent-history';
-    for (var i = startIdx; i < entries.length; i++) {
-      var entry = document.createElement('div');
-      entry.className = 'feed-entry stale';
-      var h = document.createElement('div');
-      h.className = 'feed-head';
-      var ts2 = document.createElement('span');
-      ts2.className = 'feed-ts';
-      ts2.textContent = entries[i].ts || '';
-      h.appendChild(ts2);
-      entry.appendChild(h);
-      var t2 = document.createElement('div');
-      t2.className = 'feed-text';
-      t2.style.fontSize = '11px';
-      t2.textContent = entries[i].text || '';
-      entry.appendChild(t2);
-      hist.appendChild(entry);
-    }
-    el.appendChild(hist);
-  }
-}
-
-/* --- Agent activity feed --- */
-var lastActivityLog = null;
-
-function updateAgentLog(s) {
-  var el = document.getElementById('agent-log');
-
-  /* Read activity log from whiteboard (JSON array stored in Redis list) */
-  var logData = s['agent.activity_log'];
-  var logKey = JSON.stringify(logData);
-  if (logKey === lastActivityLog) return; /* no change, skip redraw */
-  lastActivityLog = logKey;
-
-  clearEl(el);
-
-  /* Parse entries — could be array or need extraction from whiteboard */
-  var entries = [];
-  if (Array.isArray(logData)) {
-    for (var i = 0; i < logData.length; i++) {
-      try {
-        if (typeof logData[i] === 'string') entries.push(JSON.parse(logData[i]));
-        else entries.push(logData[i]);
-      } catch(e) { /* skip bad entries */ }
-    }
-  }
-
-  /* Fallback: use agent.last_decision if no log array */
-  if (entries.length === 0) {
-    var last = s['agent.last_decision'];
-    if (last) {
-      entries.push({ts: new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'}), type: 'WAIT', text: last});
-    }
-  }
-
-  if (entries.length === 0) {
-    var empty = document.createElement('div');
-    empty.className = 'feed-empty';
-    empty.textContent = 'Waiting for agent activity...';
-    el.appendChild(empty);
-    return;
-  }
-
-  for (var i = 0; i < entries.length; i++) {
-    var e = entries[i];
-    var row = document.createElement('div');
-    row.className = 'feed-entry' + (i === 0 ? ' active' : ' stale');
-
-    /* Header: timestamp + badge */
-    var head = document.createElement('div');
-    head.className = 'feed-head';
-
-    var ts = document.createElement('span');
-    ts.className = 'feed-ts';
-    ts.textContent = e.ts || '--:--:--';
-    head.appendChild(ts);
-
-    var badge = document.createElement('span');
-    badge.className = 'feed-badge';
-    var btype = (e.type || 'WAIT').toUpperCase();
-    if (btype === 'ACTION') badge.className += ' action';
-    else if (btype === 'CALL_HUMAN') badge.className += ' call-human';
-    else badge.className += ' wait';
-    badge.textContent = btype.replace('_', ' ');
-    head.appendChild(badge);
-
-    row.appendChild(head);
-
-    /* Text body — truncated, click to expand */
-    var text = document.createElement('div');
-    text.className = 'feed-text truncated';
-    var fullText = e.text || '';
-    /* Strip the type prefix if present */
-    if (fullText.indexOf(': ') > 0 && fullText.indexOf(': ') < 30) {
-      fullText = fullText.substring(fullText.indexOf(': ') + 2);
-    }
-    text.textContent = fullText;
-    text.addEventListener('click', (function(t, r) {
-      return function() {
-        if (t.classList.contains('truncated')) {
-          t.classList.remove('truncated');
-          r.classList.add('expanded');
-        } else {
-          t.classList.add('truncated');
-          r.classList.remove('expanded');
-        }
-      };
-    })(text, row));
-    row.appendChild(text);
-
+    var display = val + (ref != null ? '/' + ref : '') + unit;
+    var row = makeRow(name, display);
+    /* Highlight adjusted values (speed/flow differ from 100) */
+    if (ref != null && val !== ref) row.lastChild.style.cssText = 'color:var(--yellow);font-weight:700';
     el.appendChild(row);
   }
 }
 
+/* --- VISION ANALYSIS --- */
+function updateVision(s) {
+  var el = document.getElementById('vision-panel'); clearEl(el);
+  var tbl = document.createElement('table');
+  var vts = s['vision.last_analysis_ts'];
+  var age = vts ? Math.round(Date.now()/1000 - parseFloat(vts)) : null;
+  if (!vts || age > 30) {
+    var r = makeRow('Status', 'VISION OFFLINE');
+    r.lastChild.style.cssText = 'color:var(--red);font-weight:700';
+    tbl.appendChild(r); el.appendChild(tbl); return;
+  }
+  var status = s['vision.status'] || 'NO_DATA';
+  var sr = makeRow('Status', status);
+  if (status.startsWith('DEFECT')) sr.lastChild.style.cssText = 'color:var(--red);font-weight:700';
+  else if (status.startsWith('POSSIBLE') || status.startsWith('INCONSISTENT')) sr.lastChild.style.cssText = 'color:var(--yellow);font-weight:700';
+  tbl.appendChild(sr);
+  var conf = s['vision.confidence']; if (conf != null) tbl.appendChild(makeRow('Conf', conf));
+  var desc = s['vision.description']; if (desc) tbl.appendChild(makeRow('Desc', desc));
+  var defects = ['stringing','spaghetti','blob','warping','layer_shift','underextrusion','overextrusion','burn_marks','bed_adhesion_ok','normal'];
+  for (var i = 0; i < defects.length; i++) {
+    var k = defects[i], v = s['vision.nozzle.'+k] || s['vision.'+k]; if (v == null) continue;
+    var dr = makeRow(k.replace(/_/g,' '), v);
+    if (v > 0.7 && k !== 'normal' && k !== 'bed_adhesion_ok') dr.lastChild.style.cssText = 'color:var(--red);font-weight:700';
+    else if (v > 0.4 && k !== 'normal' && k !== 'bed_adhesion_ok') dr.lastChild.style.cssText = 'color:var(--yellow)';
+    tbl.appendChild(dr);
+  }
+  var bs = s['vision.buddy.status']; if (bs) { var br = makeRow('Buddy', bs); if (bs.startsWith('DEFECT')) br.lastChild.style.cssText='color:var(--red);font-weight:700'; tbl.appendChild(br); }
+  tbl.appendChild(makeRow('Updated', age + 's ago'));
+  el.appendChild(tbl);
+}
+
+/* --- CAMERAS --- */
+function updateCamCard(imgId, statusKey, frameKey, s) {
+  var img = document.getElementById(imgId), empty = document.getElementById(imgId+'-empty'), badge = document.getElementById(imgId+'-status');
+  var status = s[statusKey] || 'offline';
+  if (badge) { badge.className = 'cam-status ' + status; badge.textContent = status; }
+  if (status === 'live' && s[frameKey]) { img.src = 'data:image/jpeg;base64,' + s[frameKey]; img.alt = ''; if (empty) empty.style.display = 'none'; }
+  else { img.removeAttribute('src'); if (empty) { empty.style.display = 'flex'; empty.textContent = status === 'stale' ? 'Stale' : 'Offline'; } }
+}
+function updateCameras(s) {
+  updateCamCard('cam-nozzle','camera.nozzle_status','camera.nozzle_frame',s);
+  updateCamCard('cam-buddy1','camera.buddy1_status','camera.buddy1_frame',s);
+  var b2s = s['camera.buddy2_status'];
+  var b2wrap = document.getElementById('cam-buddy2-wrap');
+  if (b2s && b2s !== 'offline') { if (b2wrap) b2wrap.style.display = 'block'; updateCamCard('cam-buddy2','camera.buddy2_status','camera.buddy2_frame',s); }
+  else { if (b2wrap) b2wrap.style.display = 'none'; }
+}
+
+/* --- TEMP CHART --- */
+function pushHistory(key, val) { tempHistory[key].push(val); if (tempHistory[key].length > MAX_HISTORY) tempHistory[key].shift(); }
+function updateTempChart(s) {
+  if (s['printer.temp_nozzle'] != null) pushHistory('nozzle', s['printer.temp_nozzle']);
+  if (s['printer.temp_bed'] != null) pushHistory('bed', s['printer.temp_bed']);
+  if (s['printer.temp_chamber'] != null) pushHistory('chamber', s['printer.temp_chamber']);
+  if (s['printer.temp_heatbreak'] != null) pushHistory('heatbreak', s['printer.temp_heatbreak']);
+  var canvas = document.getElementById('temp-chart'); if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W = canvas.offsetWidth * 2, H = 180; canvas.width = W; canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+  var colors = {nozzle:'#f85149',bed:'#d29922',chamber:'#58a6ff',heatbreak:'#8b949e'};
+  var PL=40,PR=6,PT=6,PB=20; var pW=W-PL-PR, pH=H-PT-PB;
+  var mx=50; for (var k in tempHistory) for (var i=0;i<tempHistory[k].length;i++) mx=Math.max(mx,tempHistory[k][i]);
+  mx=Math.ceil(mx/10)*10+10;
+  ctx.strokeStyle='#30363d';ctx.lineWidth=1;ctx.fillStyle='#8b949e';ctx.font='14px monospace';ctx.textAlign='right';ctx.textBaseline='middle';
+  for (var t=0;t<=mx;t+=Math.max(10,Math.round(mx/4/10)*10)) { var y=PT+pH-(t/mx)*pH; ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(W-PR,y);ctx.stroke();ctx.fillText(t+'\u00B0',PL-4,y); }
+  for (var key in tempHistory) { var d=tempHistory[key]; if(d.length<2) continue; ctx.beginPath();ctx.strokeStyle=colors[key];ctx.lineWidth=2;
+    for(var j=0;j<d.length;j++){var x=PL+(j/(MAX_HISTORY-1))*pW,y=PT+pH-(d[j]/mx)*pH;if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();}
+  var lx=PL+4,ly=PT+2; ctx.font='12px monospace';ctx.textAlign='left';
+  for(var key in colors){if(tempHistory[key].length<1)continue;ctx.fillStyle=colors[key];ctx.fillRect(lx,ly,10,7);ctx.fillStyle='#e6edf3';ctx.fillText(key,lx+14,ly+7);lx+=ctx.measureText(key).width+24;}
+}
+
+/* --- AGENT LOG --- */
+function updateAgentLog(s) {
+  var el = document.getElementById('agent-log');
+  var logData = s['agent.activity_log'];
+  var logKey = JSON.stringify(logData);
+  if (logKey === lastActivityLog) return; lastActivityLog = logKey;
+  clearEl(el);
+  var entries = [];
+  if (Array.isArray(logData)) { for (var i=0;i<logData.length;i++) { try { entries.push(typeof logData[i]==='string'?JSON.parse(logData[i]):logData[i]); } catch(e){} } }
+  if (entries.length === 0) { var last = s['agent.last_decision']; if (last) entries.push({ts:'now',type:'WAIT',text:last}); }
+  if (entries.length === 0) { var em=document.createElement('div');em.className='feed-empty';em.textContent='Waiting for agent...';el.appendChild(em);return; }
+  for (var i=0;i<entries.length;i++) {
+    var e=entries[i], row=document.createElement('div'); row.className='feed-entry'+(i===0?' active':' stale');
+    var head=document.createElement('div');head.className='feed-head';
+    var ts=document.createElement('span');ts.className='feed-ts';ts.textContent=e.ts||'';head.appendChild(ts);
+    var badge=document.createElement('span');badge.className='feed-badge';
+    var bt=(e.type||'WAIT').toUpperCase();
+    badge.className+=' '+(bt==='ACTION'?'action':bt==='CALL_HUMAN'?'call-human':'wait');
+    badge.textContent=bt.replace('_',' ');head.appendChild(badge);row.appendChild(head);
+    var text=document.createElement('div');text.className='feed-text';
+    var ft=e.text||'';if(ft.indexOf(': ')>0&&ft.indexOf(': ')<30)ft=ft.substring(ft.indexOf(': ')+2);
+    text.textContent=ft;row.appendChild(text);el.appendChild(row);
+  }
+}
+
+/* --- HUMAN --- */
+function updateIntent(s) {
+  var el = document.getElementById('intent'); clearEl(el);
+  var intent = s['human.intent'], urgent = s['human.urgent'], pending = s['human.pending_callout'];
+  var d = document.createElement('div');
+  if (intent) { d.style.cssText='font-size:12px;color:var(--text);'; d.textContent = (urgent?'URGENT: ':'')+intent; }
+  else { d.style.cssText='font-size:11px;color:var(--muted);'; d.textContent = 'No active intent'; }
+  el.appendChild(d);
+  if (pending) {
+    try { var pd = typeof pending === 'string' ? JSON.parse(pending) : pending;
+      var ps = document.createElement('div'); ps.style.cssText='margin-top:6px;font-size:11px;';
+      ps.textContent = 'Pending: ' + (pd.status||'?') + ' — ' + (pd.message||'').substring(0,60);
+      if (pd.status === 'PENDING') ps.style.color = 'var(--yellow)';
+      el.appendChild(ps);
+    } catch(e){}
+  }
+}
+
+/* --- ADJUSTMENTS (track agent changes) --- */
+function updateAdjustments(s) {
+  var el = document.getElementById('adjustments'); clearEl(el);
+  var logData = s['agent.activity_log']; if (!Array.isArray(logData)) { var em=document.createElement('div');em.className='feed-empty';em.textContent='No adjustments yet';el.appendChild(em);return; }
+  var found = 0;
+  for (var i=0;i<logData.length;i++) {
+    try { var e = typeof logData[i]==='string'?JSON.parse(logData[i]):logData[i];
+      if ((e.type||'').toUpperCase() !== 'ACTION') continue;
+      var row=document.createElement('div');row.className='feed-entry'+(i===0?' active':' stale');
+      var head=document.createElement('div');head.className='feed-head';
+      var ts=document.createElement('span');ts.className='feed-ts';ts.textContent=e.ts||'';head.appendChild(ts);
+      var badge=document.createElement('span');badge.className='feed-badge action';badge.textContent='ADJ';head.appendChild(badge);
+      row.appendChild(head);
+      var text=document.createElement('div');text.className='feed-text';
+      var ft=e.text||'';if(ft.indexOf(': ')>0&&ft.indexOf(': ')<30)ft=ft.substring(ft.indexOf(': ')+2);
+      text.textContent=ft;row.appendChild(text);el.appendChild(row); found++;
+    } catch(e){}
+  }
+  if (found===0) { var em=document.createElement('div');em.className='feed-empty';em.textContent='No adjustments this session';el.appendChild(em); }
+}
+
+/* --- SAFETY --- */
+function updateSafety(s) {
+  var el = document.getElementById('safety');
+  if (s['safety.estop']) setIndicator(el,'red','ESTOP');
+  else if (s['printer.oc_nozzle'] && s['printer.oc_nozzle']!==0) setIndicator(el,'red','OC');
+  else if (s['printer.oc_input'] && s['printer.oc_input']!==0) setIndicator(el,'red','OC');
+  else setIndicator(el,'green','safe');
+}
+
+/* --- ALL KEYS --- */
+function formatValue(key, v) {
+  if (v==null) return '-'; if (typeof v==='string'&&v.length>200) return '['+v.length+' chars]';
+  if (Array.isArray(v)) return v.length+' items'; if (typeof v==='object') return JSON.stringify(v).substring(0,60);
+  if (typeof v==='boolean') return v?'true':'false'; return String(v);
+}
 function updateAllKeys(s) {
   var el = document.getElementById('all-keys'); clearEl(el);
   var keys = Object.keys(s).sort();
-  for (var i = 0; i < keys.length; i++) {
-    el.appendChild(makeRow(keys[i], formatValue(keys[i], s[keys[i]])));
-  }
+  for (var i=0;i<keys.length;i++) el.appendChild(makeRow(keys[i], formatValue(keys[i], s[keys[i]])));
 }
 
 setIndicator(document.getElementById('conn'), 'yellow', 'connecting...');
