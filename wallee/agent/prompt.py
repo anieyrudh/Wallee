@@ -13,6 +13,7 @@ DYNAMIC SUFFIX (user message — changes every cycle):
 """
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -52,6 +53,29 @@ def _format_trend_annotation(trend_str) -> str:
     if trend_str.startswith("falling"):
         return f" (↓ {trend_str})"
     return f" ({trend_str})"
+
+
+def _format_whiteboard_value(value, trend_str) -> str:
+    """Format a whiteboard value with inline trend only when it is meaningfully moving."""
+    base = str(value)
+
+    # stable/default trend or no history: No annotation.
+    if not trend_str or not isinstance(trend_str, str):
+        return base
+    if trend_str in {"stable", "insufficient data"}:
+        return base
+
+    # Tiny movement is noise for prompt readability; magnitude < 0.5 gets no annotation.
+    match = re.search(r"([+-]?\d+(?:\.\d+)?)", trend_str)
+    if match:
+        try:
+            magnitude = abs(float(match.group(1)))
+            if magnitude < 0.5:
+                return base
+        except ValueError:
+            pass
+
+    return f"{base}{_format_trend_annotation(trend_str)}"
 
 
 def _summarize_payload(payload, limit: int = MAX_PROMPT_EPISODE_CHARS) -> str:
@@ -192,8 +216,7 @@ def build_user_message(
             elif isinstance(val, (dict, list)):
                 sections.append(f"  {key}: {_summarize_payload(val, MAX_PROMPT_STATE_JSON_CHARS)}")
             else:
-                annotation = _format_trend_annotation(state.get(f"{key}:trend"))
-                sections.append(f"  {key}: {val}{annotation}")
+                sections.append(f"  {key}: {_format_whiteboard_value(val, state.get(f'{key}:trend'))}")
     else:
         sections.append("  (no data)")
 
