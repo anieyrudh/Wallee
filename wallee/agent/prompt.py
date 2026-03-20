@@ -36,6 +36,24 @@ def _trim_text(value, limit: int) -> str:
     return text[: limit - 3].rstrip() + "..."
 
 
+def _format_trend_annotation(trend_str) -> str:
+    """Format a trend string as a compact inline annotation.
+
+    Returns '' if no trend, or ' (→ stable)' / ' (↑ rising +2.1 over 10)' etc.
+    """
+    if not trend_str or not isinstance(trend_str, str):
+        return ""
+    if trend_str == "insufficient data":
+        return ""
+    if trend_str == "stable":
+        return " (→ stable)"
+    if trend_str.startswith("rising"):
+        return f" (↑ {trend_str})"
+    if trend_str.startswith("falling"):
+        return f" (↓ {trend_str})"
+    return f" ({trend_str})"
+
+
 def _summarize_payload(payload, limit: int = MAX_PROMPT_EPISODE_CHARS) -> str:
     if payload in (None, "", {}):
         return ""
@@ -153,9 +171,13 @@ def build_user_message(
         sections.append("\n".join(lines))
 
     # 3. Whiteboard sensor data (no images — just numbers and states)
+    # Trend keys (e.g., "printer.temp_nozzle:trend") are inlined with the value
+    # instead of shown as separate rows, so the LLM sees "215.2°C (↑ rising +2.1)"
     sections.append("=== WHITEBOARD STATE ===")
     if state:
         for key in sorted(state.keys()):
+            if key.endswith(":trend"):
+                continue  # inlined with the base key below
             if key.startswith("camera.") and key.endswith("_frame"):
                 continue
             if key == "human.image":
@@ -170,7 +192,8 @@ def build_user_message(
             elif isinstance(val, (dict, list)):
                 sections.append(f"  {key}: {_summarize_payload(val, MAX_PROMPT_STATE_JSON_CHARS)}")
             else:
-                sections.append(f"  {key}: {val}")
+                annotation = _format_trend_annotation(state.get(f"{key}:trend"))
+                sections.append(f"  {key}: {val}{annotation}")
     else:
         sections.append("  (no data)")
 
