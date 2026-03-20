@@ -19,6 +19,7 @@ from wallee.agent.llm_client import LLMClient
 from wallee.agent.parser import Decision, parse_llm_output
 from wallee.agent.prompt import build_system_prompt, build_user_message, build_messages
 from wallee.agent.change_detector import ExternalChangeDetector
+from wallee.agent.state_manager import AgentStateManager
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.registry import ToolRegistry
 
@@ -59,7 +60,8 @@ class AgentLoop:
         ledger=None,
         data_dir: Path | None = None,
     ):
-        self.wb = whiteboard
+        self.wb = whiteboard  # reads only — use self.state for writes
+        self.state = AgentStateManager(whiteboard)  # controlled write interface
         self.llm = llm
         self.tools = tools
         self.knowledge_dir = knowledge_dir
@@ -338,7 +340,7 @@ class AgentLoop:
                     f"Print complete: {filename}. How did it turn out? Reply: great, ok, or failed",
                     "info",
                 )
-                self.wb.publish("agent.awaiting_feedback", json.dumps({
+                self.state.publish("agent.awaiting_feedback", json.dumps({
                     "filename": filename,
                     "completed_at": time.time(),
                 }), ttl=3600)  # Wait up to 1 hour for feedback
@@ -392,7 +394,7 @@ class AgentLoop:
         """Background thread: publish heartbeat independently of main loop."""
         while self._running:
             try:
-                self.wb.publish("agent.heartbeat", time.monotonic(), ttl=self.heartbeat_ttl)
+                self.state.publish("agent.heartbeat", time.monotonic(), ttl=self.heartbeat_ttl)
             except Exception as e:
                 logger.error(f"Heartbeat publish failed: {e}")
             time.sleep(self.heartbeat_interval)
@@ -479,7 +481,7 @@ class AgentLoop:
                 logger.debug(f"Engine rejection (not cooldown): {tool} — {reason}")
                 continue
 
-            self.wb.publish("agent.cooldown", json.dumps({
+            self.state.publish("agent.cooldown", json.dumps({
                 "tool": tool,
                 "until": time.time() + 90,
                 "reason": "Human rejected this action",
@@ -687,11 +689,11 @@ class AgentLoop:
 
                 # Agent investigated — clear external pause if set
                 if self.wb.read("agent.external_pause"):
-                    self.wb.r.delete("agent.external_pause")
+                    self.state.delete("agent.external_pause")
                     logger.info("External pause cleared — agent called human to investigate")
 
                 # Publish pending callout
-                self.wb.publish("human.pending_callout", json.dumps({
+                self.state.publish("human.pending_callout", json.dumps({
                     "hash": msg_hash,
                     "message": decision.message[:200],
                     "time": time.time(),
@@ -703,7 +705,7 @@ class AgentLoop:
 
         # Publish to whiteboard for dashboard
         if summary:
-            self.wb.publish("agent.last_decision", summary, ttl=self.last_decision_ttl)
+            self.state.publish("agent.last_decision", summary, ttl=self.last_decision_ttl)
             status = decision.type
             if decision.type == "ACTION_CHAIN":
                 status = "ACTION"
@@ -716,8 +718,7 @@ class AgentLoop:
                 "reasoning": reasoning[:200] if reasoning else "",
                 "changes": self._extract_changes(decision, state),
             })
-            self.wb.r.lpush("agent.activity_log", entry)
-            self.wb.r.ltrim("agent.activity_log", 0, 19)
+            self.state.list_push("agent.activity_log", entry, max_len=20)
 
     # ── Main cycle ──────────────────────────────────────────────────
 
@@ -754,7 +755,7 @@ class AgentLoop:
                 feedback_filename = data.get("filename", "unknown")
                 from wallee.tools.builtins.remember import remember
                 remember(observation=f"Print feedback: {feedback_filename} rated '{intent_text}' by human")
-                self.wb.r.delete("agent.awaiting_feedback")
+                self.state.delete("agent.awaiting_feedback")
                 self._last_responded_intent = raw_intent
                 logger.info(f"Recorded print feedback: {feedback_filename} = {intent_text}")
             except Exception as e:
@@ -770,7 +771,7 @@ class AgentLoop:
                     items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
                     if items and isinstance(items, list):
                         next_file = items.pop(0)
-                        self.wb.publish("print.queue", json.dumps(items), ttl=86400)
+                        self.state.publish("print.queue", json.dumps(items), ttl=86400)
                         logger.info(f"Auto-starting next queued print: {next_file}")
                         decision = Decision(
                             type="ACTION",
@@ -792,7 +793,7 @@ class AgentLoop:
         if external_changes:
             for change in external_changes:
                 if "printer.state" in change and "PAUSED" in change:
-                    self.wb.publish("agent.external_pause", "true", ttl=600)
+                    self.state.publish("agent.external_pause", "true", ttl=600)
                     logger.info("External pause detected — blocking automatic resume until investigated")
 
         # 6. Load knowledge
@@ -874,16 +875,16 @@ class AgentLoop:
         # raw key must be cleared so it doesn't anchor future cycles' reasoning.
         if raw_intent and raw_intent != self._last_responded_intent:
             self._last_responded_intent = raw_intent
-            self.wb.r.delete("human.intent")
+            self.state.delete("human.intent")
             # Human responded — clear external pause block (they've acknowledged the situation)
             if self.wb.read("agent.external_pause"):
-                self.wb.r.delete("agent.external_pause")
+                self.state.delete("agent.external_pause")
                 logger.info("External pause cleared — human has responded")
             logger.info(f"Human intent consumed and cleared: {raw_intent[:50]}")
 
         # 19. Clear human image after the agent has seen it (one-off, not persistent)
         if human_image:
-            self.wb.r.delete("human.image")
+            self.state.delete("human.image")
             logger.info("Human image consumed and cleared from whiteboard")
 
         return raw_response
