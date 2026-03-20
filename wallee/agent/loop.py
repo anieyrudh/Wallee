@@ -413,6 +413,11 @@ class AgentLoop:
     _ENGINE_REJECTION_PATTERNS = [
         "toctou", "expired", "chain_skipped", "precheck", "is required",
         "empty parameters", "outside bounds", "unknown tool", "outside safe range",
+        "cannot resume", "cannot pause", "cannot cancel", "cannot start",
+        "cannot move", "cannot set", "cannot home", "cannot disable",
+        "cannot extrude", "cannot retract",
+        "not paused", "not printing", "not idle",
+        "out of range", "503", "timeout", "not configured",
     ]
 
     def _is_human_rejection(self, reason: str) -> bool:
@@ -452,10 +457,10 @@ class AgentLoop:
 
             self.wb.publish("agent.cooldown", json.dumps({
                 "tool": tool,
-                "until": time.time() + 180,
+                "until": time.time() + 90,
                 "reason": "Human rejected this action",
-            }), ttl=180)
-            logger.info(f"Cooldown published: {tool} rejected by human, suppressing for 180s")
+            }), ttl=90)
+            logger.info(f"Cooldown published: {tool} rejected by human, suppressing for 90s")
             return  # Only publish for the most recent human rejection
 
     def _check_cooldown(self, decision) -> "Decision":
