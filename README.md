@@ -2,11 +2,34 @@
 
 ![Wallee logo](assets/wallee-logo.png)
 
-Autonomous policy loop for monitored 3D-printer control.
+An architecture for safely letting LLMs operate physical hardware.
 
-## What is Wallee
+## The problem
 
-Wallee is a Python system that watches a printer through telemetry, cameras, and human input, then asks an LLM to propose the next step. The LLM does not talk to hardware directly; it produces a structured decision that the engine validates before anything is dispatched. Live state is shared through Redis, durable action history lives in SQLite, and a separate safety kernel process can pause the printer if heartbeats fail or electrical faults appear. The current repository targets a Prusa Core One+ on a Raspberry Pi 5, but the architecture is built around device packs and a tool registry rather than hardwiring everything into the loop.
+LLMs can reason about physical systems — diagnose faults from sensor data,
+plan interventions, explain what they're doing to a human operator. But they
+hallucinate, they're inconsistent, and they can't be trusted with direct
+hardware access.
+
+The question isn't whether LLMs are useful for physical control.
+It's how to let them reason without letting them touch.
+
+## The approach
+
+Let the LLM reason. Don't let it execute.
+
+Wallee separates reasoning from execution. An LLM observes sensor data and
+proposes what to do next as structured JSON. Deterministic code validates
+every proposal before it reaches hardware. A safety kernel watches
+independently as a separate OS process. If the agent crashes, safety
+keeps running.
+
+No prompt engineering is responsible for safety. The architecture is.
+
+The current implementation operates a Prusa Core One+ 3D printer on a
+Raspberry Pi 5, but the core — agent loop, engine, safety kernel, whiteboard,
+ledger — contains zero hardware-specific logic. Printer knowledge lives
+entirely in swappable device packs.
 
 ## Architecture diagram
 
@@ -166,4 +189,8 @@ After those gates, the engine writes an in-flight diary record, marks the action
 
 ## Thesis
 
-Wallee is an experiment in separating policy from execution for physical systems. The contribution is not "an LLM controls hardware," but "an LLM can sit inside a constrained control stack where state, validation, recovery, and operator escalation remain deterministic and inspectable."
+The contribution is not "an LLM controls a printer." It is: LLMs can
+reason usefully about physical systems if you build an architecture that
+doesn't trust them. Separate the reasoning (flexible, probabilistic,
+sometimes wrong) from the execution (deterministic, validated, safe).
+Let the model think. Let the code decide.
