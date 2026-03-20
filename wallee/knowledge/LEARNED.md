@@ -8,16 +8,7 @@ Use the smallest reversible lever that matches the physics. If the problem looks
 
 ## Signal interpretation
 
-Think in relationships. Falling flow with rising resistance means the path is constricting.
-Falling flow with normal motion but a loaded spool sensor suggests feed-path resistance.
-Rising heatbreak temperature with worsening extrusion means heat is moving upstream faster
-than cooling removes it. Real-vs-interpolated position error means the machine did not go
-where firmware expected; that is a motion problem, not a pure extrusion problem. Voltage sag
-with weak heating means power delivery is limiting temperature control. A vision defect
-without any matching physical signal is lower-confidence than one supported by temperature,
-current, flow, RPM, or position. But when any single signal is unambiguously severe — not
-borderline, not noisy, but obviously wrong — secure first, investigate after. Cross-signal
-confirmation matters for subtle problems, not for obvious ones.
+Think in relationships. Falling flow with rising resistance means the path is constricting. Falling flow with normal motion but a loaded spool sensor suggests feed-path resistance. Rising heatbreak temperature with worsening extrusion means heat is moving upstream faster than cooling removes it. Real-vs-interpolated position error means the machine did not go where firmware expected; that is a motion problem, not a pure extrusion problem. Voltage sag with weak heating means power delivery is limiting temperature control. A vision defect without any matching physical signal is lower-confidence than one supported by temperature, current, flow, RPM, or position. But when any single signal is unambiguously severe — not borderline, not noisy, but obviously wrong — secure first, investigate after. Cross-signal confirmation matters for subtle problems, not for obvious ones. Then again, in some instances, it's ok to trust your gut. 
 
 ## Material intuition
 
