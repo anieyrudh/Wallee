@@ -299,3 +299,37 @@ class TestRunLoop:
         t.join(timeout=1)
 
         assert len(msgs) == 0  # both healthy, no alerts
+
+
+class TestSafetyKernelSubprocess:
+    """Verify the safety kernel runs as an independent OS process."""
+
+    def test_kernel_main_is_importable(self):
+        """kernel_main.py must be importable as a module."""
+        from wallee.safety import kernel_main
+        assert hasattr(kernel_main, "run_kernel")
+        assert hasattr(kernel_main, "_estop_printer")
+
+    def test_kernel_main_runs_as_script(self):
+        """Safety kernel must be launchable as a separate process."""
+        import subprocess, sys
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "wallee.safety.kernel_main", "--help"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, _ = proc.communicate(timeout=10)
+        assert proc.returncode == 0
+        assert b"redis-url" in stdout
+
+    def test_main_py_uses_subprocess_not_thread(self):
+        """main.py must launch safety kernel via subprocess, not threading."""
+        import os
+        main_path = os.path.join(os.path.dirname(__file__), "..", "wallee", "main.py")
+        with open(main_path) as f:
+            content = f.read()
+
+        assert "subprocess.Popen" in content
+        assert "kernel_main" in content
+        # Thread-based safety launch must be gone
+        assert "Thread(target=safety.run" not in content

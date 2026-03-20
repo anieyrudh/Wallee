@@ -12,6 +12,7 @@ Boot order (per spec):
 
 import logging
 import signal
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -22,7 +23,7 @@ from wallee.ledger.db import Ledger
 from wallee.ledger.diary import Diary
 from wallee.engine.dispatch import Engine
 from wallee.engine.reconcile import reconcile
-from wallee.safety.kernel import SafetyKernel
+# SafetyKernel now runs as a separate OS process (wallee.safety.kernel_main)
 from wallee.tools.registry import ToolRegistry
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.loop import AgentLoop
@@ -97,14 +98,16 @@ def main():
 
     telegram_bot = None
 
-    # 3. Safety kernel starts FIRST
-    def _call_human_fn(msg, severity="critical"):
-        _deliver_safety_message(msg, severity, telegram_bot, cfg.data_dir / "outbox")
-
-    safety = SafetyKernel(wb, call_human_fn=_call_human_fn)
-    safety_thread = threading.Thread(target=safety.run, daemon=True, name="safety-kernel")
-    safety_thread.start()
-    logger.info("Safety kernel started (heartbeat monitor)")
+    # 3. Safety kernel starts FIRST — as a separate OS process
+    safety_proc = subprocess.Popen(
+        [sys.executable, "-m", "wallee.safety.kernel_main",
+         "--redis-url", str(cfg.redis_url),
+         "--printer-host", str(cfg.prusalink_host or ""),
+         "--printer-api-key", str(cfg.prusalink_api_key or ""),
+         "--check-interval", "2.0",
+         "--heartbeat-timeout", "30.0"],
+    )
+    logger.info(f"Safety kernel started as separate process (PID {safety_proc.pid})")
 
     # 4. Ledger + reconcile
     ledger_path = cfg.data_dir / "ledger.db"
@@ -173,7 +176,7 @@ def main():
         logger.info(f"Received signal {signum}, shutting down...")
         agent.stop()
         engine.stop()
-        safety.stop()
+        safety_proc.terminate()
         registry.stop_sensors()
         ledger.close()
         sys.exit(0)
@@ -216,7 +219,7 @@ def main():
                 call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox",
                            telegram_fn=None)  # don't recurse
             agent.call_human_fn = _telegram_call_human
-            safety.call_human_fn = _telegram_call_human
+            # Safety kernel runs as separate process — communicates via Redis, not fn injection
             from wallee.tools.builtins.call_human_tool import set_call_human_fn
             set_call_human_fn(_telegram_call_human)
             logger.info("Telegram bot started and wired to agent + safety kernel + call_human tool")
