@@ -38,14 +38,28 @@ graph TD
 
 The LLM proposes actions. The engine validates every proposal against safety constraints before dispatching to hardware. The safety kernel runs as an independent process and can ESTOP the printer even if the agent crashes.
 
-## Key design principles
+## Everything is an API
 
-- Untrusted LLM: the model proposes structured actions, but hardware execution stays behind deterministic code.
-- One action per cycle: the agent repeatedly observes, reasons, acts or waits, then re-observes.
-- Personality not rules: `SOUL.md` shapes decision style and priorities, but it does not enforce safety.
-- Two-tier knowledge: `LEARNED.md` and the live observations file stay resident; `REFERENCE.md` is retrieved on demand through `lookup_issue`.
-- Hardware-oriented extension points: the prompt builder, ledger, engine, and whiteboard are generic, while device specifics live in packs and built-in tools.
-- Structural safety: queueing, deadlines, approvals, ESTOP checks, and TOCTOU prechecks live in code, not prompt text.
+To the agent, the world is a set of APIs:
+
+**Hardware API** — sensors publish state to the whiteboard, actuators accept
+commands through the engine. `set_temperature(target=210, heater="nozzle")`
+is an API call. The engine validates it before dispatch, exactly like an API
+gateway validates requests before forwarding to a backend.
+
+**Human API** — the operator is a service endpoint. `call_human("I need you
+to remove the blob from my nozzle", severity="warning")` is an API call with
+high latency and physical capabilities the hardware API lacks. It goes through
+the same engine, gets logged in the same ledger, returns a result.
+
+**Knowledge API** — `lookup_issue("stringing")` queries a local reference.
+`web_search("PETG moisture symptoms")` queries the internet. `remember("PLA
+strings above 212°C on this printer")` writes to persistent memory. All are
+tools with params and responses.
+
+The agent doesn't know the difference between calling hardware, calling a human,
+or calling a knowledge service. They're all tools. The engine knows the difference
+— hardware tools go through safety gates, human and knowledge tools bypass them.
 
 ## Components
 
