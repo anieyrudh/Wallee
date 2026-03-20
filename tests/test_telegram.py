@@ -131,8 +131,7 @@ class TestTelegramAuth:
         bot._record_approval("action-123", "APPROVE", "12345")
         bot._acknowledge_pending_callout()
 
-        pending = json.loads(wb.read("human.pending_callout"))
-        assert pending["status"] == "ACKNOWLEDGED"
+        assert wb.read("human.pending_callout") is None
 
     def test_estop_command_publishes_safety_key(self):
         wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))

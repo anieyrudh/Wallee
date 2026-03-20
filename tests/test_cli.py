@@ -93,7 +93,7 @@ class TestPending:
 
 
 class TestPendingCalloutAck:
-    def test_approve_acknowledges_pending_callout(self, cli, wb, ledger):
+    def test_approve_clears_pending_callout(self, cli, wb, ledger):
         import json
         wb.publish("human.pending_callout", json.dumps({
             "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
@@ -101,10 +101,9 @@ class TestPendingCalloutAck:
         aid = ledger.propose("tool_a", {}, "test", "grp", requires_approval=True)
         ledger.set_status(aid, "WAITING_APPROVAL")
         cli.process_command(f"approve {aid}")
-        pending = json.loads(wb.read("human.pending_callout"))
-        assert pending["status"] == "ACKNOWLEDGED"
+        assert wb.read("human.pending_callout") is None
 
-    def test_reject_acknowledges_pending_callout(self, cli, wb, ledger):
+    def test_reject_clears_pending_callout(self, cli, wb, ledger):
         import json
         wb.publish("human.pending_callout", json.dumps({
             "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
@@ -112,17 +111,15 @@ class TestPendingCalloutAck:
         aid = ledger.propose("tool_a", {}, "test", "grp", requires_approval=True)
         ledger.set_status(aid, "WAITING_APPROVAL")
         cli.process_command(f"reject {aid}")
-        pending = json.loads(wb.read("human.pending_callout"))
-        assert pending["status"] == "ACKNOWLEDGED"
+        assert wb.read("human.pending_callout") is None
 
-    def test_intent_acknowledges_pending_callout(self, cli, wb):
+    def test_intent_clears_pending_callout(self, cli, wb):
         import json
         wb.publish("human.pending_callout", json.dumps({
             "hash": "abc", "message": "help", "time": 1, "status": "PENDING",
         }), ttl=60)
         cli.process_command("intent fix the issue")
-        pending = json.loads(wb.read("human.pending_callout"))
-        assert pending["status"] == "ACKNOWLEDGED"
+        assert wb.read("human.pending_callout") is None
 
 
 class TestESTOP:

@@ -622,34 +622,22 @@ class TelegramBot:
             entry = _json.dumps({"ts": _time.strftime("%H:%M:%S"), "text": text})
             self.wb.r.lpush("human.intent_log", entry)
             self.wb.r.ltrim("human.intent_log", 0, 9)
-            # Acknowledge any pending callout when human responds
-            pending = self.wb.read("human.pending_callout")
-            if pending:
-                import json as _json2
-                try:
-                    data = _json2.loads(pending) if isinstance(pending, str) else pending
-                    data["status"] = "ACKNOWLEDGED"
-                    self.wb.publish("human.pending_callout", _json2.dumps(data), ttl=self.intent_ttl)
-                except Exception:
-                    pass
+            # Clear pending callout when human responds with any intent
+            if self.wb.read("human.pending_callout"):
+                self.wb.r.delete("human.pending_callout")
+                logger.info("Pending callout cleared after human intent")
         if self._wake_agent:
             self._wake_agent()
         await update.message.reply_text(f"📝 Intent set: {text}")
 
     def _acknowledge_pending_callout(self):
-        """Mark any pending callout as ACKNOWLEDGED on the whiteboard."""
+        """Clear pending callout from whiteboard when human responds."""
         if not self.wb:
             return
         pending = self.wb.read("human.pending_callout")
-        if not pending:
-            return
-        try:
-            data = json.loads(pending) if isinstance(pending, str) else pending
-            if isinstance(data, dict) and data.get("status") == "PENDING":
-                data["status"] = "ACKNOWLEDGED"
-                self.wb.publish("human.pending_callout", json.dumps(data), ttl=self.intent_ttl)
-        except Exception:
-            pass
+        if pending:
+            self.wb.r.delete("human.pending_callout")
+            logger.info("Pending callout cleared after human response")
 
     # --- Helpers ---
 

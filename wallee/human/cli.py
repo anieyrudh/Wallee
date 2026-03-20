@@ -53,18 +53,11 @@ Wallee CLI Commands:
 """)
 
     def _acknowledge_pending_callout(self):
-        """Mark any pending callout as ACKNOWLEDGED on the whiteboard."""
+        """Clear pending callout from whiteboard when human responds."""
         pending = self.wb.read("human.pending_callout")
-        if not pending:
-            return
-        try:
-            import json as _json
-            data = _json.loads(pending) if isinstance(pending, str) else pending
-            if isinstance(data, dict) and data.get("status") == "PENDING":
-                data["status"] = "ACKNOWLEDGED"
-                self.wb.publish("human.pending_callout", _json.dumps(data), ttl=self.intent_ttl)
-        except Exception:
-            pass
+        if pending:
+            self.wb.r.delete("human.pending_callout")
+            logger.info("Pending callout cleared after human response")
 
     def _handle_intent(self, args: str):
         if not args:
