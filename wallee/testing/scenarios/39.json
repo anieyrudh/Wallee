@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.92,
-        "vision.confidence": 0.88,
-        "vision.description": "Walls are clean and dimensions look consistent so far"
+        "vision.confidence": 0.88
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

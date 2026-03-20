@@ -19,8 +19,7 @@
         "vision.normal": 0.9,
         "vision.confidence": 0.87,
         "vision.stringing": 0.12,
-        "vision.spaghetti": 0.0,
-        "vision.description": "PETG extrusion looks glossy but controlled, with no meaningful defect pattern"
+        "vision.spaghetti": 0.0
     },
     "job_context": "# Current Job\nFile: cable_chain.bgcode\nMaterial: PETG\n",
     "episode": [],

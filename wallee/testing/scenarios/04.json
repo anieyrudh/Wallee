@@ -19,16 +19,20 @@
         "vision.normal": 0.91,
         "vision.confidence": 0.86,
         "vision.stringing": 0.04,
-        "vision.spaghetti": 0.0,
-        "vision.description": "Completed part is stable on the plate while the printer cools down"
+        "vision.spaghetti": 0.0
     },
     "job_context": "# Current Job\nFile: sensor_bracket.bgcode\nMaterial: PLA\n",
     "episode": [],
     "human_intent": null,
     "pending_callout": null,
-    "expected_type": ["WAIT", "ACTION"],
+    "expected_type": [
+        "WAIT",
+        "ACTION"
+    ],
     "expected_tool": null,
-    "acceptable_tools": ["remember"],
+    "acceptable_tools": [
+        "remember"
+    ],
     "unacceptable_tools": [
         "pause_print",
         "resume_print",

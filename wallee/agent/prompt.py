@@ -182,12 +182,22 @@ def build_user_message(
     time_in_phase = state.get("job.time_in_phase_s", 0)
     sections.append(f"=== PHASE: {phase} ({detail}) — {time_in_phase}s ===")
 
-    # 1b. Vision analysis (from Gemini Flash Lite sensor)
+    # 1b. Vision analysis — scores only, no description
     vision_status = state.get("vision.status", "NO_DATA")
-    vision_desc = state.get("vision.description", "")
-    vision_conf = state.get("vision.confidence", "")
     if vision_status != "NO_DATA":
-        sections.append(f"=== VISION: {vision_status} (conf: {vision_conf}) — {vision_desc} ===")
+        # Show top 3 non-zero defect scores for context
+        defect_scores = {}
+        for key, val in state.items():
+            if key.startswith("vision.nozzle.") and key.split(".")[-1] not in ("status", "confidence", "normal"):
+                try:
+                    score = float(val)
+                    if score > 0.1:
+                        defect_scores[key.split(".")[-1]] = score
+                except (ValueError, TypeError):
+                    pass
+        top_scores = sorted(defect_scores.items(), key=lambda x: -x[1])[:3]
+        score_str = ", ".join(f"{k}={v:.1f}" for k, v in top_scores) if top_scores else "all clear"
+        sections.append(f"=== VISION: {vision_status} — {score_str} ===")
 
     # 2. External changes
     if external_changes:

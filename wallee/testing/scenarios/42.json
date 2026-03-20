@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.31,
         "vision.confidence": 0.72,
-        "vision.stringing": 0.48,
-        "vision.description": "Minor cosmetic issues remain but nothing clearly warrants cancellation"
+        "vision.stringing": 0.48
     },
     "job_context": "# Current Job\nFile: pla_tray.bgcode\nMaterial: PLA\n",
     "episode": [

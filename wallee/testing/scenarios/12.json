@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.34,
         "vision.confidence": 0.9,
-        "vision.blob": 0.82,
-        "vision.description": "Molten purge blob is hanging from the nozzle during the wipe sequence"
+        "vision.blob": 0.82
     },
     "job_context": "# Current Job\nFile: hinge_test.bgcode\nMaterial: PLA\n",
     "episode": [],

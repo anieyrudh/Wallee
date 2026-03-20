@@ -19,8 +19,7 @@
         "vision.normal": 0.84,
         "vision.confidence": 0.83,
         "vision.stringing": 0.22,
-        "vision.overextrusion": 0.12,
-        "vision.description": "Quality has improved after the successful first correction and should be observed"
+        "vision.overextrusion": 0.12
     },
     "job_context": "# Current Job\nFile: pla_handle.bgcode\nMaterial: PLA\n",
     "episode": [

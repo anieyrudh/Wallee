@@ -19,8 +19,7 @@
         "vision.normal": 0.21,
         "vision.confidence": 0.92,
         "vision.stringing": 0.84,
-        "vision.spaghetti": 0.03,
-        "vision.description": "Thin wisps are stretching between travel moves around the upper deck"
+        "vision.spaghetti": 0.03
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

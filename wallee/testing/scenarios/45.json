@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.2,
         "vision.confidence": 0.9,
-        "vision.stringing": 0.79,
-        "vision.description": "Clear stringing persists on travel moves after a malformed flow adjustment attempt"
+        "vision.stringing": 0.79
     },
     "job_context": "# Current Job\nFile: pla_clip.bgcode\nMaterial: PLA\n",
     "episode": [

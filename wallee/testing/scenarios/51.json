@@ -19,8 +19,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.05,
         "vision.confidence": 0.96,
-        "vision.blob": 0.92,
-        "vision.description": "Large blob remains on the nozzle after an emergency stop"
+        "vision.blob": 0.92
     },
     "job_context": "# Current Job\nFile: pla_fixture.bgcode\nMaterial: PLA\n",
     "episode": [],

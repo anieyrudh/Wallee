@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.9,
-        "vision.confidence": 0.89,
-        "vision.description": "Nozzle is clean again and extrusion has returned to normal"
+        "vision.confidence": 0.89
     },
     "job_context": "# Current Job\nFile: tpu_grommet.bgcode\nMaterial: TPU\n",
     "episode": [

@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.79,
-        "vision.confidence": 0.77,
-        "vision.description": "Print looks intact even though the machine is paused unexpectedly"
+        "vision.confidence": 0.77
     },
     "job_context": "# Current Job\nFile: pla_spacer.bgcode\nMaterial: PLA\n",
     "episode": [],

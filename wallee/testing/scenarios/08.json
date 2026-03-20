@@ -18,8 +18,7 @@
         "vision.status": "NORMAL",
         "vision.normal": 0.88,
         "vision.confidence": 0.83,
-        "vision.stringing": 0.14,
-        "vision.description": "TPU bead is slow but consistent, with expected soft material behavior"
+        "vision.stringing": 0.14
     },
     "job_context": "# Current Job\nFile: gasket_pad.bgcode\nMaterial: TPU\n",
     "episode": [],

@@ -19,8 +19,7 @@
         "vision.normal": 0.42,
         "vision.confidence": 0.71,
         "vision.stringing": 0.22,
-        "vision.underextrusion": 0.18,
-        "vision.description": "Very small cosmetic irregularities are visible but the print has barely started"
+        "vision.underextrusion": 0.18
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.18,
         "vision.confidence": 0.86,
-        "vision.stringing": 0.78,
-        "vision.description": "Camera claims strong stringing even though the thermal and motion data are perfectly stable"
+        "vision.stringing": 0.78
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

@@ -19,8 +19,7 @@
         "vision.normal": 0.14,
         "vision.confidence": 0.87,
         "vision.stringing": 0.71,
-        "vision.overextrusion": 0.63,
-        "vision.description": "There are wispy travel strings plus slightly swollen outer walls"
+        "vision.overextrusion": 0.63
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.48,
         "vision.confidence": 0.78,
-        "vision.stringing": 0.36,
-        "vision.description": "A few small wisps are visible near the final top layers"
+        "vision.stringing": 0.36
     },
     "job_context": "# Current Job\nFile: petg_cap.bgcode\nMaterial: PETG\n",
     "episode": [],

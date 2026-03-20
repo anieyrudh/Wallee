@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "DEFECT",
         "vision.normal": 0.16,
-        "vision.confidence": 0.82,
-        "vision.description": "Unknown chalky bubbly residue is collecting near the seam and does not match a common defect class"
+        "vision.confidence": 0.82
     },
     "job_context": "# Current Job\nFile: petg_fixture.bgcode\nMaterial: PETG\n",
     "episode": [

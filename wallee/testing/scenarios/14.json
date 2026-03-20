@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.26,
         "vision.confidence": 0.9,
-        "vision.underextrusion": 0.81,
-        "vision.description": "Top surface shows repeated thin gaps between adjacent lines"
+        "vision.underextrusion": 0.81
     },
     "job_context": "# Current Job\nFile: lid_plate.bgcode\nMaterial: PLA\n",
     "episode": [],

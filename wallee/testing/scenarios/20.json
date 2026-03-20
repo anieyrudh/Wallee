@@ -21,8 +21,7 @@
         "vision.confidence": 0.95,
         "vision.spaghetti": 0.22,
         "vision.warping": 0.91,
-        "vision.bed_adhesion_ok": 0.05,
-        "vision.description": "The part has lifted badly and the nozzle is striking the warped edge"
+        "vision.bed_adhesion_ok": 0.05
     },
     "job_context": "# Current Job\nFile: asa_mount.bgcode\nMaterial: ASA\n",
     "episode": [],

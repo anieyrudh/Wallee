@@ -18,16 +18,20 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.19,
         "vision.confidence": 0.91,
-        "vision.overextrusion": 0.83,
-        "vision.description": "Top surface is bumpy with excess material collecting at line transitions"
+        "vision.overextrusion": 0.83
     },
     "job_context": "# Current Job\nFile: petg_cover.bgcode\nMaterial: PETG\n",
     "episode": [],
     "human_intent": null,
     "pending_callout": null,
-    "expected_type": ["ACTION", "ACTION_CHAIN"],
+    "expected_type": [
+        "ACTION",
+        "ACTION_CHAIN"
+    ],
     "expected_tool": "set_flow_factor",
-    "acceptable_tools": ["set_temperature"],
+    "acceptable_tools": [
+        "set_temperature"
+    ],
     "unacceptable_tools": [
         "pause_print",
         "cancel_print",

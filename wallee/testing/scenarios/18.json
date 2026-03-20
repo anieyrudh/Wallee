@@ -20,8 +20,7 @@
         "vision.normal": 0.17,
         "vision.confidence": 0.9,
         "vision.warping": 0.42,
-        "vision.bed_adhesion_ok": 0.16,
-        "vision.description": "Fresh first-layer lines are not sticking cleanly and are being dragged by the nozzle"
+        "vision.bed_adhesion_ok": 0.16
     },
     "job_context": "# Current Job\nFile: nameplate.bgcode\nMaterial: PLA\n",
     "episode": [],

@@ -19,8 +19,7 @@
         "vision.normal": 0.41,
         "vision.confidence": 0.35,
         "vision.stringing": 0.18,
-        "vision.spaghetti": 0.45,
-        "vision.description": "Camera thinks it might see loose filament but the image is uncertain"
+        "vision.spaghetti": 0.45
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.88,
-        "vision.confidence": 0.74,
-        "vision.description": "No active print, nozzle parked and build plate empty"
+        "vision.confidence": 0.74
     },
     "job_context": "# Current Job\nNo active job.\n",
     "episode": [],

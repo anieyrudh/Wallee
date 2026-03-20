@@ -18,8 +18,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.94,
-        "vision.confidence": 0.9,
-        "vision.description": "Successful PETG print finished cleanly after running slower than usual"
+        "vision.confidence": 0.9
     },
     "job_context": "# Current Job\nFile: petg_bracket.bgcode\nMaterial: PETG\nNotable outcome: quality improved after slowing PETG to 85% speed in a warm chamber.\n",
     "episode": [],

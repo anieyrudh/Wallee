@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.24,
         "vision.confidence": 0.88,
-        "vision.warping": 0.72,
-        "vision.description": "Corners are starting to curl and a speed reduction is still appropriate"
+        "vision.warping": 0.72
     },
     "job_context": "# Current Job\nFile: asa_hook.bgcode\nMaterial: ASA\n",
     "episode": [

@@ -18,8 +18,7 @@
     "vision_state": {
         "vision.status": "DEFECT",
         "vision.normal": 0.14,
-        "vision.confidence": 0.81,
-        "vision.description": "Matte white fuzzy residue is collecting on ASA overhangs and does not fit the known defect labels"
+        "vision.confidence": 0.81
     },
     "job_context": "# Current Job\nFile: asa_cover.bgcode\nMaterial: ASA\n",
     "episode": [],

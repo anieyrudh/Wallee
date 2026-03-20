@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.22,
         "vision.confidence": 0.88,
-        "vision.stringing": 0.74,
-        "vision.description": "PETG is showing repeated stringing and only needs a modest temperature reduction"
+        "vision.stringing": 0.74
     },
     "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
     "episode": [

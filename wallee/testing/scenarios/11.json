@@ -19,8 +19,7 @@
         "vision.normal": 0.08,
         "vision.confidence": 0.95,
         "vision.spaghetti": 0.14,
-        "vision.blob": 0.91,
-        "vision.description": "A glossy filament blob is building around the nozzle sock and dragging across the print"
+        "vision.blob": 0.91
     },
     "job_context": "# Current Job\nFile: duct_adapter.bgcode\nMaterial: PETG\n",
     "episode": [],

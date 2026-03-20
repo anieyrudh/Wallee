@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.07,
         "vision.confidence": 0.93,
-        "vision.blob": 0.9,
-        "vision.description": "The same nozzle blob is still present while the print remains paused"
+        "vision.blob": 0.9
     },
     "job_context": "# Current Job\nFile: tpu_grommet.bgcode\nMaterial: TPU\n",
     "episode": [

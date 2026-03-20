@@ -19,8 +19,7 @@
         "vision.normal": 0.05,
         "vision.confidence": 0.96,
         "vision.stringing": 0.61,
-        "vision.spaghetti": 0.94,
-        "vision.description": "Extrusion is flying in midair and no longer anchored to the part"
+        "vision.spaghetti": 0.94
     },
     "job_context": "# Current Job\nFile: bracket_array.bgcode\nMaterial: PLA\n",
     "episode": [],

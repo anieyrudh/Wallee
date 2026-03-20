@@ -21,8 +21,7 @@
         "vision.status": "NORMAL",
         "vision.normal": 0.92,
         "vision.confidence": 0.89,
-        "vision.warping": 0.08,
-        "vision.description": "ASA walls are smooth and stable inside a warm enclosure"
+        "vision.warping": 0.08
     },
     "job_context": "# Current Job\nFile: asa_enclosure_panel.bgcode\nMaterial: ASA\n",
     "episode": [],

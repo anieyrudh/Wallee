@@ -21,8 +21,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.9,
-        "vision.confidence": 0.72,
-        "vision.description": "Build plate is clear and ready for the next queued file"
+        "vision.confidence": 0.72
     },
     "job_context": "# Current Job\nNo active job.\n# Queue\n1. /usb/gridfinity_base.bgcode\n2. /usb/spare_hook.bgcode\n",
     "episode": [],

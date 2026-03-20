@@ -20,8 +20,7 @@
         "vision.confidence": 0.9,
         "vision.stringing": 0.05,
         "vision.spaghetti": 0.01,
-        "vision.bed_adhesion_ok": 0.94,
-        "vision.description": "Even PLA perimeters with clean layer stacking and no visible defects"
+        "vision.bed_adhesion_ok": 0.94
     },
     "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
     "episode": [],

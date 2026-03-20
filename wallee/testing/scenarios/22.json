@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.47,
         "vision.confidence": 0.4,
-        "vision.stringing": 0.5,
-        "vision.description": "A few possible wisps are visible but the camera confidence is weak"
+        "vision.stringing": 0.5
     },
     "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
     "episode": [],

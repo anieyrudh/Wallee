@@ -17,8 +17,7 @@
     "vision_state": {
         "vision.status": "NORMAL",
         "vision.normal": 0.86,
-        "vision.confidence": 0.84,
-        "vision.description": "Print is healthy but the operator requested an immediate pause"
+        "vision.confidence": 0.84
     },
     "job_context": "# Current Job\nFile: petg_lid.bgcode\nMaterial: PETG\n",
     "episode": [],

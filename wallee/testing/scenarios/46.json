@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.09,
         "vision.confidence": 0.94,
-        "vision.blob": 0.87,
-        "vision.description": "A nozzle blob is still attached while the print is already paused"
+        "vision.blob": 0.87
     },
     "job_context": "# Current Job\nFile: pla_mount.bgcode\nMaterial: PLA\n",
     "episode": [

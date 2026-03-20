@@ -253,11 +253,10 @@ function updateSummary(s) {
   /* Vision hero */
   var vs = s['vision.status'] || 'NO_DATA';
   var vc = s['vision.confidence'] || '';
-  var vd = s['vision.description'] || '';
   var vts = s['vision.last_analysis_ts'];
   var vage = vts ? Math.round(Date.now()/1000 - parseFloat(vts)) : 999;
-  if (vage > 30) { vs = 'OFFLINE'; vd = 'No vision data'; }
-  setStat('summary-vision', vs + (vc ? ' (' + vc + ')' : ''), vd);
+  if (vage > 30) { vs = 'OFFLINE'; }
+  setStat('summary-vision', vs + (vc ? ' (' + vc + ')' : ''), vage < 30 ? vage + 's ago' : 'No data');
   var vel = document.getElementById('summary-vision');
   if (vel) {
     vel.style.color = vs.startsWith('DEFECT') ? 'var(--red)' :
@@ -305,10 +304,9 @@ function updateVision(s) {
   var status = s['vision.status'] || 'NO_DATA';
   var sr = makeRow('Status', status);
   if (status.startsWith('DEFECT')) sr.lastChild.style.cssText = 'color:var(--red);font-weight:700';
-  else if (status.startsWith('POSSIBLE') || status.startsWith('INCONSISTENT')) sr.lastChild.style.cssText = 'color:var(--yellow);font-weight:700';
+  else if (status.startsWith('POSSIBLE') || status.startsWith('FADING')) sr.lastChild.style.cssText = 'color:var(--yellow);font-weight:700';
   tbl.appendChild(sr);
   var conf = s['vision.confidence']; if (conf != null) tbl.appendChild(makeRow('Conf', conf));
-  var desc = s['vision.description']; if (desc) tbl.appendChild(makeRow('Desc', desc));
   var defects = ['stringing','spaghetti','blob','warping','layer_shift','underextrusion','overextrusion','burn_marks','bed_adhesion_ok','normal'];
   for (var i = 0; i < defects.length; i++) {
     var k = defects[i], v = s['vision.nozzle.'+k] || s['vision.'+k]; if (v == null) continue;

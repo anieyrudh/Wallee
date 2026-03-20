@@ -19,8 +19,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.11,
         "vision.confidence": 0.93,
-        "vision.layer_shift": 0.88,
-        "vision.description": "The outer wall has a sharp XY offset that continues through multiple layers"
+        "vision.layer_shift": 0.88
     },
     "job_context": "# Current Job\nFile: organizer_tray.bgcode\nMaterial: PLA\n",
     "episode": [],

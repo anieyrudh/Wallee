@@ -18,8 +18,7 @@
         "vision.status": "UNCERTAIN",
         "vision.normal": 0.6,
         "vision.confidence": 0.63,
-        "vision.stringing": 0.6,
-        "vision.description": "Vision classifier is split between normal print quality and stringing"
+        "vision.stringing": 0.6
     },
     "job_context": "# Current Job\nFile: mount_clip.bgcode\nMaterial: PLA\n",
     "episode": [],

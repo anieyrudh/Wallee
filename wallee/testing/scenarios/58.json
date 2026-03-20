@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.06,
         "vision.confidence": 0.97,
-        "vision.blob": 0.94,
-        "vision.description": "A thick TPU blob is wrapping around the nozzle and threatens the heater block"
+        "vision.blob": 0.94
     },
     "job_context": "# Current Job\nFile: tpu_seal.bgcode\nMaterial: TPU\n",
     "episode": [],

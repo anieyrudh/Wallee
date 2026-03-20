@@ -18,8 +18,7 @@
         "vision.status": "NORMAL",
         "vision.normal": 0.81,
         "vision.confidence": 0.8,
-        "vision.stringing": 0.22,
-        "vision.description": "Print is stable while the operator requests a lower nozzle temperature"
+        "vision.stringing": 0.22
     },
     "job_context": "# Current Job\nFile: pla_box.bgcode\nMaterial: PLA\n",
     "episode": [],

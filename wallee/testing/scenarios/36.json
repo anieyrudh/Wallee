@@ -18,8 +18,7 @@
         "vision.status": "NORMAL",
         "vision.normal": 0.74,
         "vision.confidence": 0.58,
-        "vision.spaghetti": 0.19,
-        "vision.description": "Current frame looks acceptable after a prior false alarm"
+        "vision.spaghetti": 0.19
     },
     "job_context": "# Current Job\nFile: pla_case.bgcode\nMaterial: PLA\n",
     "episode": [

@@ -19,8 +19,7 @@
         "vision.normal": 0.72,
         "vision.confidence": 0.64,
         "vision.stringing": 0.02,
-        "vision.spaghetti": 0.0,
-        "vision.description": "Nozzle is purging while temperatures ramp toward target"
+        "vision.spaghetti": 0.0
     },
     "job_context": "# Current Job\nFile: gear_holder.bgcode\nMaterial: PLA\n",
     "episode": [],

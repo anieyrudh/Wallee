@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.18,
         "vision.confidence": 0.89,
-        "vision.burn_marks": 0.76,
-        "vision.description": "Brown smears and glossy overheating marks are visible around travel scars"
+        "vision.burn_marks": 0.76
     },
     "job_context": "# Current Job\nFile: petg_bracket.bgcode\nMaterial: PETG\n",
     "episode": [],

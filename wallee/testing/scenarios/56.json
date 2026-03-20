@@ -19,8 +19,7 @@
     "vision_state": {
         "vision.status": "UNCERTAIN",
         "vision.normal": 0.51,
-        "vision.confidence": 0.49,
-        "vision.description": "System just flipped through several transient states and the scene is not settled yet"
+        "vision.confidence": 0.49
     },
     "job_context": "# Current Job\nFile: pla_test_piece.bgcode\nMaterial: PLA\n",
     "episode": [],

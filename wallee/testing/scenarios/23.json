@@ -19,8 +19,7 @@
         "vision.normal": 0.19,
         "vision.confidence": 0.2,
         "vision.stringing": 0.09,
-        "vision.spaghetti": 0.08,
-        "vision.description": "Frame is blurry and poorly lit, so none of the defect scores are trustworthy"
+        "vision.spaghetti": 0.08
     },
     "job_context": "# Current Job\nFile: adapter_ring.bgcode\nMaterial: PLA\n",
     "episode": [],

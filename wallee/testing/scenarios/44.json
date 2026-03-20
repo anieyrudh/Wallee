@@ -18,8 +18,7 @@
         "vision.status": "DEFECT",
         "vision.normal": 0.45,
         "vision.confidence": 0.41,
-        "vision.stringing": 0.34,
-        "vision.description": "Camera keeps producing weak cosmetic alerts that the human does not care about"
+        "vision.stringing": 0.34
     },
     "job_context": "# Current Job\nFile: pla_riser.bgcode\nMaterial: PLA\n",
     "episode": [],

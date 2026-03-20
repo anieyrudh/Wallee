@@ -19,8 +19,7 @@
         "vision.status": "NORMAL",
         "vision.normal": 0.89,
         "vision.confidence": 0.88,
-        "vision.bed_adhesion_ok": 0.91,
-        "vision.description": "First layer lines are evenly squished and tracking well across the PEI sheet"
+        "vision.bed_adhesion_ok": 0.91
     },
     "job_context": "# Current Job\nFile: switch_plate.bgcode\nMaterial: PLA\n",
     "episode": [],
