@@ -515,6 +515,52 @@ class AgentLoop:
 
         return decision
 
+    def _extract_changes(self, decision, state: dict) -> list[dict]:
+        """Build structured old -> new parameter deltas for dashboard display."""
+        tool_specs = {
+            "set_speed_factor": ("Speed", "printer.speed", "percent", "%"),
+            "set_flow_factor": ("Flow", "printer.flow", "percent", "%"),
+            "set_temperature": {
+                "nozzle": ("Nozzle Temp", "printer.target_nozzle", "target", "C"),
+                "bed": ("Bed Temp", "printer.target_bed", "target", "C"),
+                "chamber": ("Chamber Temp", "printer.target_chamber", "target", "C"),
+            },
+        }
+
+        if decision.type == "ACTION":
+            actions = [{"tool": decision.tool, "params": decision.params or {}}]
+        elif decision.type == "ACTION_CHAIN":
+            actions = decision.actions or []
+        else:
+            return []
+
+        changes = []
+        for act in actions:
+            tool_name = act.get("tool", "")
+            params = act.get("params", {}) or {}
+            spec = tool_specs.get(tool_name)
+            if spec is None:
+                continue
+
+            if tool_name == "set_temperature":
+                heater = str(params.get("heater", "")).lower()
+                spec = spec.get(heater)
+                if spec is None:
+                    continue
+
+            label, state_key, param_key, unit = spec
+            new_value = params.get(param_key)
+            if new_value is None:
+                continue
+            changes.append({
+                "tool": tool_name,
+                "label": label,
+                "from": state.get(state_key),
+                "to": new_value,
+                "unit": unit,
+            })
+        return changes
+
     # ── Decision routing ────────────────────────────────────────────
 
     def _route_decision(self, decision, state: dict):
@@ -624,12 +670,17 @@ class AgentLoop:
         # Publish to whiteboard for dashboard
         if summary:
             self.wb.publish("agent.last_decision", summary, ttl=self.last_decision_ttl)
+            status = decision.type
+            if decision.type == "ACTION_CHAIN":
+                status = "ACTION"
             entry = json.dumps({
                 "ts": time.strftime("%H:%M:%S"),
                 "type": decision.type,
+                "status": status,
                 "text": summary[:300],
                 "observation": observation[:200] if observation else "",
                 "reasoning": reasoning[:200] if reasoning else "",
+                "changes": self._extract_changes(decision, state),
             })
             self.wb.r.lpush("agent.activity_log", entry)
             self.wb.r.ltrim("agent.activity_log", 0, 19)

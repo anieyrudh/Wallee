@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import sqlite3
 import threading
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -88,6 +89,8 @@ img.cam { display: block; width: 100%; height: 160px; object-fit: cover; border-
 .feed-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; text-transform: uppercase; }
 .feed-badge.wait { background: #21262d; color: var(--muted); }
 .feed-badge.action { background: rgba(88,166,255,0.15); color: var(--blue); }
+.feed-badge.done { background: rgba(63,185,80,0.18); color: var(--green); }
+.feed-badge.failed, .feed-badge.rejected { background: rgba(248,81,73,0.18); color: var(--red); }
 .feed-badge.call-human { background: rgba(248,81,73,0.15); color: var(--red); }
 .feed-text { font-size: 11px; color: var(--text); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed-empty { color: var(--muted); padding: 8px 0; font-style: italic; }
@@ -195,6 +198,7 @@ let ws;
 const tempHistory = {nozzle:[], bed:[], chamber:[], heatbreak:[]};
 const MAX_HISTORY = 60;
 var lastActivityLog = null;
+var lastRecentActions = null;
 
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 function makeRow(label, value) {
@@ -359,24 +363,64 @@ function updateTempChart(s) {
 }
 
 /* --- AGENT LOG --- */
+function parseLogEntries(raw) {
+  var entries = [];
+  if (Array.isArray(raw)) {
+    for (var i = 0; i < raw.length; i++) {
+      try { entries.push(typeof raw[i] === 'string' ? JSON.parse(raw[i]) : raw[i]); } catch (e) {}
+    }
+  }
+  return entries;
+}
+
+function entrySortValue(e) {
+  if (typeof e.ts_epoch === 'number') return e.ts_epoch;
+  var ts = e.ts || '';
+  if (/^\d{2}:\d{2}:\d{2}$/.test(ts)) {
+    var parts = ts.split(':');
+    return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+  }
+  return 0;
+}
+
+function badgeClassForEntry(e) {
+  var status = String(e.status || e.type || '').toUpperCase();
+  if (status === 'DONE') return 'done';
+  if (status === 'FAILED') return 'failed';
+  if (status === 'REJECTED') return 'rejected';
+  if (status === 'CALL_HUMAN') return 'call-human';
+  if (status === 'WAIT') return 'wait';
+  return 'action';
+}
+
+function badgeLabelForEntry(e) {
+  var status = String(e.status || e.type || '').toUpperCase();
+  return status || 'ACTION';
+}
+
 function updateAgentLog(s) {
   var el = document.getElementById('agent-log');
   var logData = s['agent.activity_log'];
+  var recentActions = s['agent.recent_actions'];
   var logKey = JSON.stringify(logData);
-  if (logKey === lastActivityLog) return; lastActivityLog = logKey;
+  var recentKey = JSON.stringify(recentActions);
+  if (logKey === lastActivityLog && recentKey === lastRecentActions) return;
+  lastActivityLog = logKey;
+  lastRecentActions = recentKey;
   clearEl(el);
-  var entries = [];
-  if (Array.isArray(logData)) { for (var i=0;i<logData.length;i++) { try { entries.push(typeof logData[i]==='string'?JSON.parse(logData[i]):logData[i]); } catch(e){} } }
-  if (entries.length === 0) { var last = s['agent.last_decision']; if (last) entries.push({ts:'now',type:'WAIT',text:last}); }
+  var entries = parseLogEntries(logData);
+  entries = entries.concat(parseLogEntries(recentActions));
+  entries.sort(function(a, b) { return entrySortValue(b) - entrySortValue(a); });
+  entries = entries.slice(0, 20);
+  if (entries.length === 0) { var last = s['agent.last_decision']; if (last) entries.push({ts:'now',status:'WAIT',text:last}); }
   if (entries.length === 0) { var em=document.createElement('div');em.className='feed-empty';em.textContent='Waiting for agent...';el.appendChild(em);return; }
   for (var i=0;i<entries.length;i++) {
     var e=entries[i], row=document.createElement('div'); row.className='feed-entry'+(i===0?' active':' stale');
     var head=document.createElement('div');head.className='feed-head';
     var ts=document.createElement('span');ts.className='feed-ts';ts.textContent=e.ts||'';head.appendChild(ts);
     var badge=document.createElement('span');badge.className='feed-badge';
-    var bt=(e.type||'WAIT').toUpperCase();
-    badge.className+=' '+(bt==='ACTION'?'action':bt==='CALL_HUMAN'?'call-human':'wait');
-    badge.textContent=bt.replace('_',' ');head.appendChild(badge);row.appendChild(head);
+    badge.className+=' ' + badgeClassForEntry(e);
+    badge.textContent=badgeLabelForEntry(e).replace('_',' ');head.appendChild(badge);row.appendChild(head);
     var text=document.createElement('div');text.className='feed-text';
     var ft=e.text||'';if(ft.indexOf(': ')>0&&ft.indexOf(': ')<30)ft=ft.substring(ft.indexOf(': ')+2);
     text.textContent=ft;row.appendChild(text);el.appendChild(row);
@@ -408,15 +452,24 @@ function updateAdjustments(s) {
   var found = 0;
   for (var i=0;i<logData.length;i++) {
     try { var e = typeof logData[i]==='string'?JSON.parse(logData[i]):logData[i];
-      if ((e.type||'').toUpperCase() !== 'ACTION') continue;
-      var row=document.createElement('div');row.className='feed-entry'+(i===0?' active':' stale');
-      var head=document.createElement('div');head.className='feed-head';
-      var ts=document.createElement('span');ts.className='feed-ts';ts.textContent=e.ts||'';head.appendChild(ts);
-      var badge=document.createElement('span');badge.className='feed-badge action';badge.textContent='ADJ';head.appendChild(badge);
-      row.appendChild(head);
-      var text=document.createElement('div');text.className='feed-text';
-      var ft=e.text||'';if(ft.indexOf(': ')>0&&ft.indexOf(': ')<30)ft=ft.substring(ft.indexOf(': ')+2);
-      text.textContent=ft;row.appendChild(text);el.appendChild(row); found++;
+      var changes = Array.isArray(e.changes) ? e.changes : [];
+      if (changes.length === 0) continue;
+      for (var j=0;j<changes.length;j++) {
+        var change = changes[j];
+        var row=document.createElement('div');row.className='feed-entry'+(found===0?' active':' stale');
+        var head=document.createElement('div');head.className='feed-head';
+        var ts=document.createElement('span');ts.className='feed-ts';ts.textContent=e.ts||'';head.appendChild(ts);
+        var badge=document.createElement('span');badge.className='feed-badge action';badge.textContent='ADJ';head.appendChild(badge);
+        row.appendChild(head);
+        var text=document.createElement('div');text.className='feed-text';
+        var unit = change.unit || '';
+        var fromVal = change.from == null ? '?' : change.from;
+        var toVal = change.to == null ? '?' : change.to;
+        text.textContent = (change.label || change.tool || 'Adjustment') + ': ' + fromVal + unit + ' -> ' + toVal + unit;
+        row.appendChild(text);
+        el.appendChild(row);
+        found++;
+      }
     } catch(e){}
   }
   if (found===0) { var em=document.createElement('div');em.className='feed-empty';em.textContent='No adjustments this session';el.appendChild(em); }
@@ -464,6 +517,44 @@ class DashboardServer:
         self._http_server: ReusableHTTPServer | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._running = False
+        self._ledger_path = os.path.join(os.environ.get("WALLEE_DATA_DIR", "/var/lib/wallee"), "ledger.db")
+
+    def _recent_action_entries(self, limit: int = 10) -> list[dict]:
+        """Read recent ledger actions for status-aware dashboard rendering."""
+        if not os.path.exists(self._ledger_path):
+            return []
+        try:
+            con = sqlite3.connect(self._ledger_path)
+            con.row_factory = sqlite3.Row
+            rows = con.execute(
+                """SELECT status, tool, params_json, error_json, result_json, updated_ts
+                   FROM actions
+                   ORDER BY updated_ts DESC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            con.close()
+        except Exception:
+            return []
+
+        entries = []
+        for row in rows:
+            status = str(row["status"] or "").upper()
+            if status not in {"DONE", "FAILED", "REJECTED"}:
+                continue
+            params = row["params_json"] or "{}"
+            detail = row["result_json"] if status == "DONE" else row["error_json"]
+            text = f"{row['tool']}({params})"
+            if detail:
+                text += f" — {detail}"
+            ts_epoch = float(row["updated_ts"] or 0)
+            entries.append({
+                "ts": time.strftime("%H:%M:%S", time.localtime(ts_epoch)) if ts_epoch else "",
+                "ts_epoch": ts_epoch,
+                "status": status,
+                "text": text[:300],
+            })
+        return entries
 
     def start(self):
         """Start dashboard in a background thread."""
@@ -512,6 +603,9 @@ class DashboardServer:
                                 state[list_key] = list(raw)
                         except Exception:
                             pass
+                    recent_actions = self._recent_action_entries()
+                    if recent_actions:
+                        state["agent.recent_actions"] = recent_actions
                     payload = json.dumps(state, default=str)
                     dead = set()
                     for client in list(self._clients):
