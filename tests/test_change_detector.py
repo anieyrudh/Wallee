@@ -1,12 +1,28 @@
 """Tests for external change detector."""
 
 import pytest
+from unittest.mock import MagicMock
 from wallee.agent.change_detector import ExternalChangeDetector
+
+
+def _mock_registry():
+    """Create a mock registry with state_effects matching the prusa_link actuators."""
+    reg = MagicMock()
+    reg.get_state_effects_map.return_value = {
+        "printer.state": ["pause_print", "resume_print", "cancel_print", "start_print"],
+        "printer.job_state": ["pause_print", "resume_print", "cancel_print", "start_print"],
+        "printer.target_nozzle": ["set_temperature"],
+        "printer.target_bed": ["set_temperature"],
+        "printer.target_chamber": ["set_temperature"],
+        "printer.speed": ["set_speed_factor"],
+        "printer.flow": ["set_flow_factor"],
+    }
+    return reg
 
 
 @pytest.fixture
 def detector():
-    return ExternalChangeDetector()
+    return ExternalChangeDetector(registry=_mock_registry())
 
 
 class TestBasicDetection:

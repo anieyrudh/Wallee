@@ -16,6 +16,7 @@ def tool(
     address: Any = None,
     precheck_fn=None,
     gate_bypass: bool = False,
+    state_effects: list[str] | None = None,
 ):
     """Decorator that marks a method as a Wallee tool (sensor or actuator).
 
@@ -56,6 +57,7 @@ def tool(
             "address": address,
             "precheck_fn": precheck_fn,
             "gate_bypass": gate_bypass,
+            "state_effects": state_effects or [],
         }
         return wrapper
 

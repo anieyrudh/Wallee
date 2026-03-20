@@ -1,38 +1,14 @@
 """Detects external changes to whiteboard state not caused by Wallee actions.
 
-Compares current whiteboard snapshot to previous one. For tracked keys,
-flags changes that have no matching action in the current episode OR
-in recently completed ledger actions (within lookback window).
+Compares current whiteboard snapshot to previous one. Uses tool metadata
+(state_effects) from the registry to determine which tools could have caused
+each change, instead of hardcoding a map.
 """
 
 import logging
 import time
 
 logger = logging.getLogger(__name__)
-
-# Keys to track for external changes, mapped to tools that would cause them
-TRACKED_KEYS = {
-    "printer.state": ["pause_print", "resume_print", "cancel_print", "start_print"],
-    "printer.job_state": ["pause_print", "resume_print", "cancel_print", "start_print"],
-    "printer.target_nozzle": ["set_temperature"],
-    "printer.target_bed": ["set_temperature"],
-    "printer.target_chamber": ["set_temperature"],
-    "printer.speed": ["set_speed_factor"],
-    "printer.flow": ["set_flow_factor"],
-    # Excluded: job_progress, pos_x/y/z, time_printing/remaining — these are
-    # continuously incrementing values, not discrete state changes.
-}
-
-# Map from whiteboard key to tools that could cause a change
-TOOL_STATE_MAP = {
-    "printer.state": ["pause_print", "resume_print", "cancel_print", "start_print"],
-    "printer.job_state": ["pause_print", "resume_print", "cancel_print", "start_print"],
-    "printer.target_nozzle": ["set_temperature"],
-    "printer.target_bed": ["set_temperature"],
-    "printer.target_chamber": ["set_temperature"],
-    "printer.speed": ["set_speed_factor"],
-    "printer.flow": ["set_flow_factor"],
-}
 
 # How far back to look in the ledger for agent-caused actions
 AGENT_LOOKBACK_S = 30
@@ -45,18 +21,26 @@ class ExternalChangeDetector:
     On each cycle, compares current to previous and returns a list of
     changes not attributable to Wallee actions in the current episode
     or recent ledger history.
+
+    The state_effects_map is built from tool metadata at construction time,
+    so the detector automatically adapts to whatever device packs are loaded.
     """
 
-    def __init__(self):
+    def __init__(self, registry=None):
         self._prev_state: dict | None = None
+        # Build map from tool metadata: {whiteboard_key: [tool_names]}
+        if registry and hasattr(registry, "get_state_effects_map"):
+            self._state_effects = registry.get_state_effects_map()
+        else:
+            self._state_effects = {}
 
     def _is_agent_caused(self, key: str, episode_tools: set, ledger) -> bool:
         """Check if a whiteboard change was caused by a recent Wallee action.
 
         Checks both the current episode AND the ledger for recent DONE actions
-        matching tools that would affect this key.
+        matching tools that declare state_effects for this key.
         """
-        possible_tools = TOOL_STATE_MAP.get(key, [])
+        possible_tools = self._state_effects.get(key, [])
         if not possible_tools:
             return False
 
@@ -84,10 +68,15 @@ class ExternalChangeDetector:
                ledger=None) -> list[str]:
         """Compare current state to previous, return list of external change strings.
 
+        Only tracks keys that appear in the state_effects_map (i.e., keys that
+        some registered tool declares it can change). Changes to untracked keys
+        are ignored — they're either continuously incrementing values or
+        keys no tool claims to affect.
+
         Args:
             current_state: Current whiteboard snapshot.
             episode: Current episode actions from ledger.
-            ledger: Ledger instance for checking recent DONE actions beyond current episode.
+            ledger: Ledger instance for checking recent DONE actions.
 
         Returns:
             List of human-readable change descriptions, or empty list.
@@ -100,7 +89,7 @@ class ExternalChangeDetector:
         changes = []
         episode_tools = _episode_tools(episode)
 
-        for key in TRACKED_KEYS:
+        for key in self._state_effects:
             prev_val = self._prev_state.get(key)
             curr_val = current_state.get(key)
 
@@ -135,7 +124,7 @@ class ExternalChangeDetector:
         lines = ["!!! EXTERNAL CHANGES DETECTED (not caused by Wallee) !!!"]
         for change in changes:
             lines.append(f"  - {change}")
-        lines.append("Consider: is someone operating the printer manually? Has the firmware auto-corrected?")
+        lines.append("Consider: is someone operating the hardware manually? Has the firmware auto-corrected?")
         return "\n".join(lines)
 
 

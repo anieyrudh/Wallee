@@ -52,7 +52,7 @@ class AgentLoop:
         self.call_human_fn = None  # Set by main.py to wire Telegram
         self._running = False
         self._knowledge_cache: dict[str, str] = {}
-        self._change_detector = ExternalChangeDetector()
+        self._change_detector = ExternalChangeDetector(registry=tools)
         self._last_responded_intent: str | None = None
         self._next_cycle_delay_s = poll_interval
         # Change 8: event-driven wake

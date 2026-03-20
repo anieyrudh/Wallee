@@ -96,6 +96,18 @@ class ToolRegistry:
                 })
         return result
 
+    def get_state_effects_map(self) -> dict[str, list[str]]:
+        """Build whiteboard_key → [tool_names] map from registered tool metadata.
+
+        Each tool declares which whiteboard keys it may change via state_effects.
+        Returns e.g. {"printer.state": ["pause_print", "resume_print", ...], ...}
+        """
+        effects: dict[str, list[str]] = {}
+        for tool in self._tools.values():
+            for key in tool.meta.get("state_effects", []):
+                effects.setdefault(key, []).append(tool.name)
+        return effects
+
     def load_pack(self, pack_module_path: str):
         """Load tools from a device pack module path (e.g. 'wallee.device_packs.host_pi')."""
         try:

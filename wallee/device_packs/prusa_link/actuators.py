@@ -161,7 +161,7 @@ def _precheck_retract(whiteboard=None, length_mm=None, **kwargs) -> dict:
     return _precheck_extrusion("retract", whiteboard=whiteboard, length_mm=length_mm, **kwargs)
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_pause_print)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_pause_print, state_effects=["printer.state", "printer.job_state"])
 def pause_print(whiteboard=None, **kwargs) -> dict:
     """Pause the current print via G-code M25 (SD card pause).
 
@@ -179,7 +179,7 @@ def pause_print(whiteboard=None, **kwargs) -> dict:
     return _gcode(http, "M25", "pause_print")
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_resume_print)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=30000, precheck_fn=_precheck_resume_print, state_effects=["printer.state", "printer.job_state"])
 def resume_print(whiteboard=None, **kwargs) -> dict:
     """Resume a paused print via G-code M24 (SD card resume)."""
     http = _get_http()
@@ -197,7 +197,7 @@ def resume_print(whiteboard=None, **kwargs) -> dict:
     return _gcode(http, "M24", "resume_print")
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_cancel_print)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=30000, precheck_fn=_precheck_cancel_print, state_effects=["printer.state", "printer.job_state"])
 def cancel_print(whiteboard=None, **kwargs) -> dict:
     """Cancel the current print via DELETE /api/v1/job. Irreversible.
 
@@ -218,7 +218,7 @@ def cancel_print(whiteboard=None, **kwargs) -> dict:
     return {"status": "success", "action": "cancel_print"}
 
 
-@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=60000, precheck_fn=_precheck_start_print)
+@tool(kind="actuator", requires_approval=True, max_proposal_age_ms=60000, precheck_fn=_precheck_start_print, state_effects=["printer.state", "printer.job_state"])
 def start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
     """Start printing a file via POST /api/v1/files/{path}/pprint.
 
@@ -254,7 +254,7 @@ def start_print(whiteboard=None, file_path: str = "", **kwargs) -> dict:
     return {"status": "success", "action": "start_print", "file_path": file_path}
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_temperature)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_temperature, state_effects=["printer.target_nozzle", "printer.target_bed", "printer.target_chamber"])
 def set_temperature(whiteboard=None, target=None, heater: str = "nozzle", **kwargs) -> dict:
     """Set target temperature via POST /api/v1/gcode. Fire-and-forget.
 
@@ -334,7 +334,7 @@ def disable_motors(whiteboard=None, **kwargs) -> dict:
     return _gcode(http, "M18", "disable_motors")
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_speed_factor)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_speed_factor, state_effects=["printer.speed"])
 def set_speed_factor(whiteboard=None, percent=None, **kwargs) -> dict:
     """Set print speed factor (M220). Only during printing. Bounds: 10-200%."""
     if percent is None:
@@ -355,7 +355,7 @@ def set_speed_factor(whiteboard=None, percent=None, **kwargs) -> dict:
     return _gcode(http, f"M220 S{percent}", "set_speed_factor", percent=percent)
 
 
-@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_flow_factor)
+@tool(kind="actuator", requires_approval=False, max_proposal_age_ms=15000, precheck_fn=_precheck_set_flow_factor, state_effects=["printer.flow"])
 def set_flow_factor(whiteboard=None, percent=None, **kwargs) -> dict:
     """Set flow/extrusion factor (M221). Only during printing. Bounds: 10-150%."""
     if percent is None:
