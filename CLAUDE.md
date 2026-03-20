@@ -169,6 +169,7 @@ wallee/
 | trends | builtin | No (gate_bypass) | key |
 | differential | builtin | No (gate_bypass) | key |
 | get_sensor_history | builtin | No (gate_bypass) | key |
+| lookup_issue | builtin | No (gate_bypass) | query |
 
 All actuators have `requires_approval=False`. Builtins marked `gate_bypass` execute immediately, skipping all engine gates.
 

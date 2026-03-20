@@ -130,6 +130,7 @@ class ToolRegistry:
             "wallee.tools.builtins.discover",
             "wallee.tools.builtins.remember",
             "wallee.tools.builtins.web_search",
+            "wallee.tools.builtins.lookup_issue",
         ]
         for mod_path in builtin_modules:
             try:

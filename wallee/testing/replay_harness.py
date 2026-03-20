@@ -209,6 +209,12 @@ def _evaluate_scenario(scenario: dict, decision) -> tuple[bool, list[str], list[
     expected_tool = scenario.get("expected_tool")
     acceptable = scenario.get("acceptable_tools", [])
     unacceptable = scenario.get("unacceptable_tools", [])
+    if isinstance(expected_type, list):
+        expected_types = expected_type
+    elif expected_type:
+        expected_types = [expected_type]
+    else:
+        expected_types = []
 
     tools_proposed = []
     if getattr(decision, "tool", None):
@@ -221,13 +227,17 @@ def _evaluate_scenario(scenario: dict, decision) -> tuple[bool, list[str], list[
     passed = True
     reasons = []
 
-    if expected_type and decision.type != expected_type:
+    if expected_types and decision.type not in expected_types:
         allow_alt_call_human = (
-            expected_type == "WAIT"
+            "WAIT" in expected_types
             and decision.type == "CALL_HUMAN"
             and "call_human" in acceptable
         )
-        if not allow_alt_call_human and not ({decision.type, expected_type} <= {"ACTION", "ACTION_CHAIN"}):
+        allow_action_equivalence = (
+            decision.type in {"ACTION", "ACTION_CHAIN"}
+            and any(t in {"ACTION", "ACTION_CHAIN"} for t in expected_types)
+        )
+        if not allow_alt_call_human and not allow_action_equivalence:
             passed = False
             reasons.append(f"type: expected {expected_type}, got {decision.type}")
 
@@ -241,7 +251,7 @@ def _evaluate_scenario(scenario: dict, decision) -> tuple[bool, list[str], list[
             reasons.append(f"unacceptable tool: {tool}")
 
     if not expected_tool and acceptable:
-        if expected_type == "ACTION_CHAIN" and decision.type == "ACTION_CHAIN":
+        if "ACTION_CHAIN" in expected_types and decision.type == "ACTION_CHAIN":
             missing = [tool for tool in acceptable if tool not in tools_proposed]
             if missing:
                 passed = False
