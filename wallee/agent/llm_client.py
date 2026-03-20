@@ -8,6 +8,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+
+class LLMCallCancelled(Exception):
+    """Raised when a human message arrives during an active LLM call."""
+    pass
+
 _RETRYABLE = (
     httpx.ConnectError,
     httpx.ConnectTimeout,
@@ -126,7 +131,8 @@ class LLMClient:
         return True, ""
 
     def call(self, prompt: str, messages: list | None = None,
-             available_tools: list[str] | None = None) -> str:
+             available_tools: list[str] | None = None,
+             cancel_event=None) -> str:
         """Send prompt to LLM, return raw response text.
 
         Features enabled via OpenRouter:
@@ -168,6 +174,12 @@ class LLMClient:
         }
 
         raw_content = self._send_request(payload)
+
+        # Check if cancelled during the HTTP call (human input arrived)
+        if cancel_event and cancel_event.is_set():
+            cancel_event.clear()
+            raise LLMCallCancelled("Human input arrived during LLM call")
+
         if raw_content is None:
             return _FALLBACK_WAIT
 

@@ -79,6 +79,8 @@ class AgentLoop:
         self._next_cycle_delay_s = poll_interval
         # Change 8: event-driven wake
         self._wake_event = threading.Event()
+        # Cancel in-flight LLM call when human input arrives
+        self._cancel_llm = threading.Event()
         # Change 4: job context tracking
         self._last_job_phase: str | None = None
         # Stabilization: oscillation detector (tracks last 2 decisions for A-B-A check)
@@ -89,8 +91,9 @@ class AgentLoop:
         self._processed_rejections: set[str] = set()
 
     def wake(self):
-        """Wake the agent from sleep immediately. Called by Telegram/CLI/sensors."""
+        """Wake the agent from sleep AND cancel any in-flight LLM call."""
         self._wake_event.set()
+        self._cancel_llm.set()
 
     # ── Knowledge loading ───────────────────────────────────────────
 
@@ -840,10 +843,17 @@ class AgentLoop:
         pre_call_phase = self.wb.read("job.phase")
         pre_call_vision = self.wb.read("vision.status")
 
-        # 11. Call LLM (pass available tool names for output validation)
+        # 11. Call LLM (pass cancel event so human input can preempt)
+        from wallee.agent.llm_client import LLMCallCancelled
         tool_names = [t["name"] for t in self.tools.list_for_llm()]
-        raw_response = self.llm.call(system_prompt, messages=messages,
-                                     available_tools=tool_names)
+        self._cancel_llm.clear()
+        try:
+            raw_response = self.llm.call(system_prompt, messages=messages,
+                                         available_tools=tool_names,
+                                         cancel_event=self._cancel_llm)
+        except LLMCallCancelled:
+            logger.info("LLM call cancelled — human input arrived, restarting cycle")
+            return '{"type": "WAIT", "observation": "cycle cancelled", "reasoning": "human input preempted"}'
 
         # 12. Stale decision check — discard if world changed during LLM call
         stale = False

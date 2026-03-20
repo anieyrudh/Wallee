@@ -1,5 +1,8 @@
 """Read-only web dashboard for Wallee.
 
+Data sources: Redis whiteboard (live state) + SQLite ledger (action history).
+This module is read-only — no write paths to either data source.
+
 Serves a single-page dashboard showing whiteboard state, temperature charts,
 print status, camera feeds, and safety status. Updates via websocket.
 

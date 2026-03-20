@@ -50,13 +50,12 @@ def remember(observation: str = "", whiteboard=None, **kwargs) -> dict:
                 if not entry_lines:
                     header_lines.append(line)
 
-        # Dedup: skip if the last entry is substantially similar (same first 50 chars after timestamp)
-        if entry_lines:
-            # Strip timestamp prefix "- [YYYY-MM-DD HH:MM:SS] " to compare content
-            last_content = entry_lines[0].split("] ", 1)[-1] if "] " in entry_lines[0] else entry_lines[0]
-            if last_content[:50] == observation[:50]:
-                logger.info(f"Remember skipped (duplicate of last entry): {observation[:50]}")
-                return {"status": "skipped", "reason": "duplicate of last observation"}
+        # Dedup: skip if any of the last 3 entries match first 80 chars
+        for recent in entry_lines[:3]:
+            recent_content = recent.split("] ", 1)[-1] if "] " in recent else recent
+            if recent_content[:80] == observation[:80]:
+                logger.info(f"Remember skipped (duplicate of recent entry): {observation[:50]}")
+                return {"status": "skipped", "reason": "duplicate of recent observation"}
 
         # Prepend new entry, cap at MAX_ENTRIES
         entry_lines.insert(0, entry)
