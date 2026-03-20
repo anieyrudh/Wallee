@@ -11,10 +11,12 @@ import logging
 import os
 import subprocess
 import tempfile
+import threading as _threading
 import time
 
 import httpx
 
+from wallee.device_packs.pi_cameras.vision_analysis import read_vision_analysis  # noqa: F401
 from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,7 @@ _discovered_buddies: list[str] = []  # list of IPs
 _last_discovery: float = 0
 _discovered_nozzle_port: str | None = None
 _last_nozzle_discovery: float = 0
+_camera_lock = _threading.Lock()
 DISCOVERY_INTERVAL = 60  # re-scan every 60 seconds
 
 # Nozzle camera
@@ -53,34 +56,40 @@ def discover_nozzle_camera_port(force: bool = False) -> str | None:
     global _discovered_nozzle_port, _last_nozzle_discovery
 
     now = time.monotonic()
-    if not force and (now - _last_nozzle_discovery) < DISCOVERY_INTERVAL and _discovered_nozzle_port:
-        return _discovered_nozzle_port
+    with _camera_lock:
+        if not force and (now - _last_nozzle_discovery) < DISCOVERY_INTERVAL and _discovered_nozzle_port:
+            return _discovered_nozzle_port
 
     for port in _candidate_nozzle_ports():
         try:
             response = httpx.get(f"http://localhost:{port}/snapshot", timeout=1.5)
             content_type = response.headers.get("content-type", "")
             if response.status_code == 200 and (response.content.startswith(b"\xff\xd8") or "image/jpeg" in content_type):
-                _discovered_nozzle_port = port
-                _last_nozzle_discovery = now
-                return _discovered_nozzle_port
+                with _camera_lock:
+                    _discovered_nozzle_port = port
+                    _last_nozzle_discovery = now
+                    return _discovered_nozzle_port
         except Exception:
             continue
 
-    _discovered_nozzle_port = None
-    _last_nozzle_discovery = now
-    return None
+    with _camera_lock:
+        _discovered_nozzle_port = None
+        _last_nozzle_discovery = now
+        return None
 
 
 def _get_nozzle_client() -> httpx.Client:
     global _nozzle_client, _nozzle_port
-    if _nozzle_client is not None:
-        return _nozzle_client
+    with _camera_lock:
+        if _nozzle_client is not None:
+            return _nozzle_client
 
     port = discover_nozzle_camera_port() or os.environ.get("NOZZLE_CAMERA_PORT", "8083")
-    _nozzle_port = str(port)
-    _nozzle_client = httpx.Client(base_url=f"http://localhost:{_nozzle_port}", timeout=5.0)
-    return _nozzle_client
+    with _camera_lock:
+        if _nozzle_client is None:
+            _nozzle_port = str(port)
+            _nozzle_client = httpx.Client(base_url=f"http://localhost:{_nozzle_port}", timeout=5.0)
+        return _nozzle_client
 
 
 def _ping_sweep_subnet():
@@ -112,8 +121,9 @@ def discover_buddy_cameras() -> list[str]:
     global _discovered_buddies, _last_discovery
 
     now = time.monotonic()
-    if now - _last_discovery < DISCOVERY_INTERVAL and _discovered_buddies:
-        return _discovered_buddies
+    with _camera_lock:
+        if now - _last_discovery < DISCOVERY_INTERVAL and _discovered_buddies:
+            return list(_discovered_buddies)
 
     _ping_sweep_subnet()
 
@@ -133,12 +143,15 @@ def discover_buddy_cameras() -> list[str]:
     except Exception as e:
         logger.error(f"Buddy camera discovery failed: {e}")
 
-    if ips != _discovered_buddies:
+    with _camera_lock:
+        previous_ips = list(_discovered_buddies)
+    if ips != previous_ips:
         logger.info(f"Buddy cameras discovered: {ips}" if ips else "No buddy cameras found")
 
-    _discovered_buddies = ips
-    _last_discovery = now
-    return ips
+    with _camera_lock:
+        _discovered_buddies = ips
+        _last_discovery = now
+        return list(_discovered_buddies)
 
 
 def _capture_http_jpeg(client: httpx.Client, path: str, max_width: int = 0) -> bytes | None:
@@ -210,15 +223,16 @@ def _capture_rtsp_jpeg(ip: str, max_width: int = 640) -> bytes | None:
 def _check_stale(key: str, jpeg: bytes) -> bool:
     """Check if frame is stale. Returns True if stale."""
     frame_hash = hash(jpeg)
-    last_hash, count = _stale_state.get(key, (None, 0))
+    with _camera_lock:
+        last_hash, count = _stale_state.get(key, (None, 0))
 
-    if frame_hash == last_hash:
-        count += 1
-    else:
-        count = 0
+        if frame_hash == last_hash:
+            count += 1
+        else:
+            count = 0
 
-    _stale_state[key] = (frame_hash, count)
-    return count >= STALE_THRESHOLD
+        _stale_state[key] = (frame_hash, count)
+        return count >= STALE_THRESHOLD
 
 
 def _make_frame_result(key_prefix: str, jpeg: bytes | None) -> dict:
@@ -278,7 +292,3 @@ def read_buddy_cameras() -> dict:
         result[f"camera.buddy{i+1}_status"] = "offline"
 
     return result
-
-
-# Re-export vision analysis sensor so the registry discovers it via this module
-from wallee.device_packs.pi_cameras.vision_analysis import read_vision_analysis  # noqa: F401

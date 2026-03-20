@@ -347,10 +347,10 @@ class AgentLoop:
                 device_group=tool_meta.device_group if tool_meta else "builtin",
                 requires_approval=False,
             )
-            self.state.publish("agent.awaiting_feedback", json.dumps({
+            self.state.publish("agent.awaiting_feedback", {
                 "filename": filename,
                 "completed_at": time.time(),
-            }), ttl=3600)
+            }, ttl=3600)
             logger.info(f"Requested print feedback for {filename}")
 
         # Clean up
@@ -679,8 +679,8 @@ class AgentLoop:
             pending = self._get_pending_callout()
 
             if pending and pending.get("hash") == msg_hash and pending.get("status") == "PENDING":
-                logger.info(f"CALL_HUMAN suppressed (duplicate of pending callout)")
-                summary = f"WAIT: suppressed duplicate CALL_HUMAN"
+                logger.info("CALL_HUMAN suppressed (duplicate of pending callout)")
+                summary = "WAIT: suppressed duplicate CALL_HUMAN"
                 if self.ledger and hasattr(self.ledger, "record_wait"):
                     self.ledger.record_wait(f"suppressed duplicate: {decision.message[:80]}",
                                             observation=observation, reasoning=reasoning)
@@ -706,12 +706,12 @@ class AgentLoop:
                     logger.info("External pause cleared — agent called human to investigate")
 
                 # Publish pending callout so future cycles see it
-                self.state.publish("human.pending_callout", json.dumps({
+                self.state.publish("human.pending_callout", {
                     "hash": msg_hash,
                     "message": decision.message[:200],
                     "time": time.time(),
                     "status": "PENDING",
-                }), ttl=self.last_decision_ttl)
+                }, ttl=self.last_decision_ttl)
 
                 # Job context: record issue
                 self._append_to_job_context("Issues observed", decision.message[:200])
@@ -784,7 +784,7 @@ class AgentLoop:
                     items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
                     if items and isinstance(items, list):
                         next_file = items.pop(0)
-                        self.state.publish("print.queue", json.dumps(items), ttl=86400)
+                        self.state.publish("print.queue", items, ttl=86400)
                         logger.info(f"Auto-starting next queued print: {next_file}")
                         decision = Decision(
                             type="ACTION",

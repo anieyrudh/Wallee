@@ -124,7 +124,7 @@ class Engine:
 
         # Gate 0b: External pause — block resume_print until investigated
         if tool_name == "resume_print" and self.wb.read("agent.external_pause"):
-            logger.warning(f"REJECTED resume_print: external pause active — investigate before resuming")
+            logger.warning("REJECTED resume_print: external pause active — investigate before resuming")
             self.ledger.reject(action_id, "External pause active — investigate before resuming. Use call_human or check sensors first.")
             return "REJECTED"
 

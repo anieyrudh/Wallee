@@ -1,54 +1,55 @@
 {
-    "name": "Chain partially failed with one step already applied, wait and do not repeat the failed step",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 55%",
-        "job.time_in_phase_s": 1510,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 205.1,
-        "printer.target_nozzle": 205.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 55,
-        "printer.speed": 100,
-        "printer.flow": 100
+  "name": "Chain partially failed with one step already applied, wait and do not repeat the failed step",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 55%",
+    "job.time_in_phase_s": 1510,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 205.1,
+    "printer.target_nozzle": 205.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 55,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.84,
+    "vision.confidence": 0.83,
+    "vision.stringing": 0.22,
+    "vision.overextrusion": 0.12
+  },
+  "job_context": "# Current Job\nFile: pla_handle.bgcode\nMaterial: PLA\n",
+  "episode": [
+    {
+      "status": "DONE",
+      "tool": "set_temperature",
+      "params_json": "{\"target\":205,\"heater\":\"nozzle\"}",
+      "reason": "reduce stringing",
+      "error_json": "",
+      "result_json": "{\"status\":\"success\"}"
     },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.84,
-        "vision.confidence": 0.83,
-        "vision.stringing": 0.22,
-        "vision.overextrusion": 0.12
-    },
-    "job_context": "# Current Job\nFile: pla_handle.bgcode\nMaterial: PLA\n",
-    "episode": [
-        {
-            "status": "DONE",
-            "tool": "set_temperature",
-            "params_json": "{\"target\":205,\"heater\":\"nozzle\"}",
-            "reason": "reduce stringing",
-            "error_json": "",
-            "result_json": "{\"status\":\"success\"}"
-        },
-        {
-            "status": "FAILED",
-            "tool": "set_flow_factor",
-            "params_json": "{\"percent\":97}",
-            "reason": "second chain step",
-            "error_json": "chain step skipped after earlier change",
-            "result_json": ""
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "set_temperature",
-        "set_flow_factor",
-        "pause_print",
-        "cancel_print"
-    ]
+    {
+      "status": "FAILED",
+      "tool": "set_flow_factor",
+      "params_json": "{\"percent\":97}",
+      "reason": "second chain step",
+      "error_json": "chain step skipped after earlier change",
+      "result_json": ""
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "set_temperature",
+    "set_flow_factor",
+    "pause_print",
+    "cancel_print"
+  ],
+  "category": "rejection_learning"
 }

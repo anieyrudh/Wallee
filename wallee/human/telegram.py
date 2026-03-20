@@ -19,8 +19,6 @@ import json
 import logging
 import os
 import threading
-import time
-from typing import Callable
 
 from wallee.config import (
     DEFAULT_HUMAN_ESTOP_TTL_S,
@@ -28,10 +26,9 @@ from wallee.config import (
     DEFAULT_HUMAN_INTENT_TTL_S,
     DEFAULT_HUMAN_URGENT_TTL_S,
 )
+from wallee.safety.estop import estop_printer
 
 logger = logging.getLogger(__name__)
-
-from wallee.safety.estop import estop_printer
 
 # Lazy imports — telegram library may not be installed
 _telegram = None
@@ -349,7 +346,8 @@ class TelegramBot:
             return
 
         s = self.wb.read_all()
-        g = lambda k, default="-": s.get(k, default)
+        def g(k, default="-"):
+            return s.get(k, default)
 
         # Printer state
         lines = ["PRINTER"]
@@ -442,7 +440,7 @@ class TelegramBot:
         args = context.args
         if not args:
             # Show current queue
-            queue_raw = self.wb.read("print.queue") or "[]"
+            queue_raw = self.wb.read("print.queue") or []
             try:
                 items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
             except (json.JSONDecodeError, TypeError):
@@ -455,13 +453,13 @@ class TelegramBot:
             return
 
         # Add files to queue
-        queue_raw = self.wb.read("print.queue") or "[]"
+        queue_raw = self.wb.read("print.queue") or []
         try:
             items = json.loads(queue_raw) if isinstance(queue_raw, str) else queue_raw
         except (json.JSONDecodeError, TypeError):
             items = []
         items.extend(args)
-        self.wb.publish("print.queue", json.dumps(items), ttl=86400)  # 24h TTL
+        self.wb.publish("print.queue", items, ttl=86400)  # 24h TTL
         await update.message.reply_text(f"Added {len(args)} file(s). Queue: {len(items)} total.")
         if self._wake_agent:
             self._wake_agent()
@@ -618,7 +616,8 @@ class TelegramBot:
         if self.wb:
             self.wb.publish("human.intent", text, ttl=self.intent_ttl)
             # Also store in intent history for dashboard persistence
-            import json as _json, time as _time
+            import json as _json
+            import time as _time
             entry = _json.dumps({"ts": _time.strftime("%H:%M:%S"), "text": text})
             self.wb.r.lpush("human.intent_log", entry)
             self.wb.r.ltrim("human.intent_log", 0, 9)
@@ -644,7 +643,7 @@ class TelegramBot:
     def _record_approval(self, action_id: str, decision: str, approved_by: str):
         """Record an approval/rejection in the ledger."""
         if not self.ledger:
-            logger.warning(f"Cannot record approval — no ledger connected")
+            logger.warning("Cannot record approval — no ledger connected")
             return
         try:
             self.ledger.record_approval(action_id, decision, approved_by)

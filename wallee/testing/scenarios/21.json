@@ -1,37 +1,38 @@
 {
-    "name": "Low confidence spaghetti score, wait instead of overreacting",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 33%",
-        "job.time_in_phase_s": 940,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 206.0,
-        "printer.target_nozzle": 206.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 33,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.41,
-        "vision.confidence": 0.35,
-        "vision.stringing": 0.18,
-        "vision.spaghetti": 0.45
-    },
-    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_temperature"
-    ]
+  "name": "Low confidence spaghetti score, wait instead of overreacting",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 33%",
+    "job.time_in_phase_s": 940,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 206.0,
+    "printer.target_nozzle": 206.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 33,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.41,
+    "vision.confidence": 0.35,
+    "vision.stringing": 0.18,
+    "vision.spaghetti": 0.45
+  },
+  "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_temperature"
+  ],
+  "category": "ambiguous_vision"
 }

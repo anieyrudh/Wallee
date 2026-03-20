@@ -1,36 +1,37 @@
 {
-    "name": "Blob during PREPARING purge, wait because this is normal",
-    "whiteboard_state": {
-        "job.phase": "PREPARING",
-        "job.phase_detail": "Purging and wiping nozzle",
-        "job.time_in_phase_s": 42,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 209.6,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 0,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.34,
-        "vision.confidence": 0.9,
-        "vision.blob": 0.82
-    },
-    "job_context": "# Current Job\nFile: hinge_test.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "call_human",
-        "cancel_print",
-        "set_temperature"
-    ]
+  "name": "Blob during PREPARING purge, wait because this is normal",
+  "whiteboard_state": {
+    "job.phase": "PREPARING",
+    "job.phase_detail": "Purging and wiping nozzle",
+    "job.time_in_phase_s": 42,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 209.6,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 0,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.34,
+    "vision.confidence": 0.9,
+    "vision.blob": 0.82
+  },
+  "job_context": "# Current Job\nFile: hinge_test.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "call_human",
+    "cancel_print",
+    "set_temperature"
+  ],
+  "category": "vision_defects"
 }

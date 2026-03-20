@@ -1,48 +1,49 @@
 {
-    "name": "Pending callout is still pending and the same defect is visible, wait and do not re-escalate",
-    "whiteboard_state": {
-        "job.phase": "PAUSED",
-        "job.phase_detail": "Paused awaiting human help",
-        "job.time_in_phase_s": 240,
-        "printer.state": "PAUSED",
-        "printer.job_state": "PAUSED",
-        "printer.temp_nozzle": 228.4,
-        "printer.target_nozzle": 230.0,
-        "printer.temp_bed": 54.9,
-        "printer.target_bed": 55.0,
-        "printer.job_progress": 19,
-        "printer.speed": 50,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.07,
-        "vision.confidence": 0.93,
-        "vision.blob": 0.9
-    },
-    "job_context": "# Current Job\nFile: tpu_grommet.bgcode\nMaterial: TPU\n",
-    "episode": [
-        {
-            "status": "DONE",
-            "tool": "pause_print",
-            "params_json": "{}",
-            "reason": "Paused for blob removal",
-            "error_json": "",
-            "result_json": "{\"status\":\"success\"}"
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": {
-        "status": "PENDING",
-        "message": "Remove nozzle blob before resuming"
-    },
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "call_human",
-        "resume_print",
-        "cancel_print",
-        "set_temperature"
-    ]
+  "name": "Pending callout is still pending and the same defect is visible, wait and do not re-escalate",
+  "whiteboard_state": {
+    "job.phase": "PAUSED",
+    "job.phase_detail": "Paused awaiting human help",
+    "job.time_in_phase_s": 240,
+    "printer.state": "PAUSED",
+    "printer.job_state": "PAUSED",
+    "printer.temp_nozzle": 228.4,
+    "printer.target_nozzle": 230.0,
+    "printer.temp_bed": 54.9,
+    "printer.target_bed": 55.0,
+    "printer.job_progress": 19,
+    "printer.speed": 50,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.07,
+    "vision.confidence": 0.93,
+    "vision.blob": 0.9
+  },
+  "job_context": "# Current Job\nFile: tpu_grommet.bgcode\nMaterial: TPU\n",
+  "episode": [
+    {
+      "status": "DONE",
+      "tool": "pause_print",
+      "params_json": "{}",
+      "reason": "Paused for blob removal",
+      "error_json": "",
+      "result_json": "{\"status\":\"success\"}"
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": {
+    "status": "PENDING",
+    "message": "Remove nozzle blob before resuming"
+  },
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "call_human",
+    "resume_print",
+    "cancel_print",
+    "set_temperature"
+  ],
+  "category": "human_interaction"
 }

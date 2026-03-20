@@ -1,35 +1,36 @@
 {
-    "name": "Human said pause it, pause the active print",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 27%",
-        "job.time_in_phase_s": 740,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 239.8,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 79.9,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 27,
-        "printer.speed": 90,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.86,
-        "vision.confidence": 0.84
-    },
-    "job_context": "# Current Job\nFile: petg_lid.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": "pause it",
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "pause_print",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "resume_print",
-        "cancel_print",
-        "call_human",
-        "set_temperature"
-    ]
+  "name": "Human said pause it, pause the active print",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 27%",
+    "job.time_in_phase_s": 740,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 239.8,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 79.9,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 27,
+    "printer.speed": 90,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.86,
+    "vision.confidence": 0.84
+  },
+  "job_context": "# Current Job\nFile: petg_lid.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": "pause it",
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "pause_print",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "resume_print",
+    "cancel_print",
+    "call_human",
+    "set_temperature"
+  ],
+  "category": "human_interaction"
 }

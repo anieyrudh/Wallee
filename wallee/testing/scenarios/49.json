@@ -1,54 +1,55 @@
 {
-    "name": "Two different tools were rejected consecutively, research a different approach instead of thrashing",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 37%",
-        "job.time_in_phase_s": 980,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 240.0,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 80.0,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 37,
-        "printer.speed": 90,
-        "printer.flow": 100
+  "name": "Two different tools were rejected consecutively, research a different approach instead of thrashing",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 37%",
+    "job.time_in_phase_s": 980,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 240.0,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 80.0,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 37,
+    "printer.speed": 90,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.16,
+    "vision.confidence": 0.82
+  },
+  "job_context": "# Current Job\nFile: petg_fixture.bgcode\nMaterial: PETG\n",
+  "episode": [
+    {
+      "status": "REJECTED",
+      "tool": "set_temperature",
+      "params_json": "{}",
+      "reason": "try cooling slightly",
+      "error_json": "target temperature is required",
+      "result_json": ""
     },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.16,
-        "vision.confidence": 0.82
-    },
-    "job_context": "# Current Job\nFile: petg_fixture.bgcode\nMaterial: PETG\n",
-    "episode": [
-        {
-            "status": "REJECTED",
-            "tool": "set_temperature",
-            "params_json": "{}",
-            "reason": "try cooling slightly",
-            "error_json": "target temperature is required",
-            "result_json": ""
-        },
-        {
-            "status": "REJECTED",
-            "tool": "set_flow_factor",
-            "params_json": "{}",
-            "reason": "tune extrusion",
-            "error_json": "percent is required",
-            "result_json": ""
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "web_search",
-    "acceptable_tools": [
-        "call_human"
-    ],
-    "unacceptable_tools": [
-        "set_temperature",
-        "set_flow_factor",
-        "cancel_print",
-        "pause_print"
-    ]
+    {
+      "status": "REJECTED",
+      "tool": "set_flow_factor",
+      "params_json": "{}",
+      "reason": "tune extrusion",
+      "error_json": "percent is required",
+      "result_json": ""
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "web_search",
+  "acceptable_tools": [
+    "call_human"
+  ],
+  "unacceptable_tools": [
+    "set_temperature",
+    "set_flow_factor",
+    "cancel_print",
+    "pause_print"
+  ],
+  "category": "rejection_learning"
 }

@@ -2,7 +2,6 @@
 
 import logging
 from wallee.ledger.db import Ledger
-from wallee.ledger.diary import Diary
 
 logger = logging.getLogger(__name__)
 

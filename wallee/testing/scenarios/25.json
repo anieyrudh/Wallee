@@ -1,36 +1,37 @@
 {
-    "name": "Conflicting vision says stringing and normal at the same time, wait",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 36%",
-        "job.time_in_phase_s": 1010,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 209.5,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 60.2,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 36,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "UNCERTAIN",
-        "vision.normal": 0.6,
-        "vision.confidence": 0.63,
-        "vision.stringing": 0.6
-    },
-    "job_context": "# Current Job\nFile: mount_clip.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "set_temperature",
-        "pause_print",
-        "cancel_print",
-        "call_human"
-    ]
+  "name": "Conflicting vision says stringing and normal at the same time, wait",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 36%",
+    "job.time_in_phase_s": 1010,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 209.5,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 60.2,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 36,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "UNCERTAIN",
+    "vision.normal": 0.6,
+    "vision.confidence": 0.63,
+    "vision.stringing": 0.6
+  },
+  "job_context": "# Current Job\nFile: mount_clip.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "set_temperature",
+    "pause_print",
+    "cancel_print",
+    "call_human"
+  ],
+  "category": "ambiguous_vision"
 }

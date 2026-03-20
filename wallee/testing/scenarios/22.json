@@ -1,36 +1,37 @@
 {
-    "name": "Low confidence stringing score, wait and observe another cycle",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 42%",
-        "job.time_in_phase_s": 1160,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 239.7,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 79.8,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 42,
-        "printer.speed": 90,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.47,
-        "vision.confidence": 0.4,
-        "vision.stringing": 0.5
-    },
-    "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "set_temperature",
-        "pause_print",
-        "cancel_print",
-        "call_human"
-    ]
+  "name": "Low confidence stringing score, wait and observe another cycle",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 42%",
+    "job.time_in_phase_s": 1160,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 239.7,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 79.8,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 42,
+    "printer.speed": 90,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.47,
+    "vision.confidence": 0.4,
+    "vision.stringing": 0.5
+  },
+  "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "set_temperature",
+    "pause_print",
+    "cancel_print",
+    "call_human"
+  ],
+  "category": "ambiguous_vision"
 }

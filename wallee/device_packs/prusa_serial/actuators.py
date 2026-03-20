@@ -8,6 +8,7 @@ Serial is only used for commands that require reading the response:
 
 import logging
 import re
+import threading as _threading
 
 from wallee.bus.serial import SerialBus, find_serial_port
 from wallee.tools.decorator import tool
@@ -22,8 +23,6 @@ PRUSA_M115_SPAM = frozenset({
     "FIRMWARE_NAME:", "SOURCE_CODE_URL:", "PROTOCOL_VERSION:",
     "MACHINE_TYPE:", "EXTRUDER_COUNT:", "UUID:", "Cap:",
 })
-
-import threading as _threading
 
 _serial: SerialBus | None = None
 _serial_lock = _threading.Lock()

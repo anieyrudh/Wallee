@@ -1,36 +1,37 @@
 {
-    "name": "Burn marks visible, reduce temperature because there is no fan control tool",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 47%",
-        "job.time_in_phase_s": 1320,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 247.2,
-        "printer.target_nozzle": 245.0,
-        "printer.temp_bed": 80.4,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 47,
-        "printer.speed": 90,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.18,
-        "vision.confidence": 0.89,
-        "vision.burn_marks": 0.76
-    },
-    "job_context": "# Current Job\nFile: petg_bracket.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_temperature",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_flow_factor"
-    ]
+  "name": "Burn marks visible, reduce temperature because there is no fan control tool",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 47%",
+    "job.time_in_phase_s": 1320,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 247.2,
+    "printer.target_nozzle": 245.0,
+    "printer.temp_bed": 80.4,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 47,
+    "printer.speed": 90,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.18,
+    "vision.confidence": 0.89,
+    "vision.burn_marks": 0.76
+  },
+  "job_context": "# Current Job\nFile: petg_bracket.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_temperature",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_flow_factor"
+  ],
+  "category": "vision_defects"
 }

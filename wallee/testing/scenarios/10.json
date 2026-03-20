@@ -1,39 +1,40 @@
 {
-    "name": "Heavy spaghetti, print clearly detached, pause and call human",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 31%",
-        "job.time_in_phase_s": 860,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 209.8,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 59.9,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 31,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.05,
-        "vision.confidence": 0.96,
-        "vision.stringing": 0.61,
-        "vision.spaghetti": 0.94
-    },
-    "job_context": "# Current Job\nFile: bracket_array.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION_CHAIN",
-    "expected_tool": null,
-    "acceptable_tools": [
-        "pause_print",
-        "call_human"
-    ],
-    "unacceptable_tools": [
-        "resume_print",
-        "cancel_print",
-        "set_temperature"
-    ]
+  "name": "Heavy spaghetti, print clearly detached, pause and call human",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 31%",
+    "job.time_in_phase_s": 860,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 209.8,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 59.9,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 31,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.05,
+    "vision.confidence": 0.96,
+    "vision.stringing": 0.61,
+    "vision.spaghetti": 0.94
+  },
+  "job_context": "# Current Job\nFile: bracket_array.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION_CHAIN",
+  "expected_tool": null,
+  "acceptable_tools": [
+    "pause_print",
+    "call_human"
+  ],
+  "unacceptable_tools": [
+    "resume_print",
+    "cancel_print",
+    "set_temperature"
+  ],
+  "category": "vision_defects"
 }

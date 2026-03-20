@@ -163,7 +163,7 @@ def build_user_message(
     sections = []
 
     # 0. Pending callout — FIRST, before everything else
-    # Runtime deletes the key on human response (not ACKNOWLEDGED), so only PENDING or absent
+    # Runtime deletes the key on human response, so only PENDING or absent
     if pending_callout and pending_callout.get("status") == "PENDING":
         msg = pending_callout.get("message", "")[:100]
         sections.append(
@@ -183,17 +183,20 @@ def build_user_message(
     # 1b. Vision analysis — scores only, no description
     vision_status = state.get("vision.status", "NO_DATA")
     if vision_status != "NO_DATA":
-        # Show top 3 non-zero defect scores for context
-        defect_scores = {}
+        # Show top 3 non-zero vision scores for context, without hardware-specific assumptions.
+        vision_scores = {}
         for key, val in state.items():
-            if key.startswith("vision.nozzle.") and key.split(".")[-1] not in ("status", "confidence", "normal"):
-                try:
-                    score = float(val)
-                    if score > 0.1:
-                        defect_scores[key.split(".")[-1]] = score
-                except (ValueError, TypeError):
-                    pass
-        top_scores = sorted(defect_scores.items(), key=lambda x: -x[1])[:3]
+            if not key.startswith("vision.") or key.count(".") < 2:
+                continue
+            if key.split(".")[-1] in ("status", "confidence", "normal"):
+                continue
+            try:
+                score = float(val)
+                if score > 0.1:
+                    vision_scores[key] = score
+            except (ValueError, TypeError):
+                pass
+        top_scores = sorted(vision_scores.items(), key=lambda x: -x[1])[:3]
         score_str = ", ".join(f"{k}={v:.1f}" for k, v in top_scores) if top_scores else "all clear"
         sections.append(f"=== VISION: {vision_status} — {score_str} ===")
 

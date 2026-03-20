@@ -1,31 +1,32 @@
 {
-    "name": "Nozzle temperature 15C above target with no vision defect, reduce temperature",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 34%",
-        "job.time_in_phase_s": 930,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 220.0,
-        "printer.target_nozzle": 205.0,
-        "printer.temp_bed": 60.1,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 34,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {},
-    "job_context": "# Current Job\nFile: pla_clip.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_temperature",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_flow_factor"
-    ]
+  "name": "Nozzle temperature 15C above target with no vision defect, reduce temperature",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 34%",
+    "job.time_in_phase_s": 930,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 220.0,
+    "printer.target_nozzle": 205.0,
+    "printer.temp_bed": 60.1,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 34,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {},
+  "job_context": "# Current Job\nFile: pla_clip.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_temperature",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_flow_factor"
+  ],
+  "category": "telemetry_reasoning"
 }

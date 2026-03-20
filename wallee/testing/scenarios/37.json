@@ -1,36 +1,37 @@
 {
-    "name": "Human said reduce temp to 200, apply the requested temperature change",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 43%",
-        "job.time_in_phase_s": 1180,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 209.9,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 43,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.81,
-        "vision.confidence": 0.8,
-        "vision.stringing": 0.22
-    },
-    "job_context": "# Current Job\nFile: pla_box.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": "reduce temp to 200",
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_temperature",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_speed_factor"
-    ]
+  "name": "Human said reduce temp to 200, apply the requested temperature change",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 43%",
+    "job.time_in_phase_s": 1180,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 209.9,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 43,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.81,
+    "vision.confidence": 0.8,
+    "vision.stringing": 0.22
+  },
+  "job_context": "# Current Job\nFile: pla_box.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": "reduce temp to 200",
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_temperature",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_speed_factor"
+  ],
+  "category": "human_interaction"
 }

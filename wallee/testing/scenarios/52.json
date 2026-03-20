@@ -1,38 +1,39 @@
 {
-    "name": "Printer is paused externally and Wallee did not do it, wait and investigate before resuming",
-    "whiteboard_state": {
-        "job.phase": "PAUSED",
-        "job.phase_detail": "Paused by external source",
-        "job.time_in_phase_s": 90,
-        "printer.state": "PAUSED",
-        "printer.job_state": "PAUSED",
-        "printer.temp_nozzle": 210.0,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 34,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.79,
-        "vision.confidence": 0.77
-    },
-    "job_context": "# Current Job\nFile: pla_spacer.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [
-        "call_human",
-        "get_sensor_history"
-    ],
-    "unacceptable_tools": [
-        "resume_print",
-        "cancel_print",
-        "start_print",
-        "set_temperature"
-    ]
+  "name": "Printer is paused externally and Wallee did not do it, wait and investigate before resuming",
+  "whiteboard_state": {
+    "job.phase": "PAUSED",
+    "job.phase_detail": "Paused by external source",
+    "job.time_in_phase_s": 90,
+    "printer.state": "PAUSED",
+    "printer.job_state": "PAUSED",
+    "printer.temp_nozzle": 210.0,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 34,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.79,
+    "vision.confidence": 0.77
+  },
+  "job_context": "# Current Job\nFile: pla_spacer.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [
+    "call_human",
+    "get_sensor_history"
+  ],
+  "unacceptable_tools": [
+    "resume_print",
+    "cancel_print",
+    "start_print",
+    "set_temperature"
+  ],
+  "category": "edge_cases"
 }

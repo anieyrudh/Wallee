@@ -1,39 +1,40 @@
 {
-    "name": "Normal ASA at 250C with enclosure, high temp normal for ASA",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing enclosure part at 61%",
-        "job.time_in_phase_s": 2100,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 249.8,
-        "printer.target_nozzle": 250.0,
-        "printer.temp_bed": 104.6,
-        "printer.target_bed": 105.0,
-        "printer.job_progress": 61,
-        "printer.speed": 95,
-        "printer.flow": 100,
-        "printer.temp_chamber": 41.2,
-        "printer.door_sensor": 11,
-        "printer.xbe_fan_1_rpm": 2840
-    },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.92,
-        "vision.confidence": 0.89,
-        "vision.warping": 0.08
-    },
-    "job_context": "# Current Job\nFile: asa_enclosure_panel.bgcode\nMaterial: ASA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "set_temperature",
-        "pause_print",
-        "cancel_print",
-        "call_human"
-    ]
+  "name": "Normal ASA at 250C with enclosure, high temp normal for ASA",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing enclosure part at 61%",
+    "job.time_in_phase_s": 2100,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 249.8,
+    "printer.target_nozzle": 250.0,
+    "printer.temp_bed": 104.6,
+    "printer.target_bed": 105.0,
+    "printer.job_progress": 61,
+    "printer.speed": 95,
+    "printer.flow": 100,
+    "printer.temp_chamber": 41.2,
+    "printer.door_sensor": 11,
+    "printer.xbe_fan_1_rpm": 2840
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.92,
+    "vision.confidence": 0.89,
+    "vision.warping": 0.08
+  },
+  "job_context": "# Current Job\nFile: asa_enclosure_panel.bgcode\nMaterial: ASA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "set_temperature",
+    "pause_print",
+    "cancel_print",
+    "call_human"
+  ],
+  "category": "normal_operation"
 }

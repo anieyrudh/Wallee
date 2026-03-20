@@ -1,13 +1,11 @@
 """Tests for whiteboard client using fakeredis."""
 
-import time
 import fakeredis
 import pytest
 
 from wallee.whiteboard.client import (
     Whiteboard,
     compute_trend,
-    compute_differential,
 )
 
 
@@ -80,16 +78,6 @@ class TestRingBuffer:
         wb.publish("env.temperature", 21.0, history_depth=0)
         assert wb.read_history("env.temperature") == []
 
-    def test_history_timestamps_track_publish_times(self, wb):
-        values = iter([100.0, 101.5])
-        wb._now = lambda: next(values)
-        wb.publish("env.temperature", 20.0, history_depth=3)
-        wb.publish("env.temperature", 21.0, history_depth=3)
-
-        timestamps = wb.read_history_timestamps("env.temperature")
-        assert timestamps == [101.5, 100.0]
-
-
 class TestReadAll:
     def test_read_all_excludes_history(self, wb):
         wb.publish("env.temperature", 21.5, history_depth=3)
@@ -150,22 +138,3 @@ class TestComputeTrend:
         assert "rising" in compute_trend([20.2, 20.0])
         # With high threshold, this is stable
         assert compute_trend([20.2, 20.0], threshold=1.0) == "stable"
-
-
-class TestComputeDifferential:
-    def test_positive_rate(self):
-        # 4 readings, 1s apart. Newest=23, oldest=20 → +3 over 3s = +1.0/s
-        result = compute_differential([23.0, 22.0, 21.0, 20.0], interval_s=1.0)
-        assert "+1.000/s" in result
-
-    def test_negative_rate(self):
-        result = compute_differential([17.0, 18.0, 19.0, 20.0], interval_s=1.0)
-        assert "-1.000/s" in result
-
-    def test_insufficient_data(self):
-        assert compute_differential([20.0], interval_s=1.0) == "insufficient data"
-
-    def test_different_interval(self):
-        # 3 readings, 0.5s apart. Newest=22, oldest=20 → +2 over 1s = +2.0/s
-        result = compute_differential([22.0, 21.0, 20.0], interval_s=0.5)
-        assert "+2.000/s" in result

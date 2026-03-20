@@ -6,13 +6,12 @@ poll the printer. The registry calls them on schedule to publish to whiteboard.
 """
 
 import logging
+import threading as _threading
 
 from wallee.bus.udp_listener import MetricsBuffer, UDPListener
 from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
-
-import threading as _threading
 
 # Shared listener and buffer — initialized once, used by all sensors
 _listener: UDPListener | None = None

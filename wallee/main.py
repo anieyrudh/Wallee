@@ -28,6 +28,7 @@ from wallee.tools.registry import ToolRegistry
 from wallee.agent.llm_client import LLMClient
 from wallee.agent.loop import AgentLoop
 from wallee.agent.parser import configure_check_intervals
+from wallee.tools.builtins.call_human_tool import set_call_human_fn
 from wallee.tools.builtins.remember import configure_observations_dir
 from wallee.tools.builtins.web_search import configure_web_search
 from wallee.human.call_human import call_human, write_outbox
@@ -118,7 +119,7 @@ def main():
     def _get_diary(device_group):
         return Diary(device_group, cfg.data_dir)
 
-    reconcile(ledger, _get_diary, call_human_fn=_call_human_fn)
+    reconcile(ledger, _get_diary, call_human_fn=call_human)
     logger.info("Reconcile complete (boot)")
 
     # 5. Load device packs + built-in tools
@@ -203,7 +204,6 @@ def main():
                 estop_ttl=cfg.human_estop_ttl_s,
                 whiteboard=wb,
                 ledger=ledger,
-                safety_kernel=safety,
                 wake_agent_fn=_agent_loop.wake,
             )
             telegram_bot.start()
@@ -219,7 +219,6 @@ def main():
                 call_human(msg, severity, outbox_dir=cfg.data_dir / "outbox",
                            telegram_fn=None)  # don't recurse
             # call_human routed through engine — tool dispatch handles Telegram delivery
-            from wallee.tools.builtins.call_human_tool import set_call_human_fn
             set_call_human_fn(_telegram_call_human)
             logger.info("Telegram bot started and wired to agent + safety kernel + call_human tool")
         except Exception as e:

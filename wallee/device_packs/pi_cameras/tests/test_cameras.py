@@ -1,6 +1,5 @@
 """Tests for pi_cameras sensor tools."""
 
-import base64
 import httpx
 import pytest
 from unittest.mock import patch

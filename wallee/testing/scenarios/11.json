@@ -1,39 +1,40 @@
 {
-    "name": "Blob growing on nozzle during print, pause and call human",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 67%",
-        "job.time_in_phase_s": 2500,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 240.5,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 79.8,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 67,
-        "printer.speed": 95,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.08,
-        "vision.confidence": 0.95,
-        "vision.spaghetti": 0.14,
-        "vision.blob": 0.91
-    },
-    "job_context": "# Current Job\nFile: duct_adapter.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION_CHAIN",
-    "expected_tool": null,
-    "acceptable_tools": [
-        "pause_print",
-        "call_human"
-    ],
-    "unacceptable_tools": [
-        "resume_print",
-        "cancel_print",
-        "set_flow_factor"
-    ]
+  "name": "Blob growing on nozzle during print, pause and call human",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 67%",
+    "job.time_in_phase_s": 2500,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 240.5,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 79.8,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 67,
+    "printer.speed": 95,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.08,
+    "vision.confidence": 0.95,
+    "vision.spaghetti": 0.14,
+    "vision.blob": 0.91
+  },
+  "job_context": "# Current Job\nFile: duct_adapter.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION_CHAIN",
+  "expected_tool": null,
+  "acceptable_tools": [
+    "pause_print",
+    "call_human"
+  ],
+  "unacceptable_tools": [
+    "resume_print",
+    "cancel_print",
+    "set_flow_factor"
+  ],
+  "category": "vision_defects"
 }

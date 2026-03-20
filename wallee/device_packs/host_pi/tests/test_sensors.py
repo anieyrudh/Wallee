@@ -1,7 +1,6 @@
 """Tests for host_pi sensor tools."""
 
 from unittest.mock import patch, MagicMock
-import pytest
 
 from wallee.device_packs.host_pi.sensors import (
     read_cpu_temp,

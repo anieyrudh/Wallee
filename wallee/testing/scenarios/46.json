@@ -1,45 +1,46 @@
 {
-    "name": "Previous action was rejected after a TOCTOU state change, take a different approach now",
-    "whiteboard_state": {
-        "job.phase": "PAUSED",
-        "job.phase_detail": "Paused for inspection",
-        "job.time_in_phase_s": 160,
-        "printer.state": "PAUSED",
-        "printer.job_state": "PAUSED",
-        "printer.temp_nozzle": 204.9,
-        "printer.target_nozzle": 205.0,
-        "printer.temp_bed": 60.0,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 48,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.09,
-        "vision.confidence": 0.94,
-        "vision.blob": 0.87
-    },
-    "job_context": "# Current Job\nFile: pla_mount.bgcode\nMaterial: PLA\n",
-    "episode": [
-        {
-            "status": "REJECTED",
-            "tool": "pause_print",
-            "params_json": "{}",
-            "reason": "pause for cleanup",
-            "error_json": "Cannot pause: job is PAUSED, not PRINTING",
-            "result_json": ""
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "CALL_HUMAN",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "resume_print",
-        "cancel_print",
-        "set_temperature"
-    ]
+  "name": "Previous action was rejected after a TOCTOU state change, take a different approach now",
+  "whiteboard_state": {
+    "job.phase": "PAUSED",
+    "job.phase_detail": "Paused for inspection",
+    "job.time_in_phase_s": 160,
+    "printer.state": "PAUSED",
+    "printer.job_state": "PAUSED",
+    "printer.temp_nozzle": 204.9,
+    "printer.target_nozzle": 205.0,
+    "printer.temp_bed": 60.0,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 48,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.09,
+    "vision.confidence": 0.94,
+    "vision.blob": 0.87
+  },
+  "job_context": "# Current Job\nFile: pla_mount.bgcode\nMaterial: PLA\n",
+  "episode": [
+    {
+      "status": "REJECTED",
+      "tool": "pause_print",
+      "params_json": "{}",
+      "reason": "pause for cleanup",
+      "error_json": "Cannot pause: job is PAUSED, not PRINTING",
+      "result_json": ""
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "CALL_HUMAN",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "resume_print",
+    "cancel_print",
+    "set_temperature"
+  ],
+  "category": "rejection_learning"
 }

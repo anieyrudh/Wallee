@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import threading
 
 from wallee.config import (
     DEFAULT_HUMAN_ESTOP_TTL_S,

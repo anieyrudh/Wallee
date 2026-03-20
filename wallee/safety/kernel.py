@@ -3,7 +3,6 @@
 import logging
 import os
 import time
-import threading
 
 from wallee.safety.estop import estop_printer
 from wallee.whiteboard.client import Whiteboard

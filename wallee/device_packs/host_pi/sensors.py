@@ -88,7 +88,7 @@ def read_usb_devices():
                 ["lsusb"], capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
-                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+                lines = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
                 return {"host.usb_devices": lines}
             # No USB enumeration available (e.g., macOS without lsusb)
             result = subprocess.run(

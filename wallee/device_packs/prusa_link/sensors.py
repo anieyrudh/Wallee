@@ -10,13 +10,12 @@ HTTP sensors provide:
 
 import logging
 import os
+import threading as _threading
 import time as _time
 
 from wallee.tools.decorator import tool
 
 logger = logging.getLogger(__name__)
-
-import threading as _threading
 
 _http = None
 _http_lock = _threading.Lock()
@@ -181,8 +180,8 @@ def read_job_phase() -> dict:
     progress = float(job.get("progress", 0) or 0)
     temp_nozzle = float(printer.get("temp_nozzle", 0) or 0)
     target_nozzle = float(printer.get("target_nozzle", 0) or 0)
-    temp_bed = float(printer.get("temp_bed", 0) or 0)
-    target_bed = float(printer.get("target_bed", 0) or 0)
+    float(printer.get("temp_bed", 0) or 0)
+    float(printer.get("target_bed", 0) or 0)
 
     has_job = state in ("PRINTING", "PAUSED") or progress > 0
 

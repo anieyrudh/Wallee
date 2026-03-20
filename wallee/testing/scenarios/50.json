@@ -1,45 +1,46 @@
 {
-    "name": "Previous temperature change was rejected as out of bounds, try a smaller valid adjustment",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 62%",
-        "job.time_in_phase_s": 1710,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 244.7,
-        "printer.target_nozzle": 245.0,
-        "printer.temp_bed": 79.8,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 62,
-        "printer.speed": 90,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.22,
-        "vision.confidence": 0.88,
-        "vision.stringing": 0.74
-    },
-    "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
-    "episode": [
-        {
-            "status": "REJECTED",
-            "tool": "set_temperature",
-            "params_json": "{\"target\":305,\"heater\":\"nozzle\"}",
-            "reason": "cool the nozzle dramatically",
-            "error_json": "Nozzle target 305.0C outside safe range (0-300)",
-            "result_json": ""
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_temperature",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "resume_print"
-    ]
+  "name": "Previous temperature change was rejected as out of bounds, try a smaller valid adjustment",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 62%",
+    "job.time_in_phase_s": 1710,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 244.7,
+    "printer.target_nozzle": 245.0,
+    "printer.temp_bed": 79.8,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 62,
+    "printer.speed": 90,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.22,
+    "vision.confidence": 0.88,
+    "vision.stringing": 0.74
+  },
+  "job_context": "# Current Job\nFile: petg_case.bgcode\nMaterial: PETG\n",
+  "episode": [
+    {
+      "status": "REJECTED",
+      "tool": "set_temperature",
+      "params_json": "{\"target\":305,\"heater\":\"nozzle\"}",
+      "reason": "cool the nozzle dramatically",
+      "error_json": "Nozzle target 305.0C outside safe range (0-300)",
+      "result_json": ""
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_temperature",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "resume_print"
+  ],
+  "category": "rejection_learning"
 }

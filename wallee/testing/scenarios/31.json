@@ -1,34 +1,35 @@
 {
-    "name": "Nozzle overcurrent flag is active, call human immediately",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 22%",
-        "job.time_in_phase_s": 510,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 239.1,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 80.0,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 22,
-        "printer.speed": 90,
-        "printer.flow": 100,
-        "printer.curr_nozzle": 0.092,
-        "printer.oc_nozzle": 1,
-        "printer.oc_input": 0
-    },
-    "vision_state": {},
-    "job_context": "# Current Job\nFile: petg_clip.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "CALL_HUMAN",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "resume_print",
-        "set_temperature",
-        "set_speed_factor",
-        "start_print"
-    ]
+  "name": "Nozzle overcurrent flag is active, call human immediately",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 22%",
+    "job.time_in_phase_s": 510,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 239.1,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 80.0,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 22,
+    "printer.speed": 90,
+    "printer.flow": 100,
+    "printer.curr_nozzle": 0.092,
+    "printer.oc_nozzle": 1,
+    "printer.oc_input": 0
+  },
+  "vision_state": {},
+  "job_context": "# Current Job\nFile: petg_clip.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "CALL_HUMAN",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "resume_print",
+    "set_temperature",
+    "set_speed_factor",
+    "start_print"
+  ],
+  "category": "telemetry_reasoning"
 }

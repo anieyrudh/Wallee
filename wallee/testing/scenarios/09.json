@@ -1,37 +1,38 @@
 {
-    "name": "Stringing detected with high confidence, reduce nozzle temperature",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 52%",
-        "job.time_in_phase_s": 1400,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 217.9,
-        "printer.target_nozzle": 218.0,
-        "printer.temp_bed": 60.2,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 52,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.21,
-        "vision.confidence": 0.92,
-        "vision.stringing": 0.84,
-        "vision.spaghetti": 0.03
-    },
-    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_temperature",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_flow_factor"
-    ]
+  "name": "Stringing detected with high confidence, reduce nozzle temperature",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 52%",
+    "job.time_in_phase_s": 1400,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 217.9,
+    "printer.target_nozzle": 218.0,
+    "printer.temp_bed": 60.2,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 52,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.21,
+    "vision.confidence": 0.92,
+    "vision.stringing": 0.84,
+    "vision.spaghetti": 0.03
+  },
+  "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_temperature",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_flow_factor"
+  ],
+  "category": "vision_defects"
 }

@@ -20,16 +20,6 @@ def compute_trend(history: list[float], threshold: float = 0.1) -> str:
     return f"{direction} {delta:+.1f} over {len(history)} readings"
 
 
-def compute_differential(history: list[float], interval_s: float) -> str:
-    """Rate of change per second."""
-    if len(history) < 2:
-        return "insufficient data"
-    delta = history[0] - history[-1]
-    time_span = interval_s * (len(history) - 1)
-    rate = delta / time_span if time_span > 0 else 0
-    return f"{rate:+.3f}/s"
-
-
 class Whiteboard:
     def __init__(self, redis_url: str = "redis://localhost:6379", _redis=None):
         """Initialize whiteboard. Pass _redis for testing with fakeredis."""
@@ -113,20 +103,6 @@ class Whiteboard:
         except redis.ResponseError:
             return []
         return [json.loads(v) for v in vals]
-
-    def read_history_timestamps(self, key: str) -> list[float]:
-        """Read ring buffer timestamps for a key. Newest first."""
-        try:
-            vals = self.r.lrange(f"{key}:history_ts", 0, -1)
-        except redis.ResponseError:
-            return []
-        timestamps = []
-        for value in vals:
-            try:
-                timestamps.append(float(json.loads(value)))
-            except (TypeError, ValueError, json.JSONDecodeError):
-                continue
-        return timestamps
 
     def read_all(self) -> dict:
         """Read all string-type keys (skip lists, sets, etc.)."""

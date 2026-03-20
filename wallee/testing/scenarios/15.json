@@ -1,40 +1,41 @@
 {
-    "name": "Overextrusion rough surface, reduce flow",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing top skin at 74%",
-        "job.time_in_phase_s": 1950,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 241.1,
-        "printer.target_nozzle": 240.0,
-        "printer.temp_bed": 79.9,
-        "printer.target_bed": 80.0,
-        "printer.job_progress": 74,
-        "printer.speed": 90,
-        "printer.flow": 106
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.19,
-        "vision.confidence": 0.91,
-        "vision.overextrusion": 0.83
-    },
-    "job_context": "# Current Job\nFile: petg_cover.bgcode\nMaterial: PETG\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": [
-        "ACTION",
-        "ACTION_CHAIN"
-    ],
-    "expected_tool": "set_flow_factor",
-    "acceptable_tools": [
-        "set_temperature"
-    ],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human"
-    ]
+  "name": "Overextrusion rough surface, reduce flow",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing top skin at 74%",
+    "job.time_in_phase_s": 1950,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 241.1,
+    "printer.target_nozzle": 240.0,
+    "printer.temp_bed": 79.9,
+    "printer.target_bed": 80.0,
+    "printer.job_progress": 74,
+    "printer.speed": 90,
+    "printer.flow": 106
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.19,
+    "vision.confidence": 0.91,
+    "vision.overextrusion": 0.83
+  },
+  "job_context": "# Current Job\nFile: petg_cover.bgcode\nMaterial: PETG\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": [
+    "ACTION",
+    "ACTION_CHAIN"
+  ],
+  "expected_tool": "set_flow_factor",
+  "acceptable_tools": [
+    "set_temperature"
+  ],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human"
+  ],
+  "category": "vision_defects"
 }

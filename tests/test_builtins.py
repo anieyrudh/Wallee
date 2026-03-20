@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 from wallee.whiteboard.client import Whiteboard
 from wallee.tools.builtins.sensor_history import get_sensor_history
 from wallee.tools.builtins.call_human_tool import call_human
-from wallee.tools.builtins.discover import discover_hardware
+from wallee.tools.builtins.discover_hardware import discover_hardware
 from wallee.tools.builtins.web_search import web_search
 from wallee.tools.registry import ToolRegistry
 
@@ -62,7 +62,8 @@ class TestPlaceholders:
     @patch("wallee.device_packs.pi_cameras.sensors.discover_buddy_cameras", return_value=["192.168.0.194"])
     @patch("wallee.device_packs.pi_cameras.sensors.discover_nozzle_camera_port", return_value="8083")
     @patch("wallee.device_packs.prusa_serial.actuators._find_prusa_port", return_value="/dev/ttyACM0")
-    def test_discover_hardware(self, mock_serial, mock_nozzle, mock_buddies, wb):
+    def test_discover_hardware(self, mock_serial, mock_nozzle, mock_buddies, wb, tmp_path, monkeypatch):
+        monkeypatch.setattr("wallee.tools.builtins.discover_hardware._KNOWLEDGE_DIR", tmp_path)
         result = discover_hardware(whiteboard=wb)
         assert result["status"] == "success"
         assert result["findings"]["camera.nozzle_port"] == "8083"

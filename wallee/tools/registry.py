@@ -1,12 +1,9 @@
 """Tool registry — discovers device packs, registers sensor and actuator tools."""
 
 import importlib
-import inspect
 import logging
 import threading
 import time
-from pathlib import Path
-from typing import Any
 
 from wallee.whiteboard.client import Whiteboard
 
@@ -137,7 +134,7 @@ class ToolRegistry:
         builtin_modules = [
             "wallee.tools.builtins.sensor_history",
             "wallee.tools.builtins.call_human_tool",
-            "wallee.tools.builtins.discover",
+            "wallee.tools.builtins.discover_hardware",
             "wallee.tools.builtins.remember",
             "wallee.tools.builtins.web_search",
             "wallee.tools.builtins.lookup_issue",

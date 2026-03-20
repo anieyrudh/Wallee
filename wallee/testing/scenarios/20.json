@@ -1,41 +1,42 @@
 {
-    "name": "Severe bed adhesion failure with part lifting, pause and call human",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 9%",
-        "job.time_in_phase_s": 180,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 249.9,
-        "printer.target_nozzle": 250.0,
-        "printer.temp_bed": 99.8,
-        "printer.target_bed": 100.0,
-        "printer.job_progress": 9,
-        "printer.speed": 95,
-        "printer.flow": 100,
-        "printer.temp_chamber": 32.8
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.04,
-        "vision.confidence": 0.95,
-        "vision.spaghetti": 0.22,
-        "vision.warping": 0.91,
-        "vision.bed_adhesion_ok": 0.05
-    },
-    "job_context": "# Current Job\nFile: asa_mount.bgcode\nMaterial: ASA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION_CHAIN",
-    "expected_tool": null,
-    "acceptable_tools": [
-        "pause_print",
-        "call_human"
-    ],
-    "unacceptable_tools": [
-        "resume_print",
-        "cancel_print",
-        "set_flow_factor"
-    ]
+  "name": "Severe bed adhesion failure with part lifting, pause and call human",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 9%",
+    "job.time_in_phase_s": 180,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 249.9,
+    "printer.target_nozzle": 250.0,
+    "printer.temp_bed": 99.8,
+    "printer.target_bed": 100.0,
+    "printer.job_progress": 9,
+    "printer.speed": 95,
+    "printer.flow": 100,
+    "printer.temp_chamber": 32.8
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.04,
+    "vision.confidence": 0.95,
+    "vision.spaghetti": 0.22,
+    "vision.warping": 0.91,
+    "vision.bed_adhesion_ok": 0.05
+  },
+  "job_context": "# Current Job\nFile: asa_mount.bgcode\nMaterial: ASA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION_CHAIN",
+  "expected_tool": null,
+  "acceptable_tools": [
+    "pause_print",
+    "call_human"
+  ],
+  "unacceptable_tools": [
+    "resume_print",
+    "cancel_print",
+    "set_flow_factor"
+  ],
+  "category": "vision_defects"
 }

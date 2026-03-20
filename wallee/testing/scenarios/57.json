@@ -1,37 +1,38 @@
 {
-    "name": "Print is only at 2% and the issue is minor, wait because it is too early to judge",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Early first layers at 2%",
-        "job.time_in_phase_s": 48,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 210.1,
-        "printer.target_nozzle": 210.0,
-        "printer.temp_bed": 60.1,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 2,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.42,
-        "vision.confidence": 0.71,
-        "vision.stringing": 0.22,
-        "vision.underextrusion": 0.18
-    },
-    "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_temperature"
-    ]
+  "name": "Print is only at 2% and the issue is minor, wait because it is too early to judge",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Early first layers at 2%",
+    "job.time_in_phase_s": 48,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 210.1,
+    "printer.target_nozzle": 210.0,
+    "printer.temp_bed": 60.1,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 2,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.42,
+    "vision.confidence": 0.71,
+    "vision.stringing": 0.22,
+    "vision.underextrusion": 0.18
+  },
+  "job_context": "# Current Job\nFile: benchy.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_temperature"
+  ],
+  "category": "edge_cases"
 }

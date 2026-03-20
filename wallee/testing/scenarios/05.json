@@ -1,37 +1,38 @@
 {
-    "name": "First layer printing, slow speed, Z close to bed",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "First layer at 2%",
-        "job.time_in_phase_s": 55,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 198.7,
-        "printer.target_nozzle": 200.0,
-        "printer.temp_bed": 60.3,
-        "printer.target_bed": 60.0,
-        "printer.job_progress": 2,
-        "printer.speed": 70,
-        "printer.flow": 100,
-        "printer.pos_z": 0.22
-    },
-    "vision_state": {
-        "vision.status": "NORMAL",
-        "vision.normal": 0.89,
-        "vision.confidence": 0.88,
-        "vision.bed_adhesion_ok": 0.91
-    },
-    "job_context": "# Current Job\nFile: switch_plate.bgcode\nMaterial: PLA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "WAIT",
-    "expected_tool": null,
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_temperature"
-    ]
+  "name": "First layer printing, slow speed, Z close to bed",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "First layer at 2%",
+    "job.time_in_phase_s": 55,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 198.7,
+    "printer.target_nozzle": 200.0,
+    "printer.temp_bed": 60.3,
+    "printer.target_bed": 60.0,
+    "printer.job_progress": 2,
+    "printer.speed": 70,
+    "printer.flow": 100,
+    "printer.pos_z": 0.22
+  },
+  "vision_state": {
+    "vision.status": "NORMAL",
+    "vision.normal": 0.89,
+    "vision.confidence": 0.88,
+    "vision.bed_adhesion_ok": 0.91
+  },
+  "job_context": "# Current Job\nFile: switch_plate.bgcode\nMaterial: PLA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "WAIT",
+  "expected_tool": null,
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_temperature"
+  ],
+  "category": "normal_operation"
 }

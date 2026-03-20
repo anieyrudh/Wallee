@@ -470,7 +470,7 @@ def extrude(whiteboard=None, length_mm=None, feedrate: int = 300, **kwargs) -> d
         return {"error": f"Cannot extrude: nozzle temp {nozzle_temp}C < 170C min_extrusion_temp"}
 
     # Set relative extrusion mode, extrude, then back to absolute
-    commands = [f"M83", f"G1 E{length_mm} F{feedrate}", "M82"]
+    commands = ["M83", f"G1 E{length_mm} F{feedrate}", "M82"]
     for cmd in commands:
         result = http.post("/api/v1/gcode", json_body={"command": cmd})
         if "error" in result:

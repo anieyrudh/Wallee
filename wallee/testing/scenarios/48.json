@@ -1,45 +1,46 @@
 {
-    "name": "Engine rejected a malformed speed change, there is no human cooldown so retry with a valid tool call",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 26%",
-        "job.time_in_phase_s": 710,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 249.6,
-        "printer.target_nozzle": 250.0,
-        "printer.temp_bed": 100.1,
-        "printer.target_bed": 100.0,
-        "printer.job_progress": 26,
-        "printer.speed": 100,
-        "printer.flow": 100
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.24,
-        "vision.confidence": 0.88,
-        "vision.warping": 0.72
-    },
-    "job_context": "# Current Job\nFile: asa_hook.bgcode\nMaterial: ASA\n",
-    "episode": [
-        {
-            "status": "REJECTED",
-            "tool": "set_speed_factor",
-            "params_json": "{}",
-            "reason": "slow down for warping",
-            "error_json": "percent is required",
-            "result_json": ""
-        }
-    ],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": "set_speed_factor",
-    "acceptable_tools": [],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "resume_print"
-    ]
+  "name": "Engine rejected a malformed speed change, there is no human cooldown so retry with a valid tool call",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 26%",
+    "job.time_in_phase_s": 710,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 249.6,
+    "printer.target_nozzle": 250.0,
+    "printer.temp_bed": 100.1,
+    "printer.target_bed": 100.0,
+    "printer.job_progress": 26,
+    "printer.speed": 100,
+    "printer.flow": 100
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.24,
+    "vision.confidence": 0.88,
+    "vision.warping": 0.72
+  },
+  "job_context": "# Current Job\nFile: asa_hook.bgcode\nMaterial: ASA\n",
+  "episode": [
+    {
+      "status": "REJECTED",
+      "tool": "set_speed_factor",
+      "params_json": "{}",
+      "reason": "slow down for warping",
+      "error_json": "percent is required",
+      "result_json": ""
+    }
+  ],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": "set_speed_factor",
+  "acceptable_tools": [],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "resume_print"
+  ],
+  "category": "rejection_learning"
 }

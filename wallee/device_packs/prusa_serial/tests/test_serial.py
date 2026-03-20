@@ -5,11 +5,9 @@ from unittest.mock import patch, MagicMock
 
 from wallee.bus.serial import SerialBus, find_serial_port, _is_garbled
 from wallee.device_packs.prusa_serial.actuators import (
-    _find_prusa_port,
     PRUSA_BLACKLISTED,
     PRUSA_ALLOWED_DIAGNOSTIC_GCODE,
     PRUSA_M115_SPAM,
-    _get_serial,
 )
 import wallee.device_packs.prusa_serial.actuators as actuators_mod
 from wallee.device_packs.prusa_serial.actuators import (

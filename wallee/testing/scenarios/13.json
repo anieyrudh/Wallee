@@ -1,41 +1,42 @@
 {
-    "name": "Corner warping detected, increase bed temperature or reduce speed",
-    "whiteboard_state": {
-        "job.phase": "PRINTING",
-        "job.phase_detail": "Printing at 18%",
-        "job.time_in_phase_s": 430,
-        "printer.state": "PRINTING",
-        "printer.job_state": "PRINTING",
-        "printer.temp_nozzle": 249.7,
-        "printer.target_nozzle": 250.0,
-        "printer.temp_bed": 101.2,
-        "printer.target_bed": 100.0,
-        "printer.job_progress": 18,
-        "printer.speed": 100,
-        "printer.flow": 100,
-        "printer.temp_chamber": 34.1
-    },
-    "vision_state": {
-        "vision.status": "DEFECT",
-        "vision.normal": 0.22,
-        "vision.confidence": 0.88,
-        "vision.warping": 0.79,
-        "vision.bed_adhesion_ok": 0.29
-    },
-    "job_context": "# Current Job\nFile: asa_bracket.bgcode\nMaterial: ASA\n",
-    "episode": [],
-    "human_intent": null,
-    "pending_callout": null,
-    "expected_type": "ACTION",
-    "expected_tool": null,
-    "acceptable_tools": [
-        "set_temperature",
-        "set_speed_factor"
-    ],
-    "unacceptable_tools": [
-        "pause_print",
-        "cancel_print",
-        "call_human",
-        "set_flow_factor"
-    ]
+  "name": "Corner warping detected, increase bed temperature or reduce speed",
+  "whiteboard_state": {
+    "job.phase": "PRINTING",
+    "job.phase_detail": "Printing at 18%",
+    "job.time_in_phase_s": 430,
+    "printer.state": "PRINTING",
+    "printer.job_state": "PRINTING",
+    "printer.temp_nozzle": 249.7,
+    "printer.target_nozzle": 250.0,
+    "printer.temp_bed": 101.2,
+    "printer.target_bed": 100.0,
+    "printer.job_progress": 18,
+    "printer.speed": 100,
+    "printer.flow": 100,
+    "printer.temp_chamber": 34.1
+  },
+  "vision_state": {
+    "vision.status": "DEFECT",
+    "vision.normal": 0.22,
+    "vision.confidence": 0.88,
+    "vision.warping": 0.79,
+    "vision.bed_adhesion_ok": 0.29
+  },
+  "job_context": "# Current Job\nFile: asa_bracket.bgcode\nMaterial: ASA\n",
+  "episode": [],
+  "human_intent": null,
+  "pending_callout": null,
+  "expected_type": "ACTION",
+  "expected_tool": null,
+  "acceptable_tools": [
+    "set_temperature",
+    "set_speed_factor"
+  ],
+  "unacceptable_tools": [
+    "pause_print",
+    "cancel_print",
+    "call_human",
+    "set_flow_factor"
+  ],
+  "category": "vision_defects"
 }
