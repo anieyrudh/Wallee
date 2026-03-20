@@ -57,6 +57,17 @@ _NOZZLE_PROMPT = """You are a 3D print quality inspector analyzing a NOZZLE CAME
 
 Score each defect 0.0 (absent) to 1.0 (clearly present). Be conservative — only score above 0.5 if confident.
 If the image is blurry or unclear, set all defect scores low and normal high.
+You are inspecting a working 3D printer. Minor residue, small ooze, slight
+discoloration, and thin wisps are NORMAL artifacts of the printing process.
+Do not flag them.
+
+Only flag something as a defect if it would:
+- Affect print quality (visible stringing across the part, layer gaps, surface roughness)
+- Risk hardware damage (blob growing toward heater block, filament wrapping around hotend)
+- Indicate print failure (part detached from bed, spaghetti, severe warping lifting corners)
+
+A small blob sitting on the nozzle tip is not a defect. A blob growing and
+engulfing the heater block IS a defect. Calibrate accordingly.
 
 Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation. Good: "White fuzzy residue on overhangs, rough bumpy texture on top surface." Bad: "Moisture in filament causing steam bubbles during extrusion."
 
@@ -69,6 +80,17 @@ _BUDDY_PROMPT = """You are a 3D print quality inspector analyzing a WIDE-ANGLE B
 
 Score each defect 0.0 (absent) to 1.0 (clearly present). Focus on: spaghetti (filament in air), warping (corners lifting), detachment (print shifted or fallen). Be conservative.
 If the image is blurry or unclear, set all defect scores low and normal high.
+You are inspecting a working 3D printer. Minor residue, small ooze, slight
+discoloration, and thin wisps are NORMAL artifacts of the printing process.
+Do not flag them.
+
+Only flag something as a defect if it would:
+- Affect print quality (visible stringing across the part, layer gaps, surface roughness)
+- Risk hardware damage (blob growing toward heater block, filament wrapping around hotend)
+- Indicate print failure (part detached from bed, spaghetti, severe warping lifting corners)
+
+A small blob sitting on the nozzle tip is not a defect. A blob growing and
+engulfing the heater block IS a defect. Calibrate accordingly.
 
 Write a one-sentence description of ONLY what you physically see. No diagnosis, no cause analysis, no interpretation.
 
@@ -76,6 +98,13 @@ CRITICAL: Your numerical scores and your text description MUST agree. If you des
 
 Respond with JSON only:
 {"stringing": 0.0, "spaghetti": 0.0, "blob": 0.0, "warping": 0.0, "layer_shift": 0.0, "underextrusion": 0.0, "overextrusion": 0.0, "burn_marks": 0.0, "bed_adhesion_ok": 1.0, "normal": 1.0, "confidence": 0.8, "description": "Object centered on bed, no loose filament, corners flat"}"""
+
+
+def _prompt_with_phase(prompt: str, phase: str | None) -> str:
+    """Append current print phase context to the vision prompt."""
+    if not phase:
+        return prompt
+    return f"{prompt}\n\nCurrent print phase: {phase}. Calibrate your judgment to what is normal for this phase."
 
 
 def _analyze_frame(frame_b64: str, prompt: str) -> dict | None:
@@ -199,7 +228,7 @@ def read_vision_analysis() -> dict:
 
     # Analyze nozzle camera (close-up: stringing, extrusion quality, blob)
     if nozzle_frame and isinstance(nozzle_frame, str):
-        scores = _analyze_frame(nozzle_frame, _NOZZLE_PROMPT)
+        scores = _analyze_frame(nozzle_frame, _prompt_with_phase(_NOZZLE_PROMPT, phase))
         if scores:
             nozzle_result = _scores_to_result(scores, "vision.nozzle")
             result.update(nozzle_result)
@@ -212,7 +241,7 @@ def read_vision_analysis() -> dict:
         ("buddy2", buddy2_frame, "vision.buddy2"),
     ]:
         if buddy_frame and isinstance(buddy_frame, str):
-            scores = _analyze_frame(buddy_frame, _BUDDY_PROMPT)
+            scores = _analyze_frame(buddy_frame, _prompt_with_phase(_BUDDY_PROMPT, phase))
             if scores:
                 buddy_result = _scores_to_result(scores, buddy_prefix)
                 result.update(buddy_result)
