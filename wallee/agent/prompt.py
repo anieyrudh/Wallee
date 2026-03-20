@@ -22,12 +22,14 @@ MAX_PROMPT_EPISODE_CHARS = 160
 MAX_PROMPT_REASON_CHARS = 120
 MAX_PROMPT_STATE_JSON_CHARS = 80
 
+# Keys to exclude from the whiteboard dump in the prompt (verbose, static, or internal)
 _SKIP_KEYS = frozenset({
-    "host.usb_devices", "host.network_interfaces", "printer.files",
-    "printer.firmware", "printer.serial", "printer.model",
-    "printer.nozzle_diameter", "agent.last_decision",
-    "agent.heartbeat", "engine.heartbeat",
+    "host.usb_devices", "host.network_interfaces",
+    "agent.last_decision", "agent.heartbeat", "engine.heartbeat",
 })
+
+# Key suffixes/patterns that are always too verbose for the prompt
+_SKIP_SUFFIXES = ("_diameter", ".files", ".firmware", ".serial", ".model")
 
 
 def _trim_text(value, limit: int) -> str:
@@ -134,7 +136,7 @@ def build_system_prompt(
     sections.append(
         "Respond with one JSON object only. Observation and reasoning must each be one sentence.\n"
         'WAIT: {"type":"WAIT","observation":"...","reasoning":"...","tool":null,"params":null,"actions":null,"message":null,"severity":null,"check_after_s":30}\n'
-        'ACTION: {"type":"ACTION","observation":"...","reasoning":"...","tool":"tool_name","params":"{\\"target\\":210,\\"heater\\":\\"nozzle\\"}","actions":null,"message":null,"severity":null,"check_after_s":null}\n'
+        'ACTION: {"type":"ACTION","observation":"...","reasoning":"...","tool":"tool_name","params":"{\\"key\\":\\"value\\"}","actions":null,"message":null,"severity":null,"check_after_s":null}\n'
         'ACTION_CHAIN: {"type":"ACTION_CHAIN","observation":"...","reasoning":"...","tool":null,"params":null,"actions":[{"tool":"tool_name","params":"{}","reasoning":"..."}],"message":null,"severity":null,"check_after_s":null}\n'
         'CALL_HUMAN: {"type":"CALL_HUMAN","observation":"...","reasoning":"...","tool":null,"params":null,"actions":null,"message":"...","severity":"warning","check_after_s":null}'
     )
@@ -195,8 +197,8 @@ def build_user_message(
         sections.append("\n".join(lines))
 
     # 3. Whiteboard sensor data (no images — just numbers and states)
-    # Trend keys (e.g., "printer.temp_nozzle:trend") are inlined with the value
-    # instead of shown as separate rows, so the LLM sees "215.2°C (↑ rising +2.1)"
+    # Trend keys (e.g., "some.key:trend") are inlined with the base value
+    # instead of shown as separate rows, so the LLM sees "215.2 (↑ rising +2.1)"
     sections.append("=== WHITEBOARD STATE ===")
     if state:
         for key in sorted(state.keys()):
@@ -207,6 +209,8 @@ def build_user_message(
             if key == "human.image":
                 continue
             if key in _SKIP_KEYS:
+                continue
+            if any(key.endswith(s) for s in _SKIP_SUFFIXES):
                 continue
             if key.startswith("camera.") and key.endswith("_frame_size"):
                 continue
