@@ -2,7 +2,6 @@
 
 Date: 2026-03-21
 
-This document describes the current repository state in `v5` after the audit cleanup pass. It is grounded in the live code paths under `wallee/`, not just the design intent.
 
 ## Overview
 
