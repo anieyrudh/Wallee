@@ -84,6 +84,24 @@ The agent doesn't know the difference between calling hardware, calling a human,
 or calling a knowledge service. They're all tools. The engine knows the difference
 — hardware tools go through safety gates, human and knowledge tools bypass them.
 
+## Actuators vs sensors
+
+The tool registry has two kinds of entries:
+
+**Actuator tools** — actions the LLM can propose. These go through the engine
+gate pipeline before executing. Examples: `set_temperature`, `pause_print`,
+`call_human`.
+
+**Sensor publishers** — background functions that periodically read hardware and
+publish state to the whiteboard. The LLM never calls these directly — it reads
+their output from the whiteboard. Examples: temperature readings, camera frames,
+filament sensor data.
+
+The LLM sees sensor data in its prompt. It proposes actuator tools in its response.
+The engine validates actuator proposals. Sensors run independently.
+
+Wallee currently exposes 20 actuator tools the LLM can propose, plus 19 background sensor publishers.
+
 ## Key design principles
 
 - Untrusted LLM: the model proposes actions, but deterministic code validates and dispatches them.
@@ -175,7 +193,7 @@ After those gates, the engine writes an in-flight diary record, marks the action
 |---|---|
 | Architecture verification snapshot | `523 passed in 36.56s` |
 | Current repository state | `517 passed in 36.61s` |
-| Registered runtime tools | `39 total` (`19` sensors, `20` actuators) |
+| Registered runtime actions | 20 actuator tools the LLM can propose, plus 19 background sensor publishers |
 | Replay harness corpus | `60` scenarios |
 
 ## Known limitations
@@ -217,5 +235,6 @@ metrics ingestion, serial access, and cameras.
 
 ### Device pack docs
 
-- Capability map: [`wallee/device_packs/prusa_link/CAPABILITIES.md`](/Users/anieyrudh/Desktop/Wallee2/wallee/device_packs/prusa_link/CAPABILITIES.md)
-- Integration code: [`wallee/device_packs/prusa_link/`](/Users/anieyrudh/Desktop/Wallee2/wallee/device_packs/prusa_link)
+- Setup guide: [`wallee/device_packs/prusa_link/SETUP.md`](wallee/device_packs/prusa_link/SETUP.md)
+- Capability map: [`wallee/device_packs/prusa_link/CAPABILITIES.md`](wallee/device_packs/prusa_link/CAPABILITIES.md)
+- Integration code: [`wallee/device_packs/prusa_link/`](wallee/device_packs/prusa_link/)
