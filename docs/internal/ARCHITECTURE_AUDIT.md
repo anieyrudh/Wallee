@@ -161,7 +161,7 @@ Important inclusion / exclusion facts:
 
 - `HARDWARE.md` is loaded in `loop.py` but never inserted into the prompt.
 - `REFERENCE.md` is never inserted into the prompt.
-- `BOOTSTRAP_OBSERVATIONS.md` is never loaded at runtime.
+- `BOOTSTRAP_NOTES.md` is never loaded at runtime.
 
 #### `llm_client.py`
 
@@ -644,7 +644,7 @@ Runtime token estimates (`word_count * 1.3`):
 - `SOUL.md`: `~603`
 - `LEARNED.md`: `~728`
 - `REFERENCE.md`: `~13,254`
-- `BOOTSTRAP_OBSERVATIONS.md`: `~1,405`
+- `BOOTSTRAP_NOTES.md`: `~1,405`
 - `OBSERVATIONS.md`: `~728`
 
 Runtime usage:
@@ -658,7 +658,7 @@ Runtime usage:
   - `HARDWARE.md` if present
 - Not loaded:
   - `REFERENCE.md`
-  - `BOOTSTRAP_OBSERVATIONS.md`
+  - `BOOTSTRAP_NOTES.md`
 
 Knowledge contradictions / inconsistencies:
 
