@@ -1,5 +1,7 @@
 # Bootstrap Observations
 
+> Example deployment seed notes for the shipped device pack. These are intentionally hardware- and material-specific and are not part of the framework contract.
+
 Synthetic first-person experiences for seeding OBSERVATIONS.md. Review before deploying.
 
 ## Early experience — PLA benchy

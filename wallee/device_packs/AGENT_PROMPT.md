@@ -54,6 +54,7 @@ Hardware details for [YOUR HARDWARE]:
 
 Follow the shipped device-pack patterns:
 - Sensors return dicts; the framework publishes those payloads to Redis.
+- Sensors are background publishers, not tools the LLM calls directly.
 - Hardware actuators accept whiteboard=None when they need current state.
 - state_effects are declared on actuators that change observable state.
 - requires_approval is used on destructive actions.

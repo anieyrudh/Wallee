@@ -1,5 +1,7 @@
 # Replay Harness Baseline Report
 
+> Historical benchmark snapshot. This file records one replay-harness run and may use a different model or prompt setup than the current public launch configuration. For the current public architecture and validation summary, use [`README.md`](../../README.md) and [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
 Run date: 2026-03-19
 
 Model used by the live replay run: `anthropic/claude-opus-4-6` from local `.env`

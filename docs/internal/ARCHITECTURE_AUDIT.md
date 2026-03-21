@@ -1,6 +1,8 @@
 # Wallee Architecture Audit
 ## Date: 2026-03-21
 
+> Historical audit snapshot. This report captures repository findings at the time of the audit and may describe issues or architecture details that have since changed. For the current public architecture summary, use [`README.md`](../../README.md) and [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
 ## Codebase Stats
 
 - Scope read for this audit: all readable text files under `wallee/` (`138` files), plus [`AGENTS.md`](AGENTS.md) and [`.env.example`](../../.env.example).

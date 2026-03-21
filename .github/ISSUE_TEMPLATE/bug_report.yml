@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a runtime, architecture, documentation, or safety issue.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for defects in the framework, docs, or shipped example device packs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core framework
+        - Example device pack
+        - Docs
+        - CI / tooling
+        - Safety behavior
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Include commands, inputs, or scenario details.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: hardware_risk
+    attributes:
+      label: Physical hardware risk
+      options:
+        - None
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true

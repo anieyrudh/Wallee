@@ -1,5 +1,7 @@
 # CLAUDE.md — Wallee
 
+> Historical internal reference. This document describes an older machine-specific operating profile and is retained for internal context. For the current public architecture framing, use [`README.md`](../../README.md) and [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
 ## What this is
 
 Wallee is an autonomous 3D printer operator. An LLM proposes actions. Deterministic code decides if they're safe. A safety kernel watches independently. The LLM is **untrusted** — it can propose, never execute directly.

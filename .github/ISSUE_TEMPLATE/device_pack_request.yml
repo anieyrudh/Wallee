@@ -1,0 +1,47 @@
+name: Device-pack request
+description: Request support or guidance for a new hardware integration.
+title: "[Device Pack]: "
+labels:
+  - device-pack
+body:
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware target
+      description: What machine or controller do you want to integrate?
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Primary interface
+      options:
+        - HTTP / REST
+        - Serial / USB
+        - UDP push
+        - GPIO / I2C / SPI
+        - Local process / filesystem
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: sensors
+    attributes:
+      label: Sensors / state available
+      description: List what the hardware can publish into the whiteboard.
+    validations:
+      required: true
+  - type: textarea
+    id: actuators
+    attributes:
+      label: Actuators / commands available
+      description: List what Wallee should be able to control.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety considerations
+      description: What can go wrong physically? What needs approval or interlocks?
+    validations:
+      required: true

@@ -1,5 +1,7 @@
 # CHANGELOG v3.1
 
+> Historical release notes. This changelog describes a past transition and may reference intermediate architecture states that are no longer current.
+
 ## P0-1
 - **Bug ID:** `P0-1`
 - **File(s) changed:** `wallee/engine/dispatch.py`, `wallee/tools/decorator.py`, `wallee/tools/registry.py`, `tests/test_engine.py`

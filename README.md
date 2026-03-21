@@ -1,6 +1,12 @@
 # Wallee
 
-![Wallee logo](assets/wallee-logo.png)
+<p align="center">
+  <img src="assets/wallee-logo.png" alt="Wallee logo" width="220" />
+</p>
+
+[![CI](https://github.com/anieyrudh/wallee/actions/workflows/ci.yml/badge.svg)](https://github.com/anieyrudh/wallee/actions/workflows/ci.yml)
+![License: MIT](https://img.shields.io/badge/license-MIT-f4d35e)
+![Python 3.12](https://img.shields.io/badge/python-3.12-2563eb)
 
 An architecture for safely letting LLMs operate physical hardware.
 
@@ -34,6 +40,19 @@ device packs define how to sense and control a particular hardware target.
 ## Architecture diagram
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables': {
+  'primaryColor':'#dbeafe',
+  'primaryTextColor':'#0f172a',
+  'primaryBorderColor':'#2563eb',
+  'secondaryColor':'#dcfce7',
+  'secondaryTextColor':'#14532d',
+  'secondaryBorderColor':'#16a34a',
+  'tertiaryColor':'#fef3c7',
+  'tertiaryTextColor':'#78350f',
+  'tertiaryBorderColor':'#d97706',
+  'lineColor':'#475569',
+  'fontSize':'14px'
+}}%%
 graph TD
     subgraph "Untrusted Zone"
         LLM["LLM via OpenRouter"]
@@ -57,6 +76,20 @@ graph TD
     end
     HUMAN["Human via Telegram / CLI"] --> WB
     WB --> HUMAN
+
+    class LLM untrusted
+    class PROMPT,PARSER,LEDGER,ENGINE,DISPATCH trusted
+    class WB state
+    class HARDWARE,SENSORS hardware
+    class SAFETY safety
+    class HUMAN human
+
+    classDef untrusted fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef trusted fill:#dbeafe,stroke:#2563eb,color:#0f172a
+    classDef state fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+    classDef hardware fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef safety fill:#e0f2fe,stroke:#0891b2,color:#164e63
+    classDef human fill:#fef3c7,stroke:#d97706,color:#78350f
 ```
 
 The LLM proposes actions. The engine validates every proposal against safety constraints before dispatching to hardware. The safety kernel runs as an independent process and can ESTOP the machine even if the agent crashes.
@@ -95,12 +128,14 @@ gate pipeline before executing. Examples: `set_temperature`, `pause_print`,
 **Sensor publishers** — background functions that periodically read hardware and
 publish state to the whiteboard. The LLM never calls these directly — it reads
 their output from the whiteboard. Examples: temperature readings, camera frames,
-filament sensor data.
+and stateful machine telemetry.
 
 The LLM sees sensor data in its prompt. It proposes actuator tools in its response.
 The engine validates actuator proposals. Sensors run independently.
 
 Wallee currently exposes 20 actuator tools the LLM can propose, plus 19 background sensor publishers.
+
+Device packs are where the hardware-specific work lives: sensor publishers, actuator tools, callbacks, setup instructions, and machine-specific state conventions.
 
 ## Key design principles
 
@@ -120,6 +155,14 @@ Wallee currently exposes 20 actuator tools the LLM can propose, plus 19 backgrou
 - `wallee/knowledge/` holds the core reasoning files plus the runtime knowledge files the agent reads while a job is active.
 - `wallee/ui/` serves a read-only real-time dashboard over HTTP and WebSocket.
 - `wallee/testing/` contains the offline replay harness and 60 scenario files used for regression-style decision checks.
+
+## Repository layout
+
+- [`README.md`](README.md): public overview, quick start, validation summary, and example deployment pointer.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): deeper data flow, trust boundaries, runtime contracts, and validation notes.
+- [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md): how to build a new hardware integration.
+- [`wallee/device_packs/AGENT_PROMPT.md`](wallee/device_packs/AGENT_PROMPT.md): prompt scaffold for AI agents creating a new device pack.
+- [`wallee/device_packs/prusa_link/README.md`](wallee/device_packs/prusa_link/README.md): example device-pack documentation for the shipped reference implementation.
 
 ## The agent cycle
 
@@ -189,6 +232,11 @@ After those gates, the engine writes an in-flight diary record, marks the action
 
 ## Validation
 
+The current suite intentionally mixes two layers of coverage:
+
+- Core/framework tests in `tests/` validate the hardware-agnostic agent, engine, parser, whiteboard, ledger, safety kernel, and built-in tools.
+- Shipped example device-pack tests under `wallee/device_packs/*/tests/` validate the concrete hardware integrations bundled with this repository.
+
 | Run | Result |
 |---|---|
 | Architecture verification snapshot | `523 passed in 36.56s` |
@@ -211,30 +259,34 @@ doesn't trust them. Separate the reasoning (flexible, probabilistic,
 sometimes wrong) from the execution (deterministic, validated, safe).
 Let the model think. Let the code decide.
 
+## Research / Thesis / Citation
+
+This repository is intended to stand as a research artifact for a hardware-agnostic control architecture: the contribution is the separation between probabilistic reasoning and deterministic execution, not a claim that one specific machine integration is the architecture.
+
+Plain citation format:
+
+`Anieyrudh. Wallee: An architecture for safely letting LLMs operate physical hardware. GitHub repository. 2026.`
+
+BibTeX template:
+
+```bibtex
+@misc{wallee2026,
+  author       = {Anieyrudh},
+  title        = {Wallee: An architecture for safely letting LLMs operate physical hardware},
+  year         = {2026},
+  howpublished = {\url{https://github.com/anieyrudh/wallee}},
+  note         = {GitHub repository}
+}
+```
+
 ## Example implementation: Prusa Core One+ 3D printer
 
-The current reference deployment runs on a Raspberry Pi 5 and targets a single
-Prusa Core One+ through device packs for host telemetry, printer control,
-metrics ingestion, serial access, and cameras.
+The repository ships one concrete deployment for a Raspberry Pi 5 controlling a
+single Prusa Core One+ through device packs. It is an example implementation of
+the architecture, not the architecture itself.
 
-### Hardware setup
-
-- Host: Raspberry Pi 5 running Raspberry Pi OS Bookworm with Redis and Python 3.11+.
-- Machine control: local PrusaLink HTTP API from the `prusa_link` device pack.
-- Metrics: printer UDP telemetry stream to the Pi on port `8514`.
-- Cameras: local `ustreamer` for the toolhead view plus optional LAN cameras discovered by the camera pack.
-- Operator path: optional Telegram bot token, chat ID, and allowed user IDs for approvals, alerts, and photo upload.
-
-### Sensor inventory
-
-- `host_pi`: host CPU, memory, disk, process, and thermal state.
-- `prusa_link`: machine state, targets, positions, fans, active job status, filename, and material metadata.
-- `prusa_metrics`: high-rate UDP telemetry such as motor currents, heater power, and internal counters.
-- `prusa_serial`: serial-only measurements that are not available over HTTP.
-- `pi_cameras`: image snapshots and vision-analysis outputs published back into the whiteboard.
-
-### Device pack docs
+Hardware-specific detail for the example lives in the device-pack docs:
 
 - Setup guide: [`wallee/device_packs/prusa_link/SETUP.md`](wallee/device_packs/prusa_link/SETUP.md)
 - Capability map: [`wallee/device_packs/prusa_link/CAPABILITIES.md`](wallee/device_packs/prusa_link/CAPABILITIES.md)
-- Integration code: [`wallee/device_packs/prusa_link/`](wallee/device_packs/prusa_link/)
+- Device-pack guide: [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md)

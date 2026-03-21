@@ -1,5 +1,7 @@
 # CHANGELOG v4
 
+> Historical release notes. This changelog documents the v4 transition and may describe superseded tool sets, prompt structure, or architecture details.
+
 ## v4.0 — 2026-03-18
 
 ### New: `remember` built-in tool

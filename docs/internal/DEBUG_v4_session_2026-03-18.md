@@ -1,5 +1,7 @@
 # V4 Debug Report — 2026-03-18 20:09-20:33 SGT
 
+> Historical debug log for a past session on the example deployment. It is preserved as an incident record, not as the current architectural reference.
+
 ## Session summary
 
 Agent ran for ~24 minutes on Pi (192.168.0.188) with v4 code. Printer (Core One+ at 192.168.0.195) had a previously paused print with nozzle blob. Operator resumed and started a new print externally. Print detached from bed mid-way. Agent correctly identified the failure via camera vision but entered a CALL_HUMAN spam loop after the print finished.

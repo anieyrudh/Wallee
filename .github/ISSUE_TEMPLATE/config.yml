@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/anieyrudh/wallee/security
+    about: Use private disclosure for security and safety issues when available.

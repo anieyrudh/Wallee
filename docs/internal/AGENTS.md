@@ -1,6 +1,8 @@
 # Wallee — Ground Truth Specification
 
-**Status:** Normative. If implementation conflicts with this document, this document wins.
+> Historical internal snapshot. This file documents an older design/specification state and may no longer match the current repository exactly. Use [`README.md`](../../README.md) and [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for the current public architecture narrative.
+
+**Status:** Historical internal specification snapshot. It does not override the current public docs.
 **Audience:** Coding agents (Codex) and developers.
 **Hardware:** Raspberry Pi 5 (8GB), Raspberry Pi OS Bookworm.
 **LLM Provider:** OpenRouter → openai/gpt-5.4.

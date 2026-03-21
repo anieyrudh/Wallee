@@ -2,6 +2,13 @@
 
 A device pack connects Wallee to a specific piece of hardware. It translates the generic tool interface into hardware-specific API calls. The framework does not know what a printer, CNC mill, incubator, or fermentation controller is. Device packs teach it.
 
+Device packs usually expose two different runtime surfaces:
+
+- sensor publishers, which run in the background and publish state to the whiteboard
+- actuator tools, which the LLM can propose and the engine can dispatch
+
+Only actuator tools are proposed by the LLM. Sensor publishers are never called directly by the model.
+
 ## What a device pack contains
 
 ```text
