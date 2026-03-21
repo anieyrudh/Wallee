@@ -265,13 +265,13 @@ This repository is intended to stand as a research artifact for a hardware-agnos
 
 Plain citation format:
 
-`Anieyrudh. Wallee: An architecture for safely letting LLMs operate physical hardware. GitHub repository. 2026.`
+`Anieyrudh R. Wallee: An architecture for safely letting LLMs operate physical hardware. GitHub repository. 2026.`
 
 BibTeX template:
 
 ```bibtex
 @misc{wallee2026,
-  author       = {Anieyrudh},
+  author       = {Anieyrudh R},
   title        = {Wallee: An architecture for safely letting LLMs operate physical hardware},
   year         = {2026},
   howpublished = {\url{https://github.com/anieyrudh/wallee}},
