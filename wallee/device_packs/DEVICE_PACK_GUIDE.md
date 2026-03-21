@@ -193,7 +193,7 @@ If you are adding a new hardware family, extend the knowledge layer as well:
 - `SOUL.md`: identity, operating posture, and domain temperament
 - `LEARNED.md`: compressed reasoning heuristics and cross-signal intuition
 - `REFERENCE.md`: issue lookup matrix for `lookup_issue`
-- optional domain observations in `OBSERVATIONS.md` or seed material in `BOOTSTRAP_OBSERVATIONS.md`
+- optional domain observations in `OBSERVATIONS.md` or seed material in `docs/internal/BOOTSTRAP_NOTES.md`
 
 The better the knowledge matches the hardware, the less the agent has to guess.
 

@@ -1,21 +1,51 @@
-.env
-*.pyc
-__pycache__/
-.venv/
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.DS_Store
-logs/
+# Runtime
 *.db
 *.db-shm
 *.db-wal
-*.rtf
-*.png
-*.jpeg
+*.log
+outbox/
+logs/
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Editor
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Runtime knowledge (generated, not source)
+wallee/knowledge/OBSERVATIONS.md
+wallee/knowledge/JOB_CONTEXT.md
+/var/lib/wallee/
+
+# Test artifacts
+wallee/testing/results.json
+
+# Camera captures and thumbnails
 *.jpg
-!assets/
-!assets/wallee-logo.png
+*.jpeg
+!assets/*.png
+!assets/*.jpg
+
+# Wallee internal
+.wallee/
+.claude/
+wallee-logo.png
 wallee-audit/
-JOB_CONTEXT.md
+wallee-audit/runs/*/wallee-runtime.log
+wallee-audit/runs/*/*.db
