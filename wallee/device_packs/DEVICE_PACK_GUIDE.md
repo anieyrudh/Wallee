@@ -34,7 +34,7 @@ Wallee loads packs by module path. If `DEVICE_PACKS=your_device` is set in `.env
 
 ## The actual `@tool` contract
 
-All device-pack entry points are normal Python functions decorated with `@tool(...)` from [`wallee/tools/decorator.py`](/Users/anieyrudh/Desktop/Wallee2/wallee/tools/decorator.py).
+All device-pack entry points are normal Python functions decorated with `@tool(...)` from [`wallee/tools/decorator.py`](../tools/decorator.py).
 
 The live decorator supports:
 

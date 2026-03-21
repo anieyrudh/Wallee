@@ -3,7 +3,7 @@
 
 ## Codebase Stats
 
-- Scope read for this audit: all readable text files under `wallee/` (`138` files), plus root [`AGENTS.md`](/Users/anieyrudh/Desktop/Wallee2/AGENTS.md) and [`.env.example`](/Users/anieyrudh/Desktop/Wallee2/.env.example).
+- Scope read for this audit: all readable text files under `wallee/` (`138` files), plus [`AGENTS.md`](AGENTS.md) and [`.env.example`](../../.env.example).
 - Python files: `67`
 - Python LOC: `9,657`
 - Registered runtime tools: `39`
@@ -104,7 +104,7 @@ One `run_once()` cycle does this, in order:
 
 #### Episode construction and formatting
 
-- Source: `Ledger.current_episode()` in [`wallee/ledger/db.py`](/Users/anieyrudh/Desktop/Wallee2/wallee/ledger/db.py)
+- Source: `Ledger.current_episode()` in [`wallee/ledger/db.py`](../../wallee/ledger/db.py)
 - Boundary: all actions after the most recent `WAIT` or `CALL_HUMAN` event in the `events` table
 - Limits:
   - normal: last `12` actions
@@ -717,7 +717,7 @@ Scenarios:
 
 - `60` total
 - Current JSON files do not carry a `category` field
-- The stored [`wallee/testing/REPORT.md`](/Users/anieyrudh/Desktop/Wallee2/wallee/testing/REPORT.md) groups them as:
+- The stored [`wallee/testing/REPORT.md`](../../wallee/testing/REPORT.md) groups them as:
   - Normal operation: `8`
   - Vision defects: `12`
   - Ambiguous vision: `6`
