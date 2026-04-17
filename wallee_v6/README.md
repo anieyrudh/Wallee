@@ -13,8 +13,8 @@ This codebase implements the architecture described in `docs/ARCHITECTURE.md`:
 This repository now ships **two kinds of packs**:
 
 - simulation packs for local development and tests
-- a real-hardware **Prusa Core One+** reference pack that folds HTTP, UDP metrics,
-  and optional USB serial diagnostics into one V6 device abstraction
+- a real-hardware **Prusa CORE One/+** reference pack that uses supported-surface
+  HTTP reads, a grounded job notebook, and bounded serial live-tuning writes
 
 The code intentionally favors **deeper modules and fewer moving parts**. That follows John Ousterhout's advice: remove accidental complexity first, then make the remaining modules deep enough that callers do not need to understand every low-level detail.
 
@@ -34,7 +34,7 @@ Instead, it uses one main runtime, one safety process, one durable runtime datab
 ## Repository map
 
 - `wallee_v6/` - runtime code
-- `wallee_v6/packs/prusa_core_one_plus/` - real-hardware Prusa Core One+ pack
+- `wallee_v6/packs/prusa_core_one_plus/` - real-hardware Prusa CORE One/+ pack
 - `knowledge/` - short contract, rubric, examples, incidents
 - `schemas/` - JSON schemas for durable contracts
 - `docs/` - architecture notes, ADRs, and human guide source
@@ -86,18 +86,21 @@ The OpenRouter planner uses:
 
 - strict JSON schema output
 - non-streaming responses for control decisions
-- stable leading prompt segments to preserve prompt-cache friendliness
+- explicit cache markers on the stable leading prompt segments
 - low temperature by default
+- low reasoning effort by default
 
-## Running the Prusa Core One+ pack
+## Running the Prusa CORE One/+ pack
 
 The real-hardware pack stays close to the V6 design principles:
 
 - one physical printer appears as one pack
-- HTTP is the authoritative control path
-- UDP metrics are optional observability
-- USB serial is optional diagnostics only
-- the planner sees outcome-level verbs, not raw G-code
+- HTTP is the authoritative read and lifecycle-control surface
+- serial is used only for bounded live-tuning writes
+- the job notebook is read-only context built from file metadata and G-code
+- FFF and UDP metrics are out of the critical path
+- the planner sees bounded outcome-level actions, not raw G-code, raw numeric
+  targets, or position control
 
 ### Minimal environment
 
@@ -117,11 +120,11 @@ Exact v5-compatible aliases are supported for the Prusa host and API key only:
 
 If both are set, the canonical v6 `PRUSA_CORE_ONE_*` value wins.
 
-### Optional metrics and serial
+### Notebook and serial live tuning
 
 ```bash
-export PRUSA_CORE_ONE_ENABLE_METRICS=1
-export PRUSA_CORE_ONE_METRICS_PORT=8514
+export PRUSA_CORE_ONE_NOTEBOOK_DIR=/var/lib/wallee/prusa_notebooks
+export PRUSA_CORE_ONE_ENABLE_GCODE_DOWNLOAD=1
 
 export PRUSA_CORE_ONE_ENABLE_SERIAL=1
 export PRUSA_CORE_ONE_SERIAL_PORT=/dev/ttyACM0
@@ -134,12 +137,37 @@ Read these before using the pack on real hardware:
 - `wallee_v6/packs/prusa_core_one_plus/CAPABILITIES.md`
 - `docs/adrs/ADR-0004-prusa-core-one-plus-pack.md`
 
-Bring-up assumptions remain unchanged:
+Bring-up assumptions for the redesigned pack:
 
-- HTTP is the authoritative control path
-- UDP metrics are advisory only
-- USB serial is diagnostics-only unless proven stable enough for control
-- the planner does not receive arbitrary raw G-code access
+- HTTP is the authoritative read and lifecycle-control surface
+- serial writes are bounded and verify through HTTP-observed post-state
+- the notebook is read-only context, not a controller
+- FFF and UDP metrics are not in the critical path
+- the planner does not receive arbitrary raw G-code access, raw numeric targets,
+  or position control
+
+### Current status terms
+
+- `implemented`: coded and unit-tested in this repository
+- `direct-hardware-proven`: direct operator-only write observed on real
+  hardware and verified through `GET /api/v1/status`
+- `managed-wallee-proven`: deterministic engine dispatch observed on real
+  hardware and verified through `GET /api/v1/status`, with no LLM action choice
+- `planner-enabled`: admitted by config and policy in the live frontier
+
+For the live Prusa trim families:
+
+- speed is implemented, direct-hardware-proven, managed-wallee-proven, and
+  planner-enabled
+- flow is implemented, direct-hardware-proven, managed-wallee-proven, and
+  planner-enabled
+- nozzle temp is implemented, direct-hardware-proven, managed-wallee-proven,
+  and planner-enabled
+- bed temp is implemented, direct-hardware-proven, managed-wallee-proven, and
+  planner-enabled
+
+The managed proofs are operator-triggered only. They do not widen the planner
+frontier.
 
 ## Safety-critical invariants
 

@@ -1,134 +1,123 @@
-# Prusa Core One+ Setup
+# Prusa CORE One/+ Setup
 
-This checklist is for running the V6 Prusa pack on a real edge host.
+This checklist is for running the redesigned Prusa pack on a real edge host.
 
-## 1. Required interfaces
+Status terms used here:
 
-At minimum:
+- `implemented`: coded and unit-tested in this repository
+- `direct-hardware-proven`: direct operator-only write observed on real
+  hardware and verified through `GET /api/v1/status`
+- `managed-wallee-proven`: deterministic engine dispatch observed on real
+  hardware and verified through `GET /api/v1/status`, with no LLM action choice
+- `planner-enabled`: admitted by config and policy in the live frontier
 
-- PrusaLink / local HTTP API reachable from the Wallee host
-- API key for the printer
+This setup guide enables the managed proof path. It does not, by itself, make a
+family planner-enabled.
 
-Optional:
+## 1. Required prerequisites
 
-- UDP metrics stream enabled on the printer
-- USB serial connected for diagnostics only
+- a reachable PrusaLink host for the target printer
+- a valid PrusaLink API key if the host requires it
+- local USB serial access **only if** you want live tuning writes
+- a sacrificial or low-value print for first hardware smoke tests
 
-## 2. Environment variables
-
-For a starting template, see [`.env.example`](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/.env.example).
-
-### Required
+## 2. Minimum environment
 
 ```bash
 export WALLEE_ENABLED_PACKS=prusa_core_one_plus
 export WALLEE_SIMULATION=0
+
 export PRUSA_CORE_ONE_HOST=http://192.168.0.195
 export PRUSA_CORE_ONE_API_KEY=your_prusalink_api_key
+export PRUSA_CORE_ONE_NOZZLE_CAMERA_DEVICE_PATH=/dev/v4l/by-id/usb-3DO_3DO_NOZZLE_CAMERA_V2_3DO-video-index0
 ```
 
-Exact v5-compatible aliases are supported for bring-up only:
+Exact aliases are still supported:
+
+- `PRUSALINK_HOST` -> `PRUSA_CORE_ONE_HOST`
+- `PRUSALINK_API_KEY` -> `PRUSA_CORE_ONE_API_KEY`
+
+If both are present, `PRUSA_CORE_ONE_*` wins.
+
+For this frozen CORE One/+ baseline, keep both Wallee and `crowsnest` bound to
+the stable by-id nozzle camera path above rather than `/dev/video0`.
+
+## 3. Enable the grounded notebook
 
 ```bash
-export PRUSALINK_HOST=http://192.168.0.195
-export PRUSALINK_API_KEY=your_prusalink_api_key
+export PRUSA_CORE_ONE_NOTEBOOK_DIR=/var/lib/wallee/prusa_notebooks
+export PRUSA_CORE_ONE_ENABLE_GCODE_DOWNLOAD=1
+export PRUSA_CORE_ONE_NOTEBOOK_LOOKAHEAD_PCT=5.0
 ```
 
-Precedence rule:
+What happens:
 
-- if both canonical and alias envs are set, `PRUSA_CORE_ONE_*` wins
-- alias support is limited to host and API key
-- `DEVICE_PACKS` is not used by v6
+- the pack builds a baseline notebook automatically
+- it writes `<job_hash>.notebook.json` into the notebook directory
+- if a matching `<job_hash>.notes.json` exists, the pack merges it
 
-### Recommended
-
-```bash
-export PRUSA_CORE_ONE_ENABLE_METRICS=1
-export PRUSA_CORE_ONE_METRICS_BIND_HOST=0.0.0.0
-export PRUSA_CORE_ONE_METRICS_PORT=8514
-```
-
-### Optional serial diagnostics
+## 4. Enable bounded tuning writes
 
 ```bash
 export PRUSA_CORE_ONE_ENABLE_SERIAL=1
 export PRUSA_CORE_ONE_SERIAL_PORT=/dev/ttyACM0
 export PRUSA_CORE_ONE_SERIAL_BAUD=115200
+export PRUSA_CORE_ONE_SERIAL_TIMEOUT_S=1.0
 ```
 
-## 3. Why serial is optional
+This enables the serial writer needed for all bounded trim families and their
+reset paths.
 
-Serial is used only for diagnostics in this pack.
-If serial is unstable or unavailable, leave it disabled.
-The pack will continue to function through HTTP.
+## 5. Operator-managed proof commands
 
-## 4. Metrics configuration on the printer
-
-Enable the printer's metrics push stream and point it at the edge host IP and
-port configured in `PRUSA_CORE_ONE_METRICS_PORT`.
-
-The pack will degrade cleanly if metrics are unavailable, but the dashboard and
-future trend logic will be poorer.
-
-## 5. Safety notes
-
-- The pack assumes HTTP is the authoritative control surface.
-- The pack does **not** treat UDP metrics or serial diagnostics as safety
-  critical.
-- The pack computes `safe_to_unload` conservatively from bed/nozzle temperature
-  proxies because the printer does not expose direct part temperature.
-- `STOP_PROCESS` and `START_PROCESS` are marked medium hazard and require
-  approval.
-
-## 6. Operational smoke test
-
-After setting the environment variables:
+Do not widen planner exposure here. These commands stay operator-triggered even
+after managed proof passes.
 
 ```bash
-python -m wallee_v6.main --once --goal "Inspect printer state"
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-trim-flow
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-reset-flow
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-trim-nozzle-up
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-trim-nozzle-down
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-trim-bed-up
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke managed-trim-bed-down
 ```
 
-Expected result:
+Speed, flow, nozzle temp, and bed temp are all now planner-enabled.
 
-- the pack loads
-- raw state is published
-- the world packet contains `printer_1.*` facts
-- no serial failure should prevent startup
+## 6. Cooling and safety thresholds
 
-## 7. Troubleshooting
+```bash
+export WALLEE_SAFE_TO_UNLOAD_TEMP_C=35
+export PRUSA_CORE_ONE_SAFE_NOZZLE_TOUCH_C=50
+```
 
-### HTTP unreachable
+## 7. Quick connectivity checks
 
-Symptoms:
+### Status
 
-- `printer_1.raw.connected = false`
-- `printer_1.raw.health = OFFLINE`
+```bash
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke status
+```
 
-Check:
+### File inventory
 
-- host/IP reachable from the Pi
-- API key correct
-- printer HTTP service enabled
+```bash
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke files
+```
 
-### No metrics
+### Notebook build for one known file
 
-Symptoms:
+```bash
+python -m wallee_v6.packs.prusa_core_one_plus.hardware_smoke build-notebook "Benchy Rules.bgcode"
+```
 
-- `printer_1.raw.metrics_available = false`
+## 8. First-run expectations
 
-Check:
+On a healthy setup you should see:
 
-- printer metrics export enabled
-- target IP/port correct
-- UDP not blocked locally
+- status JSON with lifecycle and current temperatures
+- printable files listed from printer storage
+- a notebook JSON file written into the notebook directory
 
-### Serial failures
-
-Symptoms:
-
-- `printer_1.raw.serial_diag_available = false`
-
-Action:
-
-- disable serial diagnostics unless chamber/ambient readings are truly needed
-- treat serial as optional until the USB CDC path is proven stable on your host
+If status works but serial does not, lifecycle control and notebook building can
+still run. Only live tuning will stay unavailable.

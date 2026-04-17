@@ -1,42 +1,37 @@
-"""Transport adapters and parsers for the Prusa Core One+ pack.
+"""Supported-surface adapters for the Prusa CORE One/+ pack.
 
-This module intentionally keeps the transport details in one place so the pack
-logic can stay focused on manufacturing semantics.  The adapters are designed to
-be *thin but opinionated*:
+Design rules:
 
-- HTTP is the authoritative control path and the primary state source.
-- UDP metrics are opportunistic telemetry.  Missing metrics should not stop
-  planning because the printer can still be controlled safely without them.
-- USB serial is diagnostics-only because the current reference deployment found
-  the Core One CDC ACM link to be unstable.  Serial therefore runs with slow
-  polling, aggressive backoff, and best-effort semantics.
+- HTTP is the authoritative read surface.
+- HTTP is also the lifecycle-control surface.
+- Serial is used only for bounded live-tuning commands.
+- Verification always comes back through HTTP-observable post-state.
 
-That split follows first principles: use the most reliable channel for actions,
-use the highest-rate channel for optional observability, and keep the flaky
-channel away from anything safety critical.
+That keeps one writer path per live action family without turning the planner
+into a raw command author.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import errno
 import json
 import os
 from pathlib import Path
-import re
-import socket
 import time
 from typing import Any, Protocol
 from urllib import error, parse, request
 
+from .types import PrintableFile
 
-_M105_TOKEN_RE = re.compile(r"(?P<key>[A-Z@]+):(?P<actual>-?\d+(?:\.\d+)?)(?:/(?P<target>-?\d+(?:\.\d+)?))?")
+
 _PRINTABLE_SUFFIXES = (".gcode", ".bgcode", ".gco", ".bgc")
+_DEFAULT_NOZZLE_CAMERA_DEVICE_PATH = "/dev/v4l/by-id/usb-3DO_3DO_NOZZLE_CAMERA_V2_3DO-video-index0"
 
 
 def _resolve_env(primary: str, *aliases: str) -> str | None:
     """Return the first non-blank environment value, preferring *primary*."""
-    candidates = (primary, *aliases)
-    for name in candidates:
+    for name in (primary, *aliases):
         value = os.environ.get(name)
         if value is None:
             continue
@@ -46,88 +41,129 @@ def _resolve_env(primary: str, *aliases: str) -> str | None:
     return None
 
 
+def _resolve_csv_env(primary: str, *aliases: str) -> tuple[str, ...]:
+    """Return a tuple parsed from the first non-blank CSV environment value."""
+    value = _resolve_env(primary, *aliases)
+    if value is None:
+        return ()
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
 @dataclass(slots=True)
 class PrusaCoreOneSettings:
-    """Runtime settings for the Prusa Core One+ pack.
-
-    The settings are read directly from environment variables because the lean
-    reference runtime keeps configuration shallow.  Adding a full pack-specific
-    configuration framework would be more code than the real hardware evidence
-    currently justifies.
-    """
+    """Runtime settings for the Prusa CORE One/+ pack."""
 
     host: str
     api_key: str | None
     http_timeout_s: float
     file_action_limit: int
     state_transition_timeout_s: float
+    status_poll_interval_s: float
     safe_to_unload_bed_c: float
     safe_to_touch_nozzle_c: float
+    max_nozzle_target_c: float
+    max_bed_target_c: float
     serial_enabled: bool
     serial_port: str | None
     serial_baud: int
     serial_timeout_s: float
-    serial_poll_interval_s: float
-    serial_error_backoff_s: float
-    metrics_enabled: bool
-    metrics_bind_host: str
-    metrics_port: int
+    notebook_dir: str | None
+    notebook_download_enabled: bool
+    notebook_lookahead_pct: float
+    enable_experimental_tuning: bool
+    speed_tuning_verification_enabled: bool = False
+    flow_tuning_verification_enabled: bool = False
+    nozzle_camera_host: str = "127.0.0.1"
+    nozzle_camera_port: str | None = None
+    nozzle_camera_discovery_ports: tuple[str, ...] = ()
+    nozzle_camera_device_path: str = _DEFAULT_NOZZLE_CAMERA_DEVICE_PATH
+    nozzle_camera_max_frame_age_s: float = 30.0
+    nozzle_camera_liveness_window_size: int = 2
+    vision_api_key: str | None = None
+    vision_model: str | None = None
+    enable_vision_debug_context: bool = False
+    vision_advisory_interval_s: float = 10.0
+    live_tuning_min_progress_pct: float = 5.0
+    live_tuning_max_progress_pct: float = 95.0
+    live_tuning_symptom_max_progress_pct: float = 99.0
+    wait_cool_step_timeout_s: float = 30.0
 
     @classmethod
     def from_env(cls) -> "PrusaCoreOneSettings":
-        """Create settings from environment variables.
-
-        The defaults deliberately bias toward safety and reliability:
-
-        - control runs over HTTP with short timeouts
-        - serial diagnostics are disabled until explicitly enabled
-        - frontier file actions are capped so prompts stay small
-        """
         host = (_resolve_env("PRUSA_CORE_ONE_HOST", "PRUSALINK_HOST") or "").rstrip("/")
         if host and not host.startswith(("http://", "https://")):
             host = f"http://{host}"
-
         return cls(
             host=host,
             api_key=_resolve_env("PRUSA_CORE_ONE_API_KEY", "PRUSALINK_API_KEY"),
             http_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_HTTP_TIMEOUT_S", "2.0")),
             file_action_limit=int(os.environ.get("PRUSA_CORE_ONE_FILE_ACTION_LIMIT", "2")),
-            state_transition_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_STATE_TRANSITION_TIMEOUT_S", "6.0")),
+            state_transition_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_STATE_TRANSITION_TIMEOUT_S", "8.0")),
+            status_poll_interval_s=float(os.environ.get("PRUSA_CORE_ONE_STATUS_POLL_INTERVAL_S", "0.25")),
             safe_to_unload_bed_c=float(os.environ.get("WALLEE_SAFE_TO_UNLOAD_TEMP_C", "35.0")),
             safe_to_touch_nozzle_c=float(os.environ.get("PRUSA_CORE_ONE_SAFE_NOZZLE_TOUCH_C", "50.0")),
+            max_nozzle_target_c=float(os.environ.get("PRUSA_CORE_ONE_MAX_NOZZLE_TARGET_C", "300.0")),
+            max_bed_target_c=float(os.environ.get("PRUSA_CORE_ONE_MAX_BED_TARGET_C", "120.0")),
             serial_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_SERIAL", "0").strip() not in {"0", "false", "False"},
             serial_port=os.environ.get("PRUSA_CORE_ONE_SERIAL_PORT") or None,
             serial_baud=int(os.environ.get("PRUSA_CORE_ONE_SERIAL_BAUD", "115200")),
             serial_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_SERIAL_TIMEOUT_S", "1.0")),
-            serial_poll_interval_s=float(os.environ.get("PRUSA_CORE_ONE_SERIAL_POLL_INTERVAL_S", "15.0")),
-            serial_error_backoff_s=float(os.environ.get("PRUSA_CORE_ONE_SERIAL_BACKOFF_S", "30.0")),
-            metrics_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_METRICS", "1").strip() not in {"0", "false", "False"},
-            metrics_bind_host=os.environ.get("PRUSA_CORE_ONE_METRICS_BIND_HOST", "0.0.0.0"),
-            metrics_port=int(os.environ.get("PRUSA_CORE_ONE_METRICS_PORT", "8514")),
+            notebook_dir=(os.environ.get("PRUSA_CORE_ONE_NOTEBOOK_DIR") or "").strip() or None,
+            notebook_download_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_GCODE_DOWNLOAD", "1").strip()
+            not in {"0", "false", "False"},
+            notebook_lookahead_pct=float(os.environ.get("PRUSA_CORE_ONE_NOTEBOOK_LOOKAHEAD_PCT", "5.0")),
+            enable_experimental_tuning=os.environ.get("PRUSA_CORE_ONE_ENABLE_EXPERIMENTAL_TUNING", "0").strip()
+            not in {"0", "false", "False"},
+            speed_tuning_verification_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_SPEED_TUNING_VERIFICATION", "0").strip()
+            not in {"0", "false", "False"},
+            flow_tuning_verification_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_FLOW_TUNING_VERIFICATION", "0").strip()
+            not in {"0", "false", "False"},
+            nozzle_camera_host=(_resolve_env("PRUSA_CORE_ONE_NOZZLE_CAMERA_HOST", "NOZZLE_CAMERA_HOST") or "127.0.0.1"),
+            nozzle_camera_port=_resolve_env("PRUSA_CORE_ONE_NOZZLE_CAMERA_PORT", "NOZZLE_CAMERA_PORT"),
+            nozzle_camera_discovery_ports=_resolve_csv_env(
+                "PRUSA_CORE_ONE_NOZZLE_CAMERA_DISCOVERY_PORTS",
+                "NOZZLE_CAMERA_DISCOVERY_PORTS",
+            ),
+            nozzle_camera_device_path=(
+                _resolve_env("PRUSA_CORE_ONE_NOZZLE_CAMERA_DEVICE_PATH", "NOZZLE_CAMERA_DEVICE_PATH")
+                or _DEFAULT_NOZZLE_CAMERA_DEVICE_PATH
+            ),
+            nozzle_camera_max_frame_age_s=float(os.environ.get("PRUSA_CORE_ONE_NOZZLE_CAMERA_MAX_FRAME_AGE_S", "30.0")),
+            nozzle_camera_liveness_window_size=max(
+                2,
+                int(os.environ.get("PRUSA_CORE_ONE_NOZZLE_CAMERA_LIVENESS_WINDOW_SIZE", "2")),
+            ),
+            vision_api_key=_resolve_env("PRUSA_CORE_ONE_VISION_API_KEY", "OPENROUTER_API_KEY"),
+            vision_model=_resolve_env("PRUSA_CORE_ONE_VISION_MODEL", "VISION_MODEL", "OPENROUTER_MODEL")
+            or "google/gemini-3.1-flash-lite-preview",
+            enable_vision_debug_context=os.environ.get("PRUSA_CORE_ONE_ENABLE_VISION_DEBUG_CONTEXT", "0").strip()
+            not in {"0", "false", "False"},
+            vision_advisory_interval_s=float(os.environ.get("PRUSA_CORE_ONE_VISION_ADVISORY_INTERVAL_S", "10.0")),
+            live_tuning_min_progress_pct=float(os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_MIN_PROGRESS_PCT", "5.0")),
+            live_tuning_max_progress_pct=float(os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_MAX_PROGRESS_PCT", "95.0")),
+            live_tuning_symptom_max_progress_pct=float(
+                os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_SYMPTOM_MAX_PROGRESS_PCT", "99.0")
+            ),
+            wait_cool_step_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_WAIT_COOL_STEP_TIMEOUT_S", "30.0")),
         )
 
 
-@dataclass(slots=True)
-class PrintableFile:
-    """One file visible through the PrusaLink USB file API."""
-
-    path: str
-    display_name: str
-    size_bytes: int | None = None
-    printable: bool = True
-
-
 class SupportsPrusaHttp(Protocol):
-    """Protocol for the HTTP control adapter.
-
-    Tests use this protocol to inject fakes without importing network code.
-    """
+    """Protocol for the PrusaLink adapter."""
 
     def get_status(self) -> dict[str, Any]: ...
+
+    def get_job(self) -> dict[str, Any]: ...
 
     def get_info(self) -> dict[str, Any]: ...
 
     def list_usb_files(self) -> list[PrintableFile]: ...
+
+    def get_file_info(self, file_path: str) -> dict[str, Any]: ...
+
+    def download_file_bytes(self, file_path: str, download_path: str | None = None) -> bytes | None: ...
+
+    def download_file_text(self, file_path: str, download_path: str | None = None) -> str | None: ...
 
     def pause_job(self, job_id: int | None = None) -> None: ...
 
@@ -137,32 +173,151 @@ class SupportsPrusaHttp(Protocol):
 
     def start_print(self, file_path: str) -> None: ...
 
-    def post_gcode(self, command: str) -> None: ...
+    def send_gcode(self, command: str) -> None: ...
 
 
-class SupportsSerialDiagnostics(Protocol):
-    """Protocol for optional serial diagnostics."""
+class SupportsPrusaSerialWriter(Protocol):
+    """Protocol for bounded serial command writes."""
 
-    def maybe_poll(self) -> dict[str, float] | None: ...
+    def bind_session(self, session_key: str | None) -> None: ...
 
-    def close(self) -> None: ...
+    def send_command(self, command: str) -> None: ...
 
-
-class SupportsMetrics(Protocol):
-    """Protocol for optional UDP metrics."""
-
-    def drain(self) -> dict[str, float | int | bool]: ...
+    def query_command(self, command: str) -> list[str]: ...
 
     def close(self) -> None: ...
+
+
+class NoopSerialWriter:
+    """Null-object serial writer used when live tuning is disabled."""
+
+    def bind_session(self, session_key: str | None) -> None:  # pragma: no cover - defensive path
+        return None
+
+    def send_command(self, command: str) -> None:  # pragma: no cover - defensive path
+        raise RuntimeError("serial command writer is disabled")
+
+    def query_command(self, command: str) -> list[str]:  # pragma: no cover - defensive path
+        raise RuntimeError("serial command writer is disabled")
+
+    def close(self) -> None:  # pragma: no cover - defensive path
+        return None
+
+
+class PrusaSerialWriter:
+    """Minimal persistent serial writer for bounded live-tuning commands."""
+
+    _SPAM_PATTERNS = (
+        "FIRMWARE_NAME:",
+        "SOURCE_CODE_URL:",
+        "PROTOCOL_VERSION:",
+        "MACHINE_TYPE:",
+        "EXTRUDER_COUNT:",
+        "UUID:",
+        "Cap:",
+    )
+
+    def __init__(self, settings: PrusaCoreOneSettings) -> None:
+        self.settings = settings
+        if not settings.serial_enabled or not settings.serial_port:
+            raise ValueError("serial control requires PRUSA_CORE_ONE_ENABLE_SERIAL=1 and PRUSA_CORE_ONE_SERIAL_PORT")
+        self._port = None
+        self._session_key: str | None = None
+
+    def bind_session(self, session_key: str | None) -> None:
+        normalized = (session_key or "").strip() or None
+        if self._port is not None and normalized != self._session_key:
+            self.close()
+        self._session_key = normalized
+
+    def send_command(self, command: str) -> None:
+        self._exchange(command, capture_response=False)
+
+    def query_command(self, command: str) -> list[str]:
+        return self._exchange(command, capture_response=True)
+
+    def preflight(self, *, command: str = "M400") -> dict[str, Any]:
+        started = time.monotonic()
+        lines = self._exchange(command, capture_response=True)
+        return {
+            "ok": True,
+            "port": self.settings.serial_port,
+            "command": command,
+            "latency_ms": round((time.monotonic() - started) * 1000.0, 1),
+            "lines": list(lines),
+        }
+
+    def _exchange(self, command: str, *, capture_response: bool) -> list[str]:
+        try:
+            import serial  # type: ignore
+        except Exception as exc:  # pragma: no cover - import error path
+            raise RuntimeError("pyserial is required for bounded serial control") from exc
+
+        port = self._ensure_port(serial)
+        try:
+            port.reset_input_buffer()
+        except Exception:
+            self.close()
+            port = self._ensure_port(serial)
+            port.reset_input_buffer()
+        port.write((command.rstrip() + "\n").encode("utf-8"))
+        port.flush()
+        if not capture_response:
+            return []
+        lines: list[str] = []
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            raw = port.readline()
+            if not raw:
+                continue
+            text = raw.decode("utf-8", errors="replace").strip()
+            if not text or self._is_spam(text) or self._is_garbled(text):
+                continue
+            lines.append(text)
+            if text.startswith("ok"):
+                break
+        return lines
+
+    def _ensure_port(self, serial_module):
+        port = self._port
+        if port is not None:
+            return port
+        port = serial_module.Serial(
+            self.settings.serial_port,
+            baudrate=self.settings.serial_baud,
+            timeout=self.settings.serial_timeout_s,
+            dsrdtr=False,
+        )
+        time.sleep(0.1)
+        try:
+            port.rts = False
+        except Exception:
+            pass
+        self._port = port
+        return port
+
+    def close(self) -> None:
+        port = self._port
+        self._port = None
+        self._session_key = None
+        if port is None:
+            return
+        try:
+            port.close()
+        except Exception:
+            return
+
+    def _is_spam(self, line: str) -> bool:
+        return any(pattern in line for pattern in self._SPAM_PATTERNS)
+
+    @staticmethod
+    def _is_garbled(line: str) -> bool:
+        printable = sum(1 for c in line if 32 <= ord(c) <= 126)
+        return not line or printable / max(len(line), 1) < 0.7
 
 
 class PrusaLinkHttpClient:
-    """Small PrusaLink HTTP client.
-
-    The client intentionally implements only the endpoints the v6 pack actually
-    uses.  A generic generated OpenAPI client would bring a lot of surface area
-    and indirection without making the runtime safer.
-    """
+    """Small PrusaLink client for the endpoints the pack actually uses."""
 
     def __init__(self, settings: PrusaCoreOneSettings) -> None:
         self.settings = settings
@@ -172,6 +327,9 @@ class PrusaLinkHttpClient:
     def get_status(self) -> dict[str, Any]:
         return self._request_json("GET", "/api/v1/status")
 
+    def get_job(self) -> dict[str, Any]:
+        return self._request_json("GET", "/api/v1/job")
+
     def get_info(self) -> dict[str, Any]:
         return self._request_json("GET", "/api/v1/info")
 
@@ -179,76 +337,81 @@ class PrusaLinkHttpClient:
         payload = self._request_json("GET", "/api/v1/files/usb")
         return flatten_prusalink_file_tree(payload)
 
-    def pause_job(self, job_id: int | None = None) -> None:
-        """Pause an active job.
+    def get_file_info(self, file_path: str) -> dict[str, Any]:
+        return self._request_json("GET", f"/api/v1/files/usb/{quote_printer_path(file_path)}")
 
-        The job-id-specific route is preferred because it gives stronger server
-        semantics on newer firmware.  The generic command route is kept as a
-        compatibility fallback because the current v5 deployment history has
-        shown that Prusa firmware surfaces can differ across versions.
-        """
+    def download_file_bytes(self, file_path: str, download_path: str | None = None) -> bytes | None:
+        path = download_path or f"/api/files/usb/{quote_printer_path(file_path)}/raw"
+        response = self._request("GET", path, accept="application/octet-stream")
+        payload = response.read()
+        return payload or None
+
+    def download_file_text(self, file_path: str, download_path: str | None = None) -> str | None:
+        payload = self.download_file_bytes(file_path, download_path=download_path)
+        if not payload:
+            return None
+        try:
+            return payload.decode("utf-8")
+        except UnicodeDecodeError:
+            return payload.decode("latin-1", errors="replace")
+
+    def pause_job(self, job_id: int | None = None) -> None:
         if job_id is not None:
-            try:
-                self._request_no_content("PUT", f"/api/v1/job/{job_id}/pause")
-                return
-            except RuntimeError:
-                pass
+            self._request_no_content("PUT", f"/api/v1/job/{job_id}/pause")
+            return
         self._request_no_content("PUT", "/api/v1/job", payload={"command": "PAUSE"})
 
     def resume_job(self, job_id: int | None = None) -> None:
         if job_id is not None:
-            try:
-                self._request_no_content("PUT", f"/api/v1/job/{job_id}/resume")
-                return
-            except RuntimeError:
-                pass
+            self._request_no_content("PUT", f"/api/v1/job/{job_id}/resume")
+            return
         self._request_no_content("PUT", "/api/v1/job", payload={"command": "RESUME"})
 
     def cancel_job(self, job_id: int | None = None) -> None:
         if job_id is not None:
-            try:
-                self._request_no_content("DELETE", f"/api/v1/job/{job_id}")
-                return
-            except RuntimeError:
-                pass
+            self._request_no_content("DELETE", f"/api/v1/job/{job_id}")
+            return
         self._request_no_content("DELETE", "/api/v1/job")
 
     def start_print(self, file_path: str) -> None:
         self._request_no_content("POST", f"/api/v1/files/usb/{quote_printer_path(file_path)}")
 
-    def post_gcode(self, command: str) -> None:
+    def send_gcode(self, command: str) -> None:
         self._request_no_content("POST", "/api/v1/gcode", payload={"command": command})
 
     def _request_json(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         response = self._request(method, path, payload=payload)
         if response.status == 204:
             return {}
-        data = response.read().decode("utf-8")
-        if not data:
+        body = response.read().decode("utf-8")
+        if not body:
             return {}
         try:
-            return json.loads(data)
+            return json.loads(body)
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Expected JSON response from {path}, got: {data[:120]!r}") from exc
+            raise RuntimeError(f"Expected JSON response from {path}, got {body[:120]!r}") from exc
 
     def _request_no_content(self, method: str, path: str, payload: dict[str, Any] | None = None) -> None:
         response = self._request(method, path, payload=payload)
-        # A lot of PrusaLink control endpoints use 204 as the normal success code.
-        # Treating that as success here keeps the pack code free from status-code
-        # trivia and concentrates the compatibility handling in one place.
         if response.status not in {200, 201, 204}:
             raise RuntimeError(f"Unexpected status {response.status} for {method} {path}")
 
-    def _request(self, method: str, path: str, payload: dict[str, Any] | None = None):
-        url = f"{self.settings.host}{path}"
-        headers = {"Accept": "application/json"}
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        accept: str = "application/json",
+    ):
+        url = path if path.startswith("http://") or path.startswith("https://") else f"{self.settings.host}{path}"
+        headers = {"Accept": accept}
         if self.settings.api_key:
             headers["X-Api-Key"] = self.settings.api_key
         body = None
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
-
         req = request.Request(url, data=body, method=method, headers=headers)
         try:
             return request.urlopen(req, timeout=self.settings.http_timeout_s)
@@ -259,225 +422,16 @@ class PrusaLinkHttpClient:
             raise RuntimeError(f"PrusaLink {method} {path} failed: {exc.reason}") from exc
 
 
-class NoopMetricsReceiver:
-    """Null-object metrics receiver used when UDP metrics are disabled."""
-
-    def drain(self) -> dict[str, float | int | bool]:
-        return {}
-
-    def close(self) -> None:
-        return None
-
-
-class PrusaMetricsReceiver:
-    """Best-effort UDP metrics receiver.
-
-    The printer's UDP stream is useful for liveness and richer telemetry, but it
-    is not required for safe control.  The receiver therefore degrades to an
-    empty cache if binding fails or the stream goes quiet.
-    """
-
-    def __init__(self, settings: PrusaCoreOneSettings) -> None:
-        self.settings = settings
-        self._cache: dict[str, float | int | bool] = {}
-        self._last_datagram_monotonic = 0.0
-        self._socket: socket.socket | None = None
-
-        if not settings.metrics_enabled:
-            return
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setblocking(False)
-        try:
-            sock.bind((settings.metrics_bind_host, settings.metrics_port))
-        except OSError:
-            # If the port is already in use, prefer degraded observability over a
-            # hard startup failure.  The printer can still be controlled via HTTP.
-            sock.close()
-            return
-        self._socket = sock
-
-    def drain(self) -> dict[str, float | int | bool]:
-        if self._socket is None:
-            return dict(self._cache)
-
-        while True:
-            try:
-                payload, _addr = self._socket.recvfrom(65535)
-            except BlockingIOError:
-                break
-            except OSError:
-                break
-            self._last_datagram_monotonic = time.monotonic()
-            for line in payload.decode("utf-8", errors="replace").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                measurement, fields = parse_influx_line(line)
-                for key, value in fields.items():
-                    full_key = f"{measurement}.{key}" if measurement else key
-                    self._cache[full_key] = value
-                    # Keep a plain alias too.  Latest-write-wins is fine here
-                    # because metrics are advisory; if two measurements expose
-                    # the same field name, the fully-qualified key remains the
-                    # lossless source.
-                    self._cache[key] = value
-        if self._last_datagram_monotonic:
-            self._cache["metrics_fresh"] = (time.monotonic() - self._last_datagram_monotonic) < 2.0
-        return dict(self._cache)
-
-    def close(self) -> None:
-        if self._socket is not None:
-            self._socket.close()
-            self._socket = None
-
-
-class NoopSerialDiagnostics:
-    """Null-object serial diagnostics adapter."""
-
-    def maybe_poll(self) -> dict[str, float] | None:
-        return None
-
-    def close(self) -> None:
-        return None
-
-
-class PrusaSerialDiagnostics:
-    """Best-effort serial diagnostics adapter.
-
-    Serial is intentionally *not* the authoritative control path.  The current
-    Wallee v5 reference deployment observed that the Core One USB CDC link can
-    produce garbled text and temporary disconnects.  The adapter therefore polls
-    slowly, keeps the last good sample, and backs off after errors instead of
-    thrashing the port.
-    """
-
-    def __init__(self, settings: PrusaCoreOneSettings) -> None:
-        self.settings = settings
-        self._last_good: dict[str, float] | None = None
-        self._last_poll_monotonic = 0.0
-        self._backoff_until = 0.0
-
-    def maybe_poll(self) -> dict[str, float] | None:
-        now = time.monotonic()
-        if now < self._backoff_until:
-            return self._last_good
-        if self._last_poll_monotonic and (now - self._last_poll_monotonic) < self.settings.serial_poll_interval_s:
-            return self._last_good
-
-        self._last_poll_monotonic = now
-        try:
-            sample = self._poll_once()
-        except Exception:
-            self._backoff_until = now + self.settings.serial_error_backoff_s
-            return self._last_good
-
-        self._last_good = sample
-        return sample
-
-    def _poll_once(self) -> dict[str, float]:
-        if not self.settings.serial_enabled or not self.settings.serial_port:
-            raise RuntimeError("serial diagnostics disabled")
-        try:
-            import serial  # type: ignore
-        except Exception as exc:
-            raise RuntimeError("pyserial is required when PRUSA_CORE_ONE_ENABLE_SERIAL=1") from exc
-
-        deadline = time.monotonic() + self.settings.serial_timeout_s
-        buffer = ""
-        with serial.Serial(self.settings.serial_port, baudrate=self.settings.serial_baud, timeout=0.1) as port:
-            port.reset_input_buffer()
-            port.write(b"M105\n")
-            port.flush()
-            while time.monotonic() < deadline:
-                chunk = port.read(4096)
-                if not chunk:
-                    continue
-                buffer += chunk.decode("utf-8", errors="replace")
-                if "T:" in buffer and ("ok" in buffer or "B:" in buffer):
-                    break
-        return parse_m105_response(buffer)
-
-    def close(self) -> None:
-        return None
-
-
-def parse_m105_response(text: str) -> dict[str, float]:
-    """Parse a Prusa `M105` response.
-
-    Returns a flat dictionary using the same semantic names the pack publishes.
-    The parser ignores unknown keys rather than failing because firmware can add
-    extra channels over time.
-    """
-    field_map = {
-        "T": ("temp_nozzle_c", "target_nozzle_c"),
-        "B": ("temp_bed_c", "target_bed_c"),
-        "X": ("temp_chamber_c", "target_chamber_c"),
-        "A": ("temp_ambient_c", "target_ambient_c"),
-        "@": ("heater_nozzle_pwm", None),
-        "B@": ("heater_bed_pwm", None),
-        "C@": ("heater_chamber_pwm", None),
-        "HBR@": ("fan_heatbreak_pwm", None),
-    }
-    result: dict[str, float] = {}
-    for match in _M105_TOKEN_RE.finditer(text):
-        key = match.group("key")
-        names = field_map.get(key)
-        if names is None:
-            continue
-        actual = float(match.group("actual"))
-        result[names[0]] = actual
-        if names[1] is not None and match.group("target") is not None:
-            result[names[1]] = float(match.group("target"))
-    if not result:
-        raise ValueError(f"Could not parse M105 response: {text!r}")
-    return result
-
-
-def parse_influx_line(line: str) -> tuple[str, dict[str, float | int | bool]]:
-    """Parse one best-effort Influx line protocol record.
-
-    The parser intentionally supports only the field types we need for the pack:
-    integers, floats, and booleans.  Strings are ignored because the Core One
-    metrics path is used for numeric telemetry and freshness, not rich metadata.
-    """
-    measurement_and_tags, _, rest = line.partition(" ")
-    field_part = rest.split(" ", 1)[0] if rest else ""
-    measurement = measurement_and_tags.split(",", 1)[0].strip()
-
-    fields: dict[str, float | int | bool] = {}
-    for token in field_part.split(","):
-        if not token or "=" not in token:
-            continue
-        key, raw_value = token.split("=", 1)
-        key = key.strip()
-        raw_value = raw_value.strip()
-        if not key:
-            continue
-        if raw_value.endswith("i") and raw_value[:-1].lstrip("-").isdigit():
-            fields[key] = int(raw_value[:-1])
-            continue
-        if raw_value.lower() in {"true", "t"}:
-            fields[key] = True
-            continue
-        if raw_value.lower() in {"false", "f"}:
-            fields[key] = False
-            continue
-        try:
-            fields[key] = float(raw_value)
-        except ValueError:
-            continue
-    return measurement, fields
+def quote_printer_path(path: str) -> str:
+    """Return a PrusaLink-safe relative file path."""
+    cleaned = str(path).strip().lstrip("/")
+    if cleaned.lower().startswith("usb/"):
+        cleaned = cleaned[4:]
+    return parse.quote(cleaned, safe="/")
 
 
 def flatten_prusalink_file_tree(payload: Any) -> list[PrintableFile]:
-    """Flatten a PrusaLink file-tree payload into printable file entries.
-
-    PrusaLink can return either a root object with `children`, a bare list, or a
-    single-node object depending on endpoint and firmware version.  The pack only
-    needs a normalized list of files, so this helper accepts all of those shapes
-    and discards the directory scaffolding.
-    """
+    """Flatten PrusaLink's file-tree responses into printable file entries."""
     results: list[PrintableFile] = []
 
     def walk(node: Any, parent: str = "") -> None:
@@ -489,11 +443,11 @@ def flatten_prusalink_file_tree(payload: Any) -> list[PrintableFile]:
             return
 
         children = node.get("children")
-        path = str(node.get("path") or node.get("name") or "")
-        if path and not path.startswith("/"):
-            joined = f"{parent.rstrip('/')}/{path.lstrip('/')}" if parent else f"/{path.lstrip('/')}"
+        raw_path = str(node.get("path") or node.get("name") or "")
+        if raw_path and not raw_path.startswith("/"):
+            joined = f"{parent.rstrip('/')}/{raw_path.lstrip('/')}" if parent else f"/{raw_path.lstrip('/')}"
         else:
-            joined = path or parent
+            joined = raw_path or parent
 
         if isinstance(children, list):
             for child in children:
@@ -502,39 +456,20 @@ def flatten_prusalink_file_tree(payload: Any) -> list[PrintableFile]:
 
         candidate_path = joined or parent
         display_name = str(node.get("display_name") or Path(candidate_path).name)
-        size = node.get("size")
         printable = display_name.lower().endswith(_PRINTABLE_SUFFIXES) or candidate_path.lower().endswith(_PRINTABLE_SUFFIXES)
-        if printable:
-            normalized = candidate_path
-            if not normalized.startswith("/"):
-                normalized = f"/{normalized.lstrip('/')}"
-            results.append(
-                PrintableFile(
-                    path=normalized,
-                    display_name=display_name,
-                    size_bytes=int(size) if isinstance(size, (int, float)) else None,
-                    printable=True,
-                )
+        if not printable:
+            return
+        refs = node.get("refs") if isinstance(node.get("refs"), dict) else {}
+        normalized_path = candidate_path if candidate_path.startswith("/") else f"/{candidate_path.lstrip('/')}"
+        results.append(
+            PrintableFile(
+                path=normalized_path,
+                display_name=display_name,
+                size_bytes=int(node["size"]) if isinstance(node.get("size"), (int, float)) else None,
+                modified_ts=int(node["m_timestamp"]) if isinstance(node.get("m_timestamp"), (int, float)) else None,
+                refs={str(key): str(value) for key, value in refs.items() if isinstance(value, str)},
             )
+        )
 
     walk(payload)
-
-    deduped: dict[str, PrintableFile] = {}
-    for entry in results:
-        deduped.setdefault(entry.path, entry)
-    return list(deduped.values())
-
-
-def quote_printer_path(file_path: str) -> str:
-    """Quote a printer file path for use inside `/api/v1/files/usb/{path}`.
-
-    The helper accepts either `/usb/foo.bgcode`, `usb/foo.bgcode`, or
-    `foo.bgcode` and always returns the *path segment* relative to `usb/`.
-    """
-    normalized = file_path.strip()
-    if normalized.startswith("/usb/"):
-        normalized = normalized[5:]
-    elif normalized.startswith("usb/"):
-        normalized = normalized[4:]
-    normalized = normalized.lstrip("/")
-    return parse.quote(normalized, safe="/")
+    return results

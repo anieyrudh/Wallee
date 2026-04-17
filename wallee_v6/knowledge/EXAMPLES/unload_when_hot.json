@@ -1,0 +1,16 @@
+{
+  "world_example": {
+    "goal": "Unload cooled part from printer_1 into tray_A",
+    "frontier": [
+      {
+        "id": "A_PRN_WAIT_COOL",
+        "verb": "WAIT_UNTIL"
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_PRN_WAIT_COOL"],
+    "why": "The part is still too hot, so waiting is the only action that safely advances the goal."
+  }
+}

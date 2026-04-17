@@ -1,145 +1,171 @@
-# Prusa Core One+ Pack
+# Prusa CORE One/+ Pack
 
-This pack is the **real-hardware reference pack** for the lean Wallee v6 runtime.
+This pack models **one physical Prusa CORE One / CORE One+** as **one Wallee pack**.
 
-It keeps the v6 design boundary intact:
+It keeps the core trust boundary intact:
 
-- the **planner** sees one physical printer and a small set of outcome-level verbs
-- the **pack** hides the transport details
-- the **engine** remains generic and deterministic
+- the whiteboard carries live facts from supported Prusa surfaces
+- the pack exposes only bounded action IDs to the planner
+- the driver owns the only real write paths
+- verification comes back through observed post-state
+- the job notebook is read-only context, not a controller
 
-## Why this is one pack, not three
+FFF is intentionally **not** part of this redesign pass.
 
-The current v5 repository models the Prusa deployment through several interfaces:
-HTTP via PrusaLink, a UDP metrics stream, and USB serial diagnostics.  That is
-useful at the implementation layer, but it is the wrong abstraction for the
-planner.
+## What is in this pack
 
-In v6 this becomes **one pack for one physical printer**.
-The pack privately composes three adapters:
+```mermaid
+flowchart LR
+    S[Supported Prusa surfaces\nHTTP status/job/files + bounded serial writes] --> W[Whiteboard facts]
+    W --> P[Prusa pack\naction compiler]
+    F[File metadata + G-code] --> N[Job notebook\ngrounded global/local notes]
+    N --> P
+    P --> L[LLM planner\nfrontier choice only]
+    L --> E[Deterministic engine]
+    E --> D[Prusa driver]
+    D --> R[Printer]
+    R --> S
+```
 
-- **HTTP** - authoritative control and baseline telemetry
-- **UDP metrics** - optional high-rate telemetry and liveness hints
-- **USB serial** - optional diagnostics-only source for chamber and ambient
-  temperatures
+## Module map
 
-This keeps the planner's world model simple and aligns with the first-principles
-rule that the core should reason about *devices and outcomes*, not about vendor
-transport fragments.
+- `adapters.py`
+  - supported Prusa HTTP client
+  - bounded serial writer
+  - settings
+- `driver.py`
+  - lifecycle control
+  - bounded live tuning writes
+  - post-state verification
+- `job_notebook.py`
+  - deterministic job map + notebook builder
+  - optional merge of external grounded notes
+- `types.py`
+  - small Prusa-specific data contracts
+- `pack.py`
+  - whiteboard publishing
+  - normalization
+  - frontier compilation
+  - realization dispatch to the driver
+- `hardware_smoke.py`
+  - explicit operator/Codex smoke commands for a real printer
 
-## What the pack exposes to the planner
+## What the planner sees
 
-The pack normalizes raw machine state into facts such as:
+The planner does **not** see raw G-code or raw numeric knobs.
+It sees bounded action IDs such as:
 
-- `printer_1.mode`
-- `printer_1.health`
-- `printer_1.job_active`
-- `printer_1.current_file`
-- `printer_1.part_present`
-- `printer_1.safe_to_unload`
-- `printer_1.requested_file`
-- `printer_1.requested_file_present`
+- `A_PRUSA_PAUSE`
+- `A_PRUSA_RESUME`
+- `A_PRUSA_CANCEL`
+- `A_PRUSA_TRIM_SPEED_DOWN_SMALL`
+- optional experimental tuning actions when enabled
 
-And it exposes two planner-visible resources:
+## Current status terms
 
-- `printer_1.bed`
-- `printer_1.usb_storage`
+- `implemented`: coded and unit-tested in this repository
+- `direct-hardware-proven`: direct operator-only write observed on real
+  hardware and verified through `GET /api/v1/status`
+- `managed-wallee-proven`: deterministic engine dispatch observed on real
+  hardware and verified through `GET /api/v1/status`, with no LLM action choice
+- `planner-enabled`: admitted by config and policy in the live frontier
 
-## Admitted verbs
+## Current family status
 
-The pack intentionally exposes only verbs that pass the V6 admission rule:
+### Implemented
 
-1. outcome-level
-2. observable
-3. bounded
-4. reusable
+- lifecycle over HTTP
+- grounded notebook build from file metadata and G-code
+- bounded speed trim down through serial `M220`, verified through HTTP status
+- bounded flow trim down through `M221`
+- bounded nozzle target up/down through `M104`
+- bounded bed target up/down through `M140`
 
-Current exposed verbs:
+### Direct-hardware-proven
 
-- `PAUSE_PROCESS`
-- `RESUME_PROCESS`
-- `STOP_PROCESS`
-- `START_PROCESS`
-- builtin `WAIT_UNTIL`
-- builtin `CALL_HUMAN`
+- bounded speed trim down through serial `M220`, verified through HTTP status
+- bounded flow trim down through `M221`, verified through HTTP status
+- bounded nozzle target up/down through `M104`, verified through HTTP status
+- bounded bed target up/down through `M140`, verified through HTTP status
 
-## What the pack deliberately does *not* expose
+### Managed-wallee-proven
 
-The pack does **not** currently expose arbitrary raw motion or arbitrary numeric
-G-code tuning to the planner.
+- bounded speed trim down through deterministic engine dispatch and HTTP status
+  verification
+- bounded flow trim down through deterministic engine dispatch and HTTP status
+  verification
+- bounded nozzle target up/down through deterministic engine dispatch and HTTP
+  status verification
+- bounded bed target up/down through deterministic engine dispatch and HTTP
+  status verification
 
-Examples intentionally kept out of the frontier:
+### Planner-enabled
 
-- raw `G0/G1` head moves
-- arbitrary `M104` / `M140` temperature commands
-- arbitrary flow and speed factor tuning
-- raw chamber heater commands
+- lifecycle over HTTP
+- grounded notebook build from file metadata and G-code
+- bounded speed trim down through serial `M220`, verified through HTTP status
+- bounded flow trim down through `M221`, verified through HTTP status
+- bounded nozzle target up/down through `M104`, verified through HTTP status
+- bounded bed target up/down through `M140`, verified through HTTP status
 
-Those are useful machine commands, but they do not yet meet the lean V6 bar for
-planner-visible verbs.  If a workflow truly needs one of them, add a bounded,
-observable verb and document why it belongs in the frontier.
+All current bounded trim families are now planner-enabled.
 
-## Safety choices in this pack
+## Limited live operation
 
-### HTTP is the control authority
+Normal-runtime bounded observations now also exist for this pack under:
 
-The pack uses PrusaLink HTTP as the only control path for planner-selected
-verbs.  That keeps control on the most reliable and observable interface.
+- [live_runtime/README.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md)
+- [RUNBOOK.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/RUNBOOK.md)
 
-### Serial is diagnostics-only
+These are actual runtime runs through `python -m wallee_v6.main --once`,
+not smoke-harness sessions. The runtime boundary stayed the same:
 
-The current Core One USB CDC link is known to be unstable in the v5 reference
-setup.  Because chamber and ambient temperatures are useful but not safety
-critical for the current workflow set, serial is treated as slow, optional,
-best-effort diagnostics.
+- frontier-only legality
+- one action at a time
+- deterministic verify-after-each-action
+- notebook notes advisory only
+- hard stop on the first ambiguity
 
-### `safe_to_unload` is a conservative proxy
+## What is deliberately missing
 
-The printer does not provide a direct part-temperature sensor.
-The pack therefore computes `safe_to_unload` from:
+- no FFF dependency
+- no UDP metrics dependency
+- no planner-visible arbitrary motion
+- no planner-visible position control
+- no planner-visible arbitrary raw temperature/flow targets
+- no second controller
 
-- bed temperature
-- nozzle temperature
-- optional chamber temperature when available
-- printer mode and health
+## The job notebook
 
-That is intentionally a conservative approximation.  The pack would rather say
-"not safe yet" too often than confidently invent a part temperature it cannot
-measure.
+The notebook is built automatically when the pack can identify a printable file.
 
-## Environment variables
+It has two note scopes:
 
-See [SETUP.md](SETUP.md) for the full list.  The most important ones are:
+- **global notes**: whole-job facts and watchpoints
+- **local notes**: anchored to parser-defined `section_id`s
 
-- `PRUSA_CORE_ONE_HOST`
-- `PRUSA_CORE_ONE_API_KEY`
-- `PRUSA_CORE_ONE_ENABLE_METRICS`
-- `PRUSA_CORE_ONE_ENABLE_SERIAL`
-- `PRUSA_CORE_ONE_SERIAL_PORT`
+Each section is grounded by:
 
-Exact semantic aliases from v5 are supported for bring-up compatibility:
+- line range
+- approximate progress window
+- layer number
+- Z height
+- parser tags such as `bridge`, `high_flow`, `tiny_layer`
 
-- `PRUSALINK_HOST` -> `PRUSA_CORE_ONE_HOST`
-- `PRUSALINK_API_KEY` -> `PRUSA_CORE_ONE_API_KEY`
+If `PRUSA_CORE_ONE_NOTEBOOK_DIR` is set, the pack writes a baseline artifact:
 
-If both canonical and alias names are present, the `PRUSA_CORE_ONE_*` value
-wins.  No other v5 env names are interpreted by this pack.
+- `<job_hash>.notebook.json`
 
-For a runnable template, see [`.env.example`](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/.env.example).
+If an external notebook tool or human writes:
 
-## Files in this directory
+- `<job_hash>.notes.json`
 
-- `manifest.yaml` - pack declaration used by the registry
-- `adapters.py` - HTTP, UDP metrics, and serial adapter code
-- `pack.py` - normalization, candidate action generation, and realization
-- `SETUP.md` - operator setup checklist
-- `CAPABILITIES.md` - capability map and design notes
+then the pack merges those grounded notes on the next cycle.
 
-## Testing
+## Where to read next
 
-This pack is covered by tests in `tests/test_prusa_core_one_adapters.py` and
-`tests/test_prusa_core_one_pack.py`.
-
-The tests are intentionally hardware-free and inject fakes for all transports.
-That gives fast feedback for pack logic while keeping the real network and
-serial paths isolated to the adapters.
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [CAPABILITIES.md](CAPABILITIES.md)
+- [SETUP.md](SETUP.md)
+- [TESTING.md](TESTING.md)
+- [CODEX_HARDWARE_TESTING.md](CODEX_HARDWARE_TESTING.md)

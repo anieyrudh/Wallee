@@ -1,0 +1,34 @@
+{
+  "world_example": {
+    "goal": "Reduce print speed a little while keeping the current print running.",
+    "decision_contract": {
+      "frontier_only": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": [],
+      "family_blockers": {
+        "speed": ["speed_progress_not_ready"],
+        "flow": ["flow_progress_not_ready"],
+        "nozzle": ["nozzle_progress_not_ready"],
+        "bed": ["bed_progress_not_ready"]
+      },
+      "notebook_notes": {
+        "global": [],
+        "local": [],
+        "merged_reason_tags": []
+      },
+      "last_result_notes": []
+    }
+  },
+  "good_plan": {
+    "decision": "NO_ACTION",
+    "sequence": [],
+    "why": "No legal frontier action is available and the current blockers are unresolved, so the bounded runtime should wait."
+  }
+}

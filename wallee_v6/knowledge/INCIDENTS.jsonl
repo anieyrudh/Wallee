@@ -1,0 +1,2 @@
+{"tags":["printer","cooldown"],"summary":"Unload attempt rejected because part temperature was above safe threshold","lesson":"Prefer WAIT_UNTIL over manual unloading while part is hot."}
+{"tags":["arm","verify"],"summary":"Arm claimed success but tray sensor stayed empty","lesson":"Trust verified post-state, not command return values."}

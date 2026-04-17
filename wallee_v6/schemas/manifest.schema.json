@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "description": "Minimal manifest read from `manifest.yaml`.\n\nThe manifest intentionally carries just enough information for discovery,\ndocumentation, and operator visibility.  Higher-order logic stays in code,\nbecause once behavior gets truly dynamic, deeply embedding it in YAML creates\nmore accidental complexity than it removes.",
+  "properties": {
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "category": {
+      "title": "Category",
+      "type": "string"
+    },
+    "detection": {
+      "additionalProperties": true,
+      "title": "Detection",
+      "type": "object"
+    },
+    "display_name": {
+      "title": "Display Name",
+      "type": "string"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "pack_id": {
+      "title": "Pack Id",
+      "type": "string"
+    },
+    "python_entrypoint": {
+      "title": "Python Entrypoint",
+      "type": "string"
+    },
+    "resources": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Resources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pack_id",
+    "display_name",
+    "category",
+    "python_entrypoint"
+  ],
+  "title": "PackManifest",
+  "type": "object"
+}

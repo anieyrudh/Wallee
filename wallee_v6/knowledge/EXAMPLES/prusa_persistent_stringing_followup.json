@@ -1,0 +1,117 @@
+{
+  "world_example": {
+    "goal": "Reduce stringing while keeping the current print running.",
+    "decision_contract": {
+      "frontier_only": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": [
+        "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL",
+        "A_PRUSA_TRIM_NOZZLE_UP_SMALL"
+      ],
+      "family_blockers": {
+        "speed": [],
+        "flow": [],
+        "nozzle": [],
+        "bed": []
+      },
+      "vision_signal": {
+        "usable": true,
+        "summary": "vision:residue,stringing; A thin strand is still trailing from the nozzle.",
+        "finding_types": ["residue", "stringing"]
+      },
+      "notebook_notes": {
+        "global": [
+          {
+            "note_id": "global_stringing_watch",
+            "scope": "global",
+            "title": "Stringing watch",
+            "text": "Stringing-sensitive sections exist. Prefer speed reduction before broader temperature changes when thin strands persist.",
+            "confidence": "high",
+            "reason_tags": ["stringing"],
+            "suggested_families": ["speed", "nozzle"],
+            "section_ids": []
+          }
+        ],
+        "local": [],
+        "merged_reason_tags": ["stringing"]
+      },
+      "last_result_notes": [
+        {
+          "action_id": "A_PRUSA_TRIM_FLOW_DOWN_SMALL",
+          "family": "flow",
+          "outcome": "verified_effect",
+          "summary": "Flow decreased to 95%, but fresh later observations still show stringing.",
+          "reason_tags": ["verified_effect", "stringing_persisted"],
+          "observed_at": "2026-04-15T09:10:00Z"
+        }
+      ],
+      "temporal_action_context": {
+        "available": true,
+        "last_action_id": "A_PRUSA_TRIM_FLOW_DOWN_SMALL",
+        "last_action_family": "flow",
+        "last_action_status": "DONE",
+        "last_action_outcome": "verified_effect",
+        "last_action_summary": "Flow decreased to 95%, but fresh later observations still show stringing.",
+        "last_action_reason_tags": ["verified_effect", "stringing_persisted"],
+        "last_action_why": "Reduce extrusion slightly to reduce stringing.",
+        "last_action_observed_at": "2026-04-15T09:10:00Z",
+        "seconds_since_last_action": 180.0
+      },
+      "freshness": {
+        "now_at": "2026-04-15T09:13:00Z",
+        "raw_observed_at": "2026-04-15T09:12:58Z",
+        "seconds_since_raw_observation": 2.0,
+        "vision_observed_at": "2026-04-15T09:12:57Z",
+        "seconds_since_vision_observation": 3.0,
+        "camera_last_capture_at": "2026-04-15T09:12:57Z",
+        "camera_frame_age_s": 0.6,
+        "vision_usable": true
+      }
+    },
+    "frontier": [
+      {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed slightly while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      },
+      {
+        "id": "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL",
+        "verb": "TUNE_NOZZLE_TEMP",
+        "description": "Reduce nozzle target temperature slightly while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      },
+      {
+        "id": "A_PRUSA_TRIM_NOZZLE_UP_SMALL",
+        "verb": "TUNE_NOZZLE_TEMP",
+        "description": "Increase nozzle target temperature slightly while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+    "why": "A recent flow trim verified, but fresh later observations still show stringing, so choose one additional legal follow-up action. Speed is the best-matched bounded next step because the notebook and vision both still point to persistent thin strands."
+  }
+}

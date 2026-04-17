@@ -113,10 +113,10 @@ class PackRegistry:
         """Return manifests for all loaded packs."""
         return [loaded.manifest for loaded in self._packs.values()]
 
-    def publish_all_raw_state(self, whiteboard) -> None:
+    def publish_all_raw_state(self, whiteboard, *, mode: str = "full") -> None:
         """Ask every pack to publish its current raw state."""
         for pack in self.all_packs():
-            pack.publish_raw_state(whiteboard)
+            pack.publish_raw_state(whiteboard, mode=mode)
 
     def close_all(self) -> None:
         """Release resources held by loaded packs.

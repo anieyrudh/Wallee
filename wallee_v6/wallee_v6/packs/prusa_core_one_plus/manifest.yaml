@@ -3,14 +3,15 @@ display_name: Prusa Core One+
 category: additive
 python_entrypoint: wallee_v6.packs.prusa_core_one_plus.pack:Pack
 capabilities:
+  - publish_supported_prusa_status
+  - publish_printer_job_and_file_inventory
+  - build_grounded_job_notebook
   - start_process_from_usb
   - pause_process
   - resume_process
   - stop_process
-  - publish_http_state
-  - publish_usb_inventory
-  - publish_chamber_and_ambient_diagnostics
-  - ingest_udp_metrics
+  - tune_speed_down_small
+  - experimental_tune_flow_and_temperature
 detection:
   env_var:
     - PRUSA_CORE_ONE_HOST
@@ -21,7 +22,9 @@ resources:
   - id: printer_1.usb_storage
     kind: storage
 notes: |
-  HTTP via PrusaLink is the authoritative control path.
-  UDP metrics are optional high-rate telemetry.
-  USB serial is diagnostics-only and intentionally not used for control because
-  the current reference deployment has observed instability on the CDC ACM link.
+  Supported surfaces first.
+  HTTP via PrusaLink is the authoritative read and lifecycle-control surface.
+  Serial is used only for bounded live tuning writes.
+  Verification comes back through HTTP-observed post-state.
+  The pack auto-builds a grounded job notebook when a printable file is known.
+  Position control is intentionally not planner-visible in this redesign pass.

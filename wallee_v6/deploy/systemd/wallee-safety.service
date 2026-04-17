@@ -1,0 +1,14 @@
+[Unit]
+Description=Wallee v6 safety kernel
+Before=wallee-main.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wallee_v6
+ExecStart=/usr/bin/python -c "from wallee_v6.safety import SafetyKernel; import time; s=SafetyKernel(); print('Safety kernel placeholder running'); time.sleep(10**9)"
+Restart=always
+User=wallee-safety
+Group=wallee-safety
+
+[Install]
+WantedBy=multi-user.target

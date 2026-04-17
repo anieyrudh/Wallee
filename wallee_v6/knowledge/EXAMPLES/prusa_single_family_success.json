@@ -1,0 +1,57 @@
+{
+  "world_example": {
+    "goal": "Reduce print speed a little while keeping the current print running.",
+    "decision_contract": {
+      "frontier_only": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+      "family_blockers": {
+        "speed": [],
+        "flow": [],
+        "nozzle": [],
+        "bed": []
+      },
+      "notebook_notes": {
+        "global": [
+          {
+            "note_id": "global_bridge_watch",
+            "scope": "global",
+            "title": "Bridge watch",
+            "text": "Bridge sections exist. Prefer speed reduction before broader temperature changes if bridging starts to sag.",
+            "confidence": "high",
+            "reason_tags": ["bridge"],
+            "suggested_families": ["speed"],
+            "section_ids": []
+          }
+        ],
+        "local": [],
+        "merged_reason_tags": ["bridge"]
+      },
+      "last_result_notes": []
+    },
+    "frontier": [
+      {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+    "why": "A single legal speed action is available and directly matches both the goal and the grounded bridge note."
+  }
+}

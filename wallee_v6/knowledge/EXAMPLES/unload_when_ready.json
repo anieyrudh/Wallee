@@ -1,0 +1,16 @@
+{
+  "world_example": {
+    "goal": "Unload cooled part from printer_1 into tray_A",
+    "frontier": [
+      {
+        "id": "A_ARM_UNLOAD",
+        "verb": "UNLOAD_PART"
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_ARM_UNLOAD"],
+    "why": "The arm is available, the part is cool, and the tray is empty."
+  }
+}
