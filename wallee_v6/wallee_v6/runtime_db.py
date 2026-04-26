@@ -1,4 +1,4 @@
-"""Durable runtime database for Wallee v6.
+"""Durable runtime database for Wallee v6.5.
 
 This module is intentionally one of the deepest in the repository.  Callers get
 simple semantic methods such as `create_action_run()` or `start_exec_journal()`
@@ -430,6 +430,76 @@ class RuntimeDB:
             "plan_decision": str(plan_ir.get("decision") or "").strip() or None,
             "plan_sequence": list(plan_ir.get("sequence") or []),
         }
+
+    def recent_completed_actions(self, run_scope: str | None, *, limit: int = 3) -> list[dict[str, Any]]:
+        """Return recent terminal action results, preferring the current logical run scope."""
+        statuses = ("DONE", "FAILED", "REPLAN_REQUIRED", "ABORTED")
+
+        def _fetch(scope: str | None) -> list[dict[str, Any]]:
+            if scope:
+                rows = self._conn.execute(
+                    """
+                    SELECT
+                      ar.action_id,
+                      ar.run_scope,
+                      ar.verb,
+                      ar.status,
+                      ar.result_json,
+                      ar.error_json,
+                      ar.updated_ts_ms,
+                      p.plan_ir_json
+                    FROM action_runs ar
+                    JOIN plans p ON p.plan_id = ar.plan_id
+                    WHERE ar.run_scope = ?
+                      AND ar.status IN (?, ?, ?, ?)
+                    ORDER BY ar.updated_ts_ms DESC
+                    LIMIT ?
+                    """,
+                    (scope, *statuses, limit),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    """
+                    SELECT
+                      ar.action_id,
+                      ar.run_scope,
+                      ar.verb,
+                      ar.status,
+                      ar.result_json,
+                      ar.error_json,
+                      ar.updated_ts_ms,
+                      p.plan_ir_json
+                    FROM action_runs ar
+                    JOIN plans p ON p.plan_id = ar.plan_id
+                    WHERE ar.status IN (?, ?, ?, ?)
+                    ORDER BY ar.updated_ts_ms DESC
+                    LIMIT ?
+                    """,
+                    (*statuses, limit),
+                ).fetchall()
+            payload: list[dict[str, Any]] = []
+            for row in rows:
+                plan_ir = json.loads(row["plan_ir_json"]) if row["plan_ir_json"] else {}
+                payload.append(
+                    {
+                        "action_id": row["action_id"],
+                        "run_scope": row["run_scope"],
+                        "verb": row["verb"],
+                        "status": row["status"],
+                        "result": json.loads(row["result_json"]) if row["result_json"] else {},
+                        "error": json.loads(row["error_json"]) if row["error_json"] else {},
+                        "updated_ts_ms": row["updated_ts_ms"],
+                        "plan_why": str(plan_ir.get("why") or "").strip() or None,
+                        "plan_decision": str(plan_ir.get("decision") or "").strip() or None,
+                        "plan_sequence": list(plan_ir.get("sequence") or []),
+                    }
+                )
+            return payload
+
+        scoped = _fetch(run_scope)
+        if scoped or run_scope is None:
+            return scoped
+        return _fetch(None)
 
     def get_exec_journal(self, idempotency_key: str) -> ExecJournalEntry | None:
         """Return the execution journal entry for one idempotency key."""

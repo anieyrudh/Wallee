@@ -170,46 +170,46 @@ flowchart LR
 
 #### Planner-enabled families
 
-- speed down small
-  - write: serial `M220 S(current-5)` within `75..125`
+- speed `SMALL` / `BIG`
+  - write: serial `M220 S(current-5/+5)` and `M220 S(current-10/+10)` within
+    `65..135`
   - verify: HTTP status speed = explicit target
-  - reset: `M220 S100`
-  - status: implemented, direct-hardware-proven, managed-wallee-proven, and
-    planner-enabled
-- speed up small
-  - write: serial `M220 S(current+5)` within `75..125`
-  - verify: HTTP status speed = explicit target
-  - reset: `M220 S100`
-  - status: implemented and planner-enabled
-- flow down small
-  - write: `M221 S(current-5)` within `75..125`
+  - reset: `A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT`
+  - after any `BIG`: same-family planner cooldown for `60s`
+- flow `SMALL` / `BIG`
+  - write: `M221 S(current-5/+5)` and `M221 S(current-10/+10)` within `65..135`
   - verify: flow readback = explicit target
-  - reset: `M221 S100`
-  - status: implemented, direct-hardware-proven, managed-wallee-proven, and
-    planner-enabled
-- flow up small
-  - write: `M221 S(current+5)` within `75..125`
-  - verify: flow readback = explicit target
-  - reset: `M221 S100`
-  - status: implemented and planner-enabled
-- nozzle target up/down small
-  - write: `M104 S...`
+  - reset: `A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT`
+  - after any `BIG`: same-family planner cooldown for `60s`
+- nozzle target `SMALL` / `BIG`
+  - write: `M104 S(current-5/+5)` and `M104 S(current-10/+10)`
   - verify: HTTP status nozzle target changed
   - reset: paired bounded opposite action
-  - status: implemented, direct-hardware-proven, managed-wallee-proven, and
-    planner-enabled
-- bed target up/down small
-  - write: `M140 S...`
+  - after any `BIG`: same-family planner cooldown for `60s`
+- bed target `SMALL` / `BIG`
+  - write: `M140 S(current-5/+5)` and `M140 S(current-10/+10)`
   - verify: HTTP status bed target changed
   - reset: paired bounded opposite action
-  - status: implemented, direct-hardware-proven, managed-wallee-proven, and
-    planner-enabled
+  - after any `BIG`: same-family planner cooldown for `60s`
+- experimental pressure advance `SMALL` / `BIG`
+  - write: `M572 S(current-0.01/+0.01)` and `M572 S(current-0.02/+0.02)`
+    within `0.00..0.12`
+  - verify: serial readback = explicit target
+  - planner-gated behind experimental enablement and verification support
+- experimental global print acceleration `SMALL` / `BIG`
+  - write: `M204 S(current-250/+250)` and `M204 S(current-500/+500)` within
+    `500..6000`
+  - verify: serial readback = explicit target
+  - planner-gated behind experimental enablement and verification support
 
 #### Not exposed
 
 - arbitrary `G0/G1`
 - arbitrary `G27/G28`
 - planner-visible raw position control
+- `M900`
+- `M201`
+- `M205`
 
 ## 5. Why position stays out for now
 

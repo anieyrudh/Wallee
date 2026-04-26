@@ -49,6 +49,25 @@ def _build_live_state_summary(raw_snapshot: dict[str, Any]) -> dict[str, Any]:
     return {device_id: data for device_id, data in summary.items() if data}
 
 
+def _run_scope_from_facts(facts: dict[str, Any]) -> str | None:
+    job_scope_token = str(facts.get("printer_1.job_scope_token") or "").strip() or None
+    if not job_scope_token:
+        current_file = str(facts.get("printer_1.current_file") or "").strip() or None
+        requested_file = str(facts.get("printer_1.requested_file") or "").strip() or None
+        job_scope_token = current_file or requested_file
+    if not job_scope_token:
+        return None
+    job_id = facts.get("printer_1.job_id")
+    lifecycle = str(facts.get("printer_1.lifecycle") or "").strip() or "unknown"
+    if job_id is not None:
+        return f"job:{job_id}:{job_scope_token}"
+    return f"state:{lifecycle}:{job_scope_token}"
+
+
+def _is_tuning_action(action: LegalAction) -> bool:
+    return action.verb.startswith("TUNE_")
+
+
 class WorldCompiler:
     """Compile raw state into a compact planner-facing world packet.
 
@@ -92,6 +111,8 @@ class WorldCompiler:
             blockers.extend(item.blockers)
 
         deltas = self._compute_deltas(snapshot.values, facts)
+        run_scope = _run_scope_from_facts(facts)
+        recent_results = self.runtime_db.recent_completed_actions(run_scope, limit=3)
         preliminary = WorldPacket(
             goal=goal,
             device_summaries=device_summaries,
@@ -100,8 +121,10 @@ class WorldCompiler:
             blockers=blockers,
             deltas=deltas,
             frontier=[],
-            last_result=self.runtime_db.latest_completed_action(),
+            last_result=recent_results[0] if recent_results else {},
+            recent_results=recent_results,
             pending_human=pending_human or [],
+            prompt_frontier_limit=self.config.frontier_limit,
             compilation=WorldCompilationContext(
                 compiled_at=compiled_at,
                 compiled_ts_ms=compiled_ts_ms,
@@ -161,7 +184,9 @@ class WorldCompiler:
             legal.append(action)
 
         legal.sort(key=lambda action: (action.rank_hint, action.action_id))
-        return legal[: self.config.frontier_limit]
+        control_actions = [action for action in legal if not _is_tuning_action(action)]
+        tuning_actions = [action for action in legal if _is_tuning_action(action)]
+        return control_actions + tuning_actions
 
     def _active_locks(self) -> set[str]:
         """Return currently held lock keys.

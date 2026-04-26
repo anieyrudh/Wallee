@@ -16,6 +16,7 @@ import shutil
 import socket
 import sqlite3
 import subprocess
+import threading
 import time
 from typing import Any
 
@@ -128,10 +129,112 @@ def _resolve_file(http: PrusaLinkHttpClient, file_path: str) -> PrintableFile:
     raise RuntimeError(f"File {file_path!r} was not found on printer storage")
 
 
+def _active_runtime_holds_serial() -> bool:
+    """Best-effort detection for a live Wallee runtime on the same host.
+
+    The runtime owns the serial line for the current job. Hardware-smoke probes
+    should not compete with it for opportunistic readback during active prints.
+    """
+    try:
+        result = subprocess.run(
+            ["pgrep", "-af", "python -m wallee_v6.main"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=1.0,
+        )
+    except Exception:
+        return False
+    current_pid = os.getpid()
+    for line in result.stdout.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        pid_text, _, cmd = text.partition(" ")
+        try:
+            if int(pid_text) == current_pid:
+                continue
+        except ValueError:
+            pass
+        if "python -m wallee_v6.main" in cmd:
+            return True
+    return False
+
+
+def _bounded_status_serial_read(
+    driver: PrusaDriver,
+    reader,
+    *,
+    label: str,
+    timeout_s: float,
+) -> tuple[Any, str | None]:
+    result: dict[str, Any] = {}
+    error: dict[str, BaseException] = {}
+
+    def _run() -> None:
+        try:
+            result["value"] = reader()
+        except BaseException as exc:  # pragma: no cover - defensive containment
+            error["exc"] = exc
+
+    thread = threading.Thread(target=_run, name=f"hardware-smoke-{label}", daemon=True)
+    thread.start()
+    thread.join(timeout=max(0.25, timeout_s))
+    if thread.is_alive():
+        try:
+            driver.close()
+        except Exception:
+            pass
+        return None, f"{label}_read_timeout"
+    if "exc" in error:
+        return None, f"{label}_read_error:{type(error['exc']).__name__}"
+    return result.get("value"), None
+
+
 def _command_status(settings: PrusaCoreOneSettings) -> dict[str, Any]:
     http = PrusaLinkHttpClient(settings)
     info = http.get_info()
     status = status_to_snapshot(http.get_status(), job=http.get_job(), info=info)
+    pressure_advance = None
+    print_accel_mm_s2 = None
+    pressure_advance_read_warning = None
+    print_accel_read_warning = None
+    serial_tuning_readback_skipped_reason = None
+    driver: PrusaDriver | None = None
+    should_read_serial_tuning_state = bool(getattr(settings, "serial_enabled", False)) and (
+        bool(getattr(settings, "enable_experimental_tuning", False))
+        or bool(getattr(settings, "pressure_advance_tuning_verification_enabled", False))
+        or bool(getattr(settings, "accel_tuning_verification_enabled", False))
+    )
+    if should_read_serial_tuning_state:
+        if _active_runtime_holds_serial() and bool(status.job_active):
+            serial_tuning_readback_skipped_reason = "runtime_serial_owner_active"
+        else:
+            driver = _build_driver(settings)
+            try:
+                serial_timeout_s = max(0.25, float(getattr(settings, "serial_timeout_s", 1.0)) * 2.5)
+                if (
+                    bool(getattr(settings, "enable_experimental_tuning", False))
+                    or bool(getattr(settings, "pressure_advance_tuning_verification_enabled", False))
+                ):
+                    pressure_advance, pressure_advance_read_warning = _bounded_status_serial_read(
+                        driver,
+                        driver.read_pressure_advance,
+                        label="pressure_advance",
+                        timeout_s=serial_timeout_s,
+                    )
+                if (
+                    bool(getattr(settings, "enable_experimental_tuning", False))
+                    or bool(getattr(settings, "accel_tuning_verification_enabled", False))
+                ):
+                    print_accel_mm_s2, print_accel_read_warning = _bounded_status_serial_read(
+                        driver,
+                        driver.read_print_accel_mm_s2,
+                        label="print_accel_mm_s2",
+                        timeout_s=serial_timeout_s,
+                    )
+            finally:
+                driver.close()
     return {
         "lifecycle": status.lifecycle.value,
         "health": status.health,
@@ -146,6 +249,11 @@ def _command_status(settings: PrusaCoreOneSettings) -> dict[str, Any]:
         "nozzle_target_c": status.nozzle_target_c,
         "bed_temp_c": status.bed_temp_c,
         "bed_target_c": status.bed_target_c,
+        "pressure_advance": pressure_advance,
+        "print_accel_mm_s2": print_accel_mm_s2,
+        "pressure_advance_read_warning": pressure_advance_read_warning,
+        "print_accel_mm_s2_read_warning": print_accel_read_warning,
+        "serial_tuning_readback_skipped_reason": serial_tuning_readback_skipped_reason,
         "model": status.model,
         "serial_number": status.serial_number,
         "min_extrusion_temp_c": status.min_extrusion_temp_c,
@@ -451,6 +559,17 @@ def _command_nozzle_camera_health(
 def _emit(payload: dict[str, Any]) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bounded_relative_target(current: float, *, delta: float, lower: float, upper: float) -> float:
+    return min(upper, max(lower, current + delta))
 
 
 def _repo_root() -> Path:
@@ -4075,12 +4194,26 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("pause", help="Pause the active job")
     sub.add_parser("resume", help="Resume the active job")
     sub.add_parser("cancel", help="Cancel the active job")
-    sub.add_parser("trim-speed", help="Bounded speed trim down to 85 percent")
-    sub.add_parser("trim-flow", help="Experimental bounded flow trim down to 95 percent")
-    sub.add_parser("trim-nozzle-up", help="Experimental nozzle target +5C")
-    sub.add_parser("trim-nozzle-down", help="Experimental nozzle target -5C")
-    sub.add_parser("trim-bed-up", help="Experimental bed target +5C")
-    sub.add_parser("trim-bed-down", help="Experimental bed target -5C")
+    sub.add_parser("trim-speed", help="Bounded speed trim down by one SMALL step")
+    sub.add_parser("trim-speed-big", help="Bounded speed trim down by one BIG step")
+    sub.add_parser("trim-flow", help="Bounded flow trim down by one SMALL step")
+    sub.add_parser("trim-flow-big", help="Bounded flow trim down by one BIG step")
+    sub.add_parser("trim-nozzle-up", help="Bounded nozzle target + one SMALL step")
+    sub.add_parser("trim-nozzle-up-big", help="Bounded nozzle target + one BIG step")
+    sub.add_parser("trim-nozzle-down", help="Bounded nozzle target - one SMALL step")
+    sub.add_parser("trim-nozzle-down-big", help="Bounded nozzle target - one BIG step")
+    sub.add_parser("trim-bed-up", help="Bounded bed target + one SMALL step")
+    sub.add_parser("trim-bed-up-big", help="Bounded bed target + one BIG step")
+    sub.add_parser("trim-bed-down", help="Bounded bed target - one SMALL step")
+    sub.add_parser("trim-bed-down-big", help="Bounded bed target - one BIG step")
+    sub.add_parser("trim-pressure-advance-up", help="Experimental pressure advance + one SMALL step")
+    sub.add_parser("trim-pressure-advance-up-big", help="Experimental pressure advance + one BIG step")
+    sub.add_parser("trim-pressure-advance-down", help="Experimental pressure advance - one SMALL step")
+    sub.add_parser("trim-pressure-advance-down-big", help="Experimental pressure advance - one BIG step")
+    sub.add_parser("trim-accel-up", help="Experimental print acceleration + one SMALL step")
+    sub.add_parser("trim-accel-up-big", help="Experimental print acceleration + one BIG step")
+    sub.add_parser("trim-accel-down", help="Experimental print acceleration - one SMALL step")
+    sub.add_parser("trim-accel-down-big", help="Experimental print acceleration - one BIG step")
     sub.add_parser("managed-trim-speed", help="Managed operator-triggered speed trim proof")
     sub.add_parser("managed-reset-speed", help="Managed operator-triggered speed reset proof")
     sub.add_parser("managed-trim-flow", help="Managed operator-triggered flow trim proof")
@@ -4355,20 +4488,69 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "cancel":
         return _emit(driver.cancel())
     if args.command == "trim-speed":
-        current_speed = _float_or_none(_command_status(settings).get("speed_pct")) or PrusaDriver.DEFAULT_SPEED_PCT
-        target_speed = max(PrusaDriver.SPEED_MIN_PCT, current_speed - PrusaDriver.RATE_STEP_PCT)
+        current_speed = _float_or_none(_command_status(settings).get("speed_pct")) or driver.speed_default_pct
+        target_speed = _bounded_relative_target(
+            current_speed,
+            delta=-driver.speed_small_step_pct,
+            lower=driver.speed_min_pct,
+            upper=driver.speed_max_pct,
+        )
         return _emit(driver.trim_speed_down_small(target_speed_pct=target_speed))
+    if args.command == "trim-speed-big":
+        current_speed = _float_or_none(_command_status(settings).get("speed_pct")) or driver.speed_default_pct
+        target_speed = _bounded_relative_target(
+            current_speed,
+            delta=-driver.speed_big_step_pct,
+            lower=driver.speed_min_pct,
+            upper=driver.speed_max_pct,
+        )
+        return _emit(driver.trim_speed_down_big(target_speed_pct=target_speed))
     if args.command == "trim-flow":
-        current_flow = _float_or_none(_command_status(settings).get("flow_pct")) or PrusaDriver.DEFAULT_FLOW_PCT
-        target_flow = max(PrusaDriver.FLOW_MIN_PCT, current_flow - PrusaDriver.RATE_STEP_PCT)
+        current_flow = _float_or_none(_command_status(settings).get("flow_pct")) or driver.flow_default_pct
+        target_flow = _bounded_relative_target(
+            current_flow,
+            delta=-driver.flow_small_step_pct,
+            lower=driver.flow_min_pct,
+            upper=driver.flow_max_pct,
+        )
         return _emit(driver.trim_flow_down_small(target_flow_pct=target_flow))
+    if args.command == "trim-flow-big":
+        current_flow = _float_or_none(_command_status(settings).get("flow_pct")) or driver.flow_default_pct
+        target_flow = _bounded_relative_target(
+            current_flow,
+            delta=-driver.flow_big_step_pct,
+            lower=driver.flow_min_pct,
+            upper=driver.flow_max_pct,
+        )
+        return _emit(driver.trim_flow_down_big(target_flow_pct=target_flow))
     if args.command == "trim-nozzle-up":
         current_nozzle = _float_or_none(_command_status(settings).get("nozzle_target_c"))
         if current_nozzle is None:
             raise RuntimeError("trim-nozzle-up requires current nozzle_target_c from status")
-        target_nozzle = min(settings.max_nozzle_target_c, current_nozzle + PrusaDriver.TEMP_STEP_C)
+        target_nozzle = _bounded_relative_target(
+            current_nozzle,
+            delta=driver.temp_small_step_c,
+            lower=0.0,
+            upper=settings.max_nozzle_target_c,
+        )
         return _emit(
             driver.trim_nozzle_up_small(
+                target_nozzle_c=target_nozzle,
+                max_nozzle_target_c=settings.max_nozzle_target_c,
+            )
+        )
+    if args.command == "trim-nozzle-up-big":
+        current_nozzle = _float_or_none(_command_status(settings).get("nozzle_target_c"))
+        if current_nozzle is None:
+            raise RuntimeError("trim-nozzle-up-big requires current nozzle_target_c from status")
+        target_nozzle = _bounded_relative_target(
+            current_nozzle,
+            delta=driver.temp_big_step_c,
+            lower=0.0,
+            upper=settings.max_nozzle_target_c,
+        )
+        return _emit(
+            driver.trim_nozzle_up_big(
                 target_nozzle_c=target_nozzle,
                 max_nozzle_target_c=settings.max_nozzle_target_c,
             )
@@ -4379,9 +4561,32 @@ def main(argv: list[str] | None = None) -> int:
         if current_nozzle is None:
             raise RuntimeError("trim-nozzle-down requires current nozzle_target_c from status")
         min_floor = _float_or_none(status.get("min_extrusion_temp_c")) or 170.0
-        target_nozzle = max(min_floor, current_nozzle - PrusaDriver.TEMP_STEP_C)
+        target_nozzle = _bounded_relative_target(
+            current_nozzle,
+            delta=-driver.temp_small_step_c,
+            lower=min_floor,
+            upper=settings.max_nozzle_target_c,
+        )
         return _emit(
             driver.trim_nozzle_down_small(
+                target_nozzle_c=target_nozzle,
+                min_nozzle_target_c=min_floor,
+            )
+        )
+    if args.command == "trim-nozzle-down-big":
+        status = _command_status(settings)
+        current_nozzle = _float_or_none(status.get("nozzle_target_c"))
+        if current_nozzle is None:
+            raise RuntimeError("trim-nozzle-down-big requires current nozzle_target_c from status")
+        min_floor = _float_or_none(status.get("min_extrusion_temp_c")) or 170.0
+        target_nozzle = _bounded_relative_target(
+            current_nozzle,
+            delta=-driver.temp_big_step_c,
+            lower=min_floor,
+            upper=settings.max_nozzle_target_c,
+        )
+        return _emit(
+            driver.trim_nozzle_down_big(
                 target_nozzle_c=target_nozzle,
                 min_nozzle_target_c=min_floor,
             )
@@ -4390,9 +4595,30 @@ def main(argv: list[str] | None = None) -> int:
         current_bed = _float_or_none(_command_status(settings).get("bed_target_c"))
         if current_bed is None:
             raise RuntimeError("trim-bed-up requires current bed_target_c from status")
-        target_bed = min(settings.max_bed_target_c, current_bed + PrusaDriver.TEMP_STEP_C)
+        target_bed = _bounded_relative_target(
+            current_bed,
+            delta=driver.temp_small_step_c,
+            lower=0.0,
+            upper=settings.max_bed_target_c,
+        )
         return _emit(
             driver.trim_bed_up_small(
+                target_bed_c=target_bed,
+                max_bed_target_c=settings.max_bed_target_c,
+            )
+        )
+    if args.command == "trim-bed-up-big":
+        current_bed = _float_or_none(_command_status(settings).get("bed_target_c"))
+        if current_bed is None:
+            raise RuntimeError("trim-bed-up-big requires current bed_target_c from status")
+        target_bed = _bounded_relative_target(
+            current_bed,
+            delta=driver.temp_big_step_c,
+            lower=0.0,
+            upper=settings.max_bed_target_c,
+        )
+        return _emit(
+            driver.trim_bed_up_big(
                 target_bed_c=target_bed,
                 max_bed_target_c=settings.max_bed_target_c,
             )
@@ -4401,8 +4627,72 @@ def main(argv: list[str] | None = None) -> int:
         current_bed = _float_or_none(_command_status(settings).get("bed_target_c"))
         if current_bed is None:
             raise RuntimeError("trim-bed-down requires current bed_target_c from status")
-        target_bed = max(0.0, current_bed - PrusaDriver.TEMP_STEP_C)
+        target_bed = _bounded_relative_target(
+            current_bed,
+            delta=-driver.temp_small_step_c,
+            lower=0.0,
+            upper=settings.max_bed_target_c,
+        )
         return _emit(driver.trim_bed_down_small(target_bed_c=target_bed))
+    if args.command == "trim-bed-down-big":
+        current_bed = _float_or_none(_command_status(settings).get("bed_target_c"))
+        if current_bed is None:
+            raise RuntimeError("trim-bed-down-big requires current bed_target_c from status")
+        target_bed = _bounded_relative_target(
+            current_bed,
+            delta=-driver.temp_big_step_c,
+            lower=0.0,
+            upper=settings.max_bed_target_c,
+        )
+        return _emit(driver.trim_bed_down_big(target_bed_c=target_bed))
+    if args.command == "trim-pressure-advance-up":
+        current = _float_or_none(_command_status(settings).get("pressure_advance"))
+        if current is None:
+            raise RuntimeError("trim-pressure-advance-up requires current pressure_advance readback")
+        target = driver.pressure_advance_target_from_baseline(current, direction="up", magnitude="small")
+        return _emit(driver.trim_pressure_advance_up_small(target_pressure_advance=target))
+    if args.command == "trim-pressure-advance-up-big":
+        current = _float_or_none(_command_status(settings).get("pressure_advance"))
+        if current is None:
+            raise RuntimeError("trim-pressure-advance-up-big requires current pressure_advance readback")
+        target = driver.pressure_advance_target_from_baseline(current, direction="up", magnitude="big")
+        return _emit(driver.trim_pressure_advance_up_big(target_pressure_advance=target))
+    if args.command == "trim-pressure-advance-down":
+        current = _float_or_none(_command_status(settings).get("pressure_advance"))
+        if current is None:
+            raise RuntimeError("trim-pressure-advance-down requires current pressure_advance readback")
+        target = driver.pressure_advance_target_from_baseline(current, direction="down", magnitude="small")
+        return _emit(driver.trim_pressure_advance_down_small(target_pressure_advance=target))
+    if args.command == "trim-pressure-advance-down-big":
+        current = _float_or_none(_command_status(settings).get("pressure_advance"))
+        if current is None:
+            raise RuntimeError("trim-pressure-advance-down-big requires current pressure_advance readback")
+        target = driver.pressure_advance_target_from_baseline(current, direction="down", magnitude="big")
+        return _emit(driver.trim_pressure_advance_down_big(target_pressure_advance=target))
+    if args.command == "trim-accel-up":
+        current = _float_or_none(_command_status(settings).get("print_accel_mm_s2"))
+        if current is None:
+            raise RuntimeError("trim-accel-up requires current print_accel_mm_s2 readback")
+        target = driver.print_accel_target_from_baseline(current, direction="up", magnitude="small")
+        return _emit(driver.trim_print_accel_up_small(target_print_accel_mm_s2=target))
+    if args.command == "trim-accel-up-big":
+        current = _float_or_none(_command_status(settings).get("print_accel_mm_s2"))
+        if current is None:
+            raise RuntimeError("trim-accel-up-big requires current print_accel_mm_s2 readback")
+        target = driver.print_accel_target_from_baseline(current, direction="up", magnitude="big")
+        return _emit(driver.trim_print_accel_up_big(target_print_accel_mm_s2=target))
+    if args.command == "trim-accel-down":
+        current = _float_or_none(_command_status(settings).get("print_accel_mm_s2"))
+        if current is None:
+            raise RuntimeError("trim-accel-down requires current print_accel_mm_s2 readback")
+        target = driver.print_accel_target_from_baseline(current, direction="down", magnitude="small")
+        return _emit(driver.trim_print_accel_down_small(target_print_accel_mm_s2=target))
+    if args.command == "trim-accel-down-big":
+        current = _float_or_none(_command_status(settings).get("print_accel_mm_s2"))
+        if current is None:
+            raise RuntimeError("trim-accel-down-big requires current print_accel_mm_s2 readback")
+        target = driver.print_accel_target_from_baseline(current, direction="down", magnitude="big")
+        return _emit(driver.trim_print_accel_down_big(target_print_accel_mm_s2=target))
     if args.command == "managed-trim-speed":
         return _emit(_managed_execute("A_PRUSA_TRIM_SPEED_DOWN_SMALL", "Reduce print speed a little while keeping the current print running.", settings))
     if args.command == "managed-reset-speed":

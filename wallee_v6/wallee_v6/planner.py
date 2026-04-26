@@ -1,4 +1,4 @@
-"""Planner backends for Wallee v6."""
+"""Planner backends for Wallee v6.5."""
 
 from __future__ import annotations
 
@@ -92,8 +92,17 @@ class OpenRouterPlanner(Planner):
         )
 
     def _load_examples(self, examples_dir: Path) -> str:
+        selected = {
+            "prusa_persistent_stringing_followup.json",
+            "prusa_big_step_escalation.json",
+            "prusa_big_cooldown_respected.json",
+            "prusa_second_order_settle.json",
+            "prusa_startup_suppressed.json",
+            "unload_when_hot.json",
+            "unload_when_ready.json",
+        }
         parts = []
-        for path in sorted(examples_dir.glob("*.json")):
+        for path in sorted(path for path in examples_dir.glob("*.json") if path.name in selected):
             parts.append(path.read_text(encoding="utf-8").strip())
         return "\n\n".join(parts)
 
@@ -114,8 +123,9 @@ class OpenRouterPlanner(Planner):
                 "Content-Type": "application/json",
             },
         )
+        timeout_s = max(1.0, float(getattr(self.config, "planner_request_timeout_seconds", 20.0)))
         try:
-            with request.urlopen(req, timeout=45) as response:
+            with request.urlopen(req, timeout=timeout_s) as response:
                 raw_body = response.read()
                 response_headers = dict(response.headers.items())
         except error.HTTPError as exc:
@@ -187,34 +197,32 @@ class OpenRouterPlanner(Planner):
             "<task>\n"
             "Return only valid PlanIR JSON for one bounded planner decision.\n"
             "</task>\n\n"
-            "<decision_procedure>\n"
-            "1. Read `decision_signals.allowed_frontier_ids`.\n"
-            "2. If `allowed_frontier_ids` is empty, return `NO_ACTION`.\n"
-            "3. Exclude any action contradicted by current blockers or bounded runtime rules.\n"
-            "4. Rank remaining legal actions using fresh grounded live evidence on supported surfaces first.\n"
-            "5. Treat `decision_signals.vision_signal`, `decision_signals.notebook_notes`, and `last_result_notes` as trustworthy bounded planning signals when they are present and fresh.\n"
-            "6. If one legal bounded action is best supported by the current evidence, choose it. Do not wait for perfect certainty.\n"
-            "7. Use `last_result_notes` and `decision_signals.symptom_feedback` together. If a recent action verified and the same issue still persists or is not improving, treat that as positive support for one additional legal bounded follow-up action.\n"
-            "8. Use `temporal_action_context` to avoid repeating a very recent action only inside the short settle window. Once the action is no longer immediate and `symptom_feedback.not_improving_after_last_action` is true, do not keep waiting.\n"
-            "9. Use `freshness` to discount stale or still-settling observations, not to dismiss fresh supported evidence.\n"
-            "10. Prefer `NO_ACTION` only when no single legal follow-up action is clearly supported or the evidence is genuinely weak or conflicting.\n"
-            "11. During healthy print startup, if only pause or cancel remain because tuning is not yet admitted, prefer `NO_ACTION` rather than escalation.\n"
-            "12. Near print finish, if extrusion-related symptoms are still present and a legal speed, flow, or nozzle action remains admitted, prefer taking that bounded action now rather than waiting for the print to end.\n"
-            "13. Emit at most one action ID.\n"
-            "14. Never use the order of actions in the goal text as evidence.\n"
-            "15. Never bundle families in one decision.\n"
-            "</decision_procedure>\n\n"
+            "<decision_principles>\n"
+            "- Choose exactly one legal bounded action when fresh grounded evidence supports it.\n"
+            "- `decision_signals.allowed_frontier_ids` lists only legal non-tuning explicit safety or operator actions.\n"
+            "- Legal tuning choices are listed separately in `decision_signals.tuning_action_space` and are independently legal.\n"
+            "- If `decision_signals.tuning_action_space` is non-empty, legal bounded tuning remains available even when `decision_signals.allowed_frontier_ids` is empty or contains only `A_PRUSA_PAUSE` or `A_PRUSA_CANCEL`.\n"
+            "- Do not infer tuning illegality from `decision_signals.allowed_frontier_ids` being empty or safety-only.\n"
+            "- Respect blockers, cooldowns, settle context, terminal phase, and the one-family-at-a-time rule.\n"
+            "- Use `action_consequence`, `vision_signal`, `freshness`, `recent_family_actions`, and `cumulative_family_deltas` to judge whether a previous action helped.\n"
+            "- Prefer `NO_ACTION` when evidence is stale, still settling, weak, conflicting, or no legal follow-up is clearly supported.\n"
+            "- Treat nozzle residue alone as observational. Ignore it unless it is visibly causing print defects, dragging filament, forming a blob, contacting the part, or co-occurring with stringing, spaghetti, or adhesion failure.\n"
+            "- Use `CALL_HUMAN` only for true operator intervention, fault, or recovery conditions, not when bounded tuning remains legal.\n"
+            "</decision_principles>\n\n"
             "<ambiguity_policy>\n"
             "- If legal actions remain but the evidence is genuinely weak or conflicting, prefer `NO_ACTION`.\n"
-            "- Use `CALL_HUMAN` only for true operator intervention, fault, or recovery conditions.\n"
+            "- Do not use `CALL_HUMAN` for residue-only observations during a healthy advancing print.\n"
+            "- If bounded tuning remains legal during a healthy active print, prefer tuning or `NO_ACTION` over `CALL_HUMAN`.\n"
             "</ambiguity_policy>\n\n"
             "<output_contract>\n"
             "- Return only valid PlanIR JSON.\n"
             "- Emit exactly one of:\n"
-            "  - one legal action ID\n"
+            "  - one legal explicit action ID in `sequence`\n"
+            "  - one legal `tuning_choice`\n"
             "  - `NO_ACTION`\n"
             "  - `CALL_HUMAN`\n"
-            "- Never emit IDs outside `decision_signals.allowed_frontier_ids`.\n"
+            "- Never emit IDs outside the non-tuning explicit safety/operator IDs in `decision_signals.allowed_frontier_ids`.\n"
+            "- Never emit a `tuning_choice` outside `decision_signals.tuning_action_space`.\n"
             "</output_contract>"
         )
 
@@ -248,13 +256,17 @@ class OpenRouterPlanner(Planner):
                 self._cacheable_message(
                     role="user",
                     content=(
-                        "Planning rubric and examples. Keep horizons short and one-family-at-a-time. When fresh "
-                        "grounded evidence supports one legal bounded action, take it. If a recent action verified "
-                        "and the same issue persists across fresh later observations, choose one additional legal "
-                        "follow-up action instead of waiting indefinitely.\n\n"
-                        f"{self.prompt_package.rubric_text}\n\n{self.prompt_package.examples_text}"
-                    ),
+                    "Planning rubric and examples. Keep horizons short and one-family-at-a-time. When fresh "
+                    "grounded evidence supports one legal bounded action, take it. If a recent action verified "
+                    "and the same issue persists across fresh later observations, choose one additional legal "
+                    "follow-up action instead of waiting indefinitely. Treat "
+                    "`decision_signals.allowed_frontier_ids` as non-tuning explicit safety/operator actions only; "
+                    "tuning legality comes from `decision_signals.tuning_action_space`. If that tuning space is "
+                    "non-empty, legal bounded tuning remains available even when `decision_signals.allowed_frontier_ids` "
+                    "is empty or only contains pause/cancel.\n\n"
+                    f"{self.prompt_package.rubric_text}\n\n{self.prompt_package.examples_text}"
                 ),
+            ),
                 {
                     "role": "user",
                     "content": json.dumps(world.prompt_view(), sort_keys=True),
@@ -270,6 +282,8 @@ class OpenRouterPlanner(Planner):
                     "schema": self._transport_plan_schema(),
                 },
             }
+            if self.config.openrouter_response_healing:
+                payload["plugins"] = [{"id": "response-healing"}]
         elif response_format == "json_object":
             payload["response_format"] = {"type": "json_object"}
         if self.config.reasoning_effort:
@@ -296,6 +310,7 @@ class OpenRouterPlanner(Planner):
         return PlanIR.model_validate(plan_json)
 
     def _normalize_plan(self, plan: PlanIR, world: WorldPacket) -> PlanIR:
+        plan = self._normalize_malformed_execute_plan(plan, world)
         if self._should_suppress_startup_call_human(plan, world):
             return PlanIR(
                 decision="NO_ACTION",
@@ -306,7 +321,85 @@ class OpenRouterPlanner(Planner):
                 ),
                 call_human_message=None,
             )
+        if self._should_suppress_active_print_pause(plan, world):
+            return PlanIR(
+                decision="NO_ACTION",
+                sequence=[],
+                why=(
+                    "Healthy active printing still has bounded tuning available, so do not pause solely on a residue "
+                    "observation. Wait for a legal bounded tuning move or stronger recovery evidence."
+                ),
+                call_human_message=None,
+            )
+        if self._should_suppress_active_print_residue_only_call_human(plan, world):
+            return PlanIR(
+                decision="NO_ACTION",
+                sequence=[],
+                why=(
+                    "Healthy active print has only a residue observation without evidence that it is affecting the "
+                    "print, so ignore it instead of calling a human."
+                ),
+                call_human_message=None,
+            )
+        if self._should_suppress_active_print_call_human_when_tuning_exists(plan, world):
+            return PlanIR(
+                decision="NO_ACTION",
+                sequence=[],
+                why=(
+                    "Healthy active print still has bounded tuning available, so do not call a human while legal "
+                    "tuning choices remain and no real fault or operator condition is present."
+                ),
+                call_human_message=None,
+            )
         return plan
+
+    def _normalize_malformed_execute_plan(self, plan: PlanIR, world: WorldPacket) -> PlanIR:
+        if plan.decision != "EXECUTE" or not plan.sequence or plan.tuning_choice is None:
+            return plan
+        if self._tuning_choice_resolves_cleanly(plan, world):
+            return PlanIR(
+                decision="EXECUTE",
+                sequence=[],
+                tuning_choice=plan.tuning_choice,
+                why=plan.why,
+                call_human_message=None,
+            )
+        return PlanIR(
+            decision="NO_ACTION",
+            sequence=[],
+            tuning_choice=None,
+            why=(
+                "Malformed planner output contained both an explicit sequence and a tuning choice without one clean "
+                "legal tuning resolution. Skip this cycle."
+            ),
+            call_human_message=None,
+        )
+
+    def _tuning_choice_resolves_cleanly(self, plan: PlanIR, world: WorldPacket) -> bool:
+        tuning_choice = plan.tuning_choice
+        if plan.decision != "EXECUTE" or tuning_choice is None:
+            return False
+        matches = [
+            action.action_id
+            for action in world.frontier
+            if _action_family_from_id(action.action_id) == tuning_choice.family
+            and _action_direction_from_id(action.action_id) == tuning_choice.direction
+            and _action_magnitude_from_id(action.action_id) == tuning_choice.magnitude
+        ]
+        return len(matches) == 1
+
+    def _should_suppress_active_print_pause(self, plan: PlanIR, world: WorldPacket) -> bool:
+        if plan.decision != "EXECUTE" or plan.sequence != ["A_PRUSA_PAUSE"]:
+            return False
+        lifecycle = str(world.facts.get("printer_1.lifecycle") or "").strip().upper()
+        printing_phase = str(world.facts.get("printer_1.printing_phase") or "").strip().lower()
+        health = str(world.facts.get("printer_1.health") or "").strip().upper()
+        if lifecycle != "PRINTING" or printing_phase != "active_printing":
+            return False
+        if health in {"ATTENTION", "ERROR", "OFFLINE"}:
+            return False
+        tuning_action_space = world.prompt_view().get("decision_signals", {}).get("tuning_action_space", {})
+        return isinstance(tuning_action_space, dict) and bool(tuning_action_space)
 
     def _should_suppress_startup_call_human(self, plan: PlanIR, world: WorldPacket) -> bool:
         if plan.decision != "CALL_HUMAN":
@@ -332,6 +425,31 @@ class OpenRouterPlanner(Planner):
             for blocker in startup_blockers
         )
         return startup_like or progress is None or progress <= 2.0
+
+    def _should_suppress_active_print_residue_only_call_human(self, plan: PlanIR, world: WorldPacket) -> bool:
+        if plan.decision != "CALL_HUMAN":
+            return False
+        lifecycle = str(world.facts.get("printer_1.lifecycle") or "").strip().upper()
+        health = str(world.facts.get("printer_1.health") or "").strip().upper()
+        printing_phase = str(world.facts.get("printer_1.printing_phase") or "").strip().lower()
+        if lifecycle != "PRINTING" or health in {"ATTENTION", "ERROR", "OFFLINE"} or printing_phase != "active_printing":
+            return False
+        signal = world.prompt_view().get("decision_signals", {}).get("vision_signal", {})
+        if not isinstance(signal, dict) or not bool(signal.get("usable")):
+            return False
+        findings = {str(item) for item in signal.get("finding_types") or []}
+        if findings != {"residue"}:
+            return False
+        summary = str(signal.get("summary") or "").lower()
+        impact_terms = ("blob", "drag", "contact", "string", "spaghetti", "adhesion", "failed", "detached")
+        return not any(term in summary for term in impact_terms)
+
+    def _should_suppress_active_print_call_human_when_tuning_exists(self, plan: PlanIR, world: WorldPacket) -> bool:
+        if plan.decision != "CALL_HUMAN":
+            return False
+        if not _healthy_active_print_with_tuning(world):
+            return False
+        return not _has_real_fault_or_operator_condition(world)
 
     def _transport_plan_schema(self) -> dict[str, Any]:
         schema = deepcopy(self.plan_validator.schema)
@@ -362,6 +480,46 @@ def _frontier_is_pause_cancel_only(world: WorldPacket) -> bool:
             continue
         return False
     return True
+
+
+def _healthy_active_print_with_tuning(world: WorldPacket) -> bool:
+    lifecycle = str(world.facts.get("printer_1.lifecycle") or "").strip().upper()
+    health = str(world.facts.get("printer_1.health") or "").strip().upper()
+    printing_phase = str(world.facts.get("printer_1.printing_phase") or "").strip().lower()
+    if lifecycle != "PRINTING" or printing_phase != "active_printing":
+        return False
+    if health in {"ATTENTION", "ERROR", "OFFLINE"}:
+        return False
+    tuning_action_space = world.prompt_view().get("decision_signals", {}).get("tuning_action_space", {})
+    return isinstance(tuning_action_space, dict) and bool(tuning_action_space)
+
+
+def _has_real_fault_or_operator_condition(world: WorldPacket) -> bool:
+    health = str(world.facts.get("printer_1.health") or "").strip().upper()
+    if health in {"ATTENTION", "ERROR", "OFFLINE"}:
+        return True
+    if world.pending_human:
+        return True
+    signal = world.prompt_view().get("decision_signals", {}).get("vision_signal", {})
+    if not isinstance(signal, dict):
+        return False
+    findings = {str(item).strip().lower() for item in signal.get("finding_types") or []}
+    if findings.intersection({"spaghetti", "adhesion_failure", "detached_part", "collision", "obstruction", "jam"}):
+        return True
+    summary = str(signal.get("summary") or "").lower()
+    severe_terms = (
+        "contact",
+        "collision",
+        "detached",
+        "failed",
+        "failure",
+        "obstruction",
+        "jam",
+        "spaghetti",
+        "adhesion failure",
+        "recovery",
+    )
+    return any(term in summary for term in severe_terms)
 
 
 def _float_or_none(value: Any) -> float | None:

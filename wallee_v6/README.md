@@ -1,6 +1,6 @@
-# Wallee v6 (Lean Reference Implementation)
+# Wallee v6.5 (Lean Reference Implementation)
 
-Wallee v6 is a **lean, context-compiled physical AI kernel** for a small manufacturing cell.
+Wallee v6.5 is a **lean, context-compiled physical AI kernel** for a small manufacturing cell.
 
 This codebase implements the architecture described in `docs/ARCHITECTURE.md`:
 

@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file is the high-signal orientation guide for coding agents working on Wallee v6.
+This file is the high-signal orientation guide for coding agents working on Wallee v6.5.
 
 ## Mission of the repository
 
-Keep Wallee v6 **lean, deterministic, and physically grounded**.
+Keep Wallee v6.5 **lean, deterministic, and physically grounded**.
 
 The planner is allowed to be smart.
 The control plane is required to be boring.

@@ -2,7 +2,9 @@
   "world_example": {
     "goal": "Reduce print speed a little while keeping the current print running.",
     "decision_contract": {
-      "frontier_only": true,
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
       "max_actions": 1,
       "prefer_bounded_action_when_supported": true,
       "one_family_at_a_time": true,

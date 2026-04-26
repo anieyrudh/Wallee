@@ -30,6 +30,7 @@ FindingType = Literal[
 ]
 EvidenceStrength = Literal["weak", "moderate", "strong"]
 HealthState = Literal["nominal", "degraded", "unusable"]
+ComparisonDelta = Literal["better", "same", "worse", "unknown"]
 
 _DEFAULT_DISCOVERY_PORTS = ("8080", "8083", "8084", "8082", "8085", "8090")
 _DISCOVERY_TTL_S = 60.0
@@ -88,8 +89,12 @@ class VisionObservation(BaseModel):
     camera_id: str
     captured_at: str
     image_ref: str
+    reference_image_ref: str | None = None
     findings: list[VisionFinding]
     summary: str
+    comparison_delta: ComparisonDelta | None = None
+    comparison_confidence: EvidenceStrength | None = None
+    comparison_summary: str | None = None
 
 
 class NozzleCameraHealthReport(BaseModel):
@@ -128,6 +133,9 @@ class _VisionAnalysisDraft(BaseModel):
 
     findings: list[_VisionFindingDraft] = Field(default_factory=list)
     summary: str
+    comparison_delta: ComparisonDelta | None = None
+    comparison_confidence: EvidenceStrength | None = None
+    comparison_summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -493,7 +501,7 @@ def persist_observation(
     observations_dir = root / "observations"
     observations_dir.mkdir(parents=True, exist_ok=True)
     observation_path = observations_dir / f"{observation.frame_id}.json"
-    payload = observation.model_dump(mode="json")
+    payload = observation.model_dump(mode="json", exclude_none=True)
     observation_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return observation_path
 
@@ -510,17 +518,25 @@ def observe_nozzle_advisory(
 
     captured = capture_nozzle_frame(settings, active_printing=(capture_mode == "active-print"))
     persisted = persist_frame(captured, output_root=output_root, job_identity=job_identity)
+    previous_frame = latest_previous_persisted_frame(
+        output_root=output_root,
+        job_identity=job_identity,
+        camera_id=persisted.camera_id,
+        before_frame_id=persisted.frame_id,
+    )
     observation, trace = analyze_persisted_frame_with_trace(
         persisted,
         settings=settings,
         capture_mode=capture_mode,
         lifecycle=lifecycle,
+        previous_frame=previous_frame,
     )
     observation_path = persist_observation(observation, output_root=output_root)
     replay_path = persist_vision_replay_bundle(
         frame=persisted,
         trace=trace,
         output_root=output_root,
+        previous_frame=previous_frame,
     )
     return VisionAdvisoryResult(
         observation=observation,
@@ -742,6 +758,7 @@ def analyze_persisted_frame_with_trace(
     settings,
     capture_mode: str,
     lifecycle: str | None,
+    previous_frame: PersistedFrame | None = None,
 ) -> tuple[VisionObservation, VisionAnalysisTrace]:
     """Run one compact multimodal analysis and return the observation plus trace metadata."""
 
@@ -752,6 +769,7 @@ def analyze_persisted_frame_with_trace(
 
     draft, trace = _analyze_frame_draft(
         jpeg_bytes=frame.jpeg_bytes,
+        previous_jpeg_bytes=previous_frame.jpeg_bytes if previous_frame is not None else None,
         vision_api_key=settings.vision_api_key,
         vision_model=settings.vision_model,
         camera_id=frame.camera_id,
@@ -774,8 +792,17 @@ def analyze_persisted_frame_with_trace(
         camera_id=frame.camera_id,
         captured_at=frame.captured_at,
         image_ref=frame.image_ref,
+        reference_image_ref=previous_frame.image_ref if previous_frame is not None else None,
         findings=findings,
         summary=_short_sentence(draft.summary, fallback="No clear visible defect."),
+        comparison_delta=_normalize_comparison_delta(draft.comparison_delta),
+        comparison_confidence=_normalize_comparison_confidence(draft.comparison_confidence),
+        comparison_summary=_short_sentence(
+            draft.comparison_summary,
+            fallback="Comparison unavailable.",
+        )
+        if previous_frame is not None
+        else None,
     )
     return observation, trace
 
@@ -940,6 +967,7 @@ def _artifact_ref(path: Path) -> str:
 def _analyze_frame_draft(
     *,
     jpeg_bytes: bytes,
+    previous_jpeg_bytes: bytes | None,
     vision_api_key: str,
     vision_model: str,
     camera_id: str,
@@ -948,6 +976,16 @@ def _analyze_frame_draft(
 ) -> tuple[_VisionAnalysisDraft, VisionAnalysisTrace]:
     prompt = _build_prompt(camera_id=camera_id, capture_mode=capture_mode, lifecycle=lifecycle)
     image_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
+    content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    if previous_jpeg_bytes is not None:
+        previous_b64 = base64.b64encode(previous_jpeg_bytes).decode("ascii")
+        content.extend(
+            [
+                {"type": "text", "text": "PREVIOUS frame (reference):"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{previous_b64}"}},
+                {"type": "text", "text": "CURRENT frame (now):"},
+            ]
+        )
     payload = {
         "model": vision_model,
         "stream": False,
@@ -955,10 +993,7 @@ def _analyze_frame_draft(
         "messages": [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-                ],
+                "content": [*content, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}],
             }
         ],
     }
@@ -1021,6 +1056,7 @@ def persist_vision_replay_bundle(
     frame: PersistedFrame,
     trace: VisionAnalysisTrace,
     output_root: str | Path | None = None,
+    previous_frame: PersistedFrame | None = None,
 ) -> Path:
     replay_path = _vision_replay_dir(output_root) / f"{frame.frame_id}.json"
     payload = {
@@ -1031,6 +1067,11 @@ def persist_vision_replay_bundle(
         "image_ref": frame.image_ref,
         "image_sha256": hashlib.sha256(frame.jpeg_bytes).hexdigest(),
         "image_bytes_base64": base64.b64encode(frame.jpeg_bytes).decode("ascii"),
+        "reference_image_ref": previous_frame.image_ref if previous_frame is not None else None,
+        "reference_image_sha256": hashlib.sha256(previous_frame.jpeg_bytes).hexdigest() if previous_frame is not None else None,
+        "reference_image_bytes_base64": base64.b64encode(previous_frame.jpeg_bytes).decode("ascii")
+        if previous_frame is not None
+        else None,
         "prompt_text": trace.prompt_text,
         "model": trace.request_payload.get("model"),
         "request_params": {
@@ -1145,7 +1186,7 @@ def _build_prompt(*, camera_id: str, capture_mode: str, lifecycle: str | None) -
     lifecycle_text = _collapse_text(lifecycle or "unknown")
     return (
         "Analyze this nozzle-camera image from a Prusa CORE One/+ print. "
-        "Return JSON only with exactly these top-level keys: summary, findings. "
+        "Return JSON only with exactly these top-level keys: summary, findings, comparison_delta, comparison_confidence, comparison_summary. "
         "summary must be one short literal sentence about visible appearance only. "
         "findings must be an array of objects with exactly these keys: finding_type, descriptors, "
         "evidence_strength, note. Allowed finding_type values: residue, stringing, spaghetti, blob, unknown. "
@@ -1155,9 +1196,67 @@ def _build_prompt(*, camera_id: str, capture_mode: str, lifecycle: str | None) -
         "Use blob only for larger thick or bulky hanging material buildup, not for a thin strand. "
         "Use spaghetti for loose tangled extruded filament or a collapsed nest of unsupported strands near the nozzle. "
         "Use unknown when the image is too unclear to determine whether a visible feature is a strand or when the issue does not fit these labels. "
+        "If a previous frame is also shown, compare the current frame against it for the same visible issue. "
+        "comparison_delta must be one of: better, same, worse, unknown. "
+        "comparison_confidence must be one of: weak, moderate, strong, or null if no reliable comparison is possible. "
+        "comparison_summary must be one short literal sentence stating whether the visible issue looks better, same, worse, or comparison is unavailable. "
+        "If only one frame is shown, set comparison_delta, comparison_confidence, and comparison_summary to null. "
         "Allowed evidence_strength values: weak, moderate, strong. "
         "Do not output confidence, description, region, location, scope, suggested_families, supports, "
         "actions, recommendations, causes, or long prose. "
         "If nothing clear is visible, return an empty findings array and a short literal summary. "
         f"Context: camera_id={camera_id}; capture_mode={capture_mode}; lifecycle={lifecycle_text}."
     )
+
+
+def latest_previous_persisted_frame(
+    *,
+    output_root: str | Path | None,
+    job_identity: str,
+    camera_id: str,
+    before_frame_id: str,
+) -> PersistedFrame | None:
+    frames_dir = _vision_root(output_root) / "frames"
+    if not frames_dir.exists():
+        return None
+    suffix = f"-nozzle-{job_identity}-{camera_id}"
+    candidates = sorted(
+        path
+        for path in frames_dir.glob("*.jpg")
+        if path.stem.endswith(suffix) and path.stem != before_frame_id
+    )
+    if not candidates:
+        return None
+    frame_path = candidates[-1]
+    return PersistedFrame(
+        frame_id=frame_path.stem,
+        camera_id=camera_id,
+        captured_at=_captured_at_from_frame_stem(frame_path.stem),
+        frame_path=frame_path,
+        image_ref=_artifact_ref(frame_path),
+        artifact_stem=frame_path.stem,
+        jpeg_bytes=frame_path.read_bytes(),
+    )
+
+
+def _captured_at_from_frame_stem(stem: str) -> str:
+    token = stem.split("-nozzle-", 1)[0]
+    try:
+        dt = datetime.strptime(token, "%Y-%m-%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        return dt.isoformat().replace("+00:00", "Z")
+    except ValueError:
+        return _utc_now_iso()
+
+
+def _normalize_comparison_delta(value: Any) -> ComparisonDelta | None:
+    text = _collapse_text(value).lower()
+    if text in {"better", "same", "worse", "unknown"}:
+        return text  # type: ignore[return-value]
+    return None
+
+
+def _normalize_comparison_confidence(value: Any) -> EvidenceStrength | None:
+    text = _collapse_text(value).lower()
+    if text in {"weak", "moderate", "strong"}:
+        return text  # type: ignore[return-value]
+    return None

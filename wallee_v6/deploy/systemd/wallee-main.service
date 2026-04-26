@@ -1,5 +1,5 @@
 [Unit]
-Description=Wallee v6 main runtime
+Description=Wallee v6.5 main runtime
 After=network-online.target redis.service
 Wants=network-online.target
 

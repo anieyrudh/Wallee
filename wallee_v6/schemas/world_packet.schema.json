@@ -1,611 +1,129 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorldPacketPromptView",
+  "type": "object",
   "additionalProperties": false,
   "properties": {
-    "blockers": {
+    "goal": {
+      "type": "string"
+    },
+    "devices": {
+      "type": "array",
       "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "decision_contract": {
-      "additionalProperties": false,
-      "properties": {
-        "blockers_and_legality_dominate": {
-          "const": true
-        },
-        "fresh_supported_signals_are_actionable": {
-          "const": true
-        },
-        "frontier_only": {
-          "const": true
-        },
-        "max_actions": {
-          "const": 1
-        },
-        "no_bundled_family_actions": {
-          "const": true
-        },
-        "notebook_signals_support_action_selection": {
-          "const": true
-        },
-        "one_family_at_a_time": {
-          "const": true
-        },
-        "prefer_bounded_action_when_supported": {
-          "const": true
-        },
-        "vision_signals_support_action_selection": {
-          "const": true
-        }
-      },
-      "required": [
-        "frontier_only",
-        "max_actions",
-        "prefer_bounded_action_when_supported",
-        "one_family_at_a_time",
-        "fresh_supported_signals_are_actionable",
-        "vision_signals_support_action_selection",
-        "notebook_signals_support_action_selection",
-        "blockers_and_legality_dominate",
-        "no_bundled_family_actions"
-      ],
-      "type": "object"
-    },
-    "decision_signals": {
-      "additionalProperties": false,
-      "properties": {
-        "allowed_frontier_ids": {
-          "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "family_blockers": {
-          "additionalProperties": false,
-          "properties": {
-            "bed": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "flow": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "nozzle": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "speed": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
+          "display_name": {
+            "type": "string"
           },
-          "required": [
-            "speed",
-            "flow",
-            "nozzle",
-            "bed"
-          ],
-          "type": "object"
-        },
-        "freshness": {
-          "additionalProperties": false,
-          "properties": {
-            "camera_frame_age_s": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "camera_last_capture_at": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "now_at": {
-              "type": "string"
-            },
-            "raw_observed_at": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "seconds_since_raw_observation": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "seconds_since_vision_observation": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "vision_observed_at": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "vision_usable": {
-              "type": "boolean"
-            }
+          "category": {
+            "type": "string"
           },
-          "required": [
-            "now_at",
-            "raw_observed_at",
-            "seconds_since_raw_observation",
-            "vision_observed_at",
-            "seconds_since_vision_observation",
-            "camera_last_capture_at",
-            "camera_frame_age_s",
-            "vision_usable"
-          ],
-          "type": "object"
+          "mode": {
+            "type": "string"
+          },
+          "health": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
         },
-        "last_result_notes": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "action_id": {
-                "type": "string"
-              },
-              "family": {
-                "enum": [
-                  "speed",
-                  "flow",
-                  "nozzle",
-                  "bed",
-                  "other"
-                ],
-                "type": "string"
-              },
-              "observed_at": {
-                "type": "string"
-              },
-              "outcome": {
-                "enum": [
-                  "verified_effect",
-                  "verified_no_effect",
-                  "suppressed",
-                  "blocked",
-                  "verification_mismatch",
-                  "reset_restored",
-                  "no_action"
-                ],
-                "type": "string"
-              },
-              "reason_tags": {
-                "items": {
+        "required": [
+          "device_id",
+          "display_name",
+          "category",
+          "mode",
+          "health",
+          "summary"
+        ]
+      }
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
                   "type": "string"
                 },
-                "type": "array"
-              },
-              "summary": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "action_id",
-              "family",
-              "outcome",
-              "summary",
-              "reason_tags",
-              "observed_at"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "notebook_notes": {
-          "additionalProperties": false,
-          "properties": {
-            "global": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "confidence": {
-                    "enum": [
-                      "low",
-                      "medium",
-                      "high"
-                    ],
-                    "type": "string"
-                  },
-                  "note_id": {
-                    "type": "string"
-                  },
-                  "reason_tags": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "scope": {
-                    "enum": [
-                      "global",
-                      "local"
-                    ],
-                    "type": "string"
-                  },
-                  "section_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "suggested_families": {
-                    "items": {
-                      "enum": [
-                        "speed",
-                        "flow",
-                        "nozzle",
-                        "bed"
-                      ],
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "text": {
-                    "type": "string"
-                  },
-                  "title": {
-                    "type": "string"
-                  }
+                {
+                  "type": "integer"
                 },
-                "required": [
-                  "note_id",
-                  "scope",
-                  "title",
-                  "text",
-                  "confidence",
-                  "reason_tags",
-                  "suggested_families",
-                  "section_ids"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "local": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "confidence": {
-                    "enum": [
-                      "low",
-                      "medium",
-                      "high"
-                    ],
-                    "type": "string"
-                  },
-                  "note_id": {
-                    "type": "string"
-                  },
-                  "reason_tags": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "scope": {
-                    "enum": [
-                      "global",
-                      "local"
-                    ],
-                    "type": "string"
-                  },
-                  "section_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "suggested_families": {
-                    "items": {
-                      "enum": [
-                        "speed",
-                        "flow",
-                        "nozzle",
-                        "bed"
-                      ],
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "text": {
-                    "type": "string"
-                  },
-                  "title": {
-                    "type": "string"
-                  }
+                {
+                  "type": "number"
                 },
-                "required": [
-                  "note_id",
-                  "scope",
-                  "title",
-                  "text",
-                  "confidence",
-                  "reason_tags",
-                  "suggested_families",
-                  "section_ids"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "merged_reason_tags": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
-          },
-          "required": [
-            "global",
-            "local",
-            "merged_reason_tags"
-          ],
-          "type": "object"
+          }
         },
-        "symptom_feedback": {
-          "additionalProperties": false,
-          "properties": {
-            "current_finding_types": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "current_issue_level": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "current_strength": {
-              "enum": [
-                "weak",
-                "moderate",
-                "strong",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_verified_finding_types": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "last_verified_issue_level": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_verified_strength": {
-              "enum": [
-                "weak",
-                "moderate",
-                "strong",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "not_improving_after_last_action": {
-              "type": "boolean"
-            },
-            "same_issue_persisted": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "current_finding_types",
-            "current_strength",
-            "current_issue_level",
-            "last_verified_finding_types",
-            "last_verified_strength",
-            "last_verified_issue_level",
-            "same_issue_persisted",
-            "not_improving_after_last_action"
-          ],
-          "type": "object"
-        },
-        "temporal_action_context": {
-          "additionalProperties": false,
-          "properties": {
-            "available": {
-              "type": "boolean"
-            },
-            "last_action_family": {
-              "enum": [
-                "speed",
-                "flow",
-                "nozzle",
-                "bed",
-                "other",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_id": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_observed_at": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_outcome": {
-              "enum": [
-                "verified_effect",
-                "verified_no_effect",
-                "suppressed",
-                "blocked",
-                "verification_mismatch",
-                "reset_restored",
-                "no_action",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_reason_tags": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "last_action_status": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_summary": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "last_action_why": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "now_at": {
-              "type": "string"
-            },
-            "seconds_since_last_action": {
-              "type": [
-                "number",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "available",
-            "now_at",
-            "last_action_id",
-            "last_action_family",
-            "last_action_status",
-            "last_action_outcome",
-            "last_action_summary",
-            "last_action_reason_tags",
-            "last_action_why",
-            "last_action_observed_at",
-            "seconds_since_last_action"
-          ],
-          "type": "object"
-        },
-        "vision_signal": {
-          "additionalProperties": false,
-          "properties": {
-            "finding_types": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "issue_level": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "strength": {
-              "enum": [
-                "weak",
-                "moderate",
-                "strong",
-                null
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "summary": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "usable": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "usable",
-            "summary",
-            "finding_types",
-            "strength",
-            "issue_level"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "notebook_notes",
-        "vision_signal",
-        "last_result_notes",
-        "temporal_action_context",
-        "freshness",
-        "symptom_feedback",
-        "family_blockers",
-        "allowed_frontier_ids"
-      ],
-      "type": "object"
+        "required": [
+          "id",
+          "kind",
+          "owner",
+          "state",
+          "attributes"
+        ]
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "deltas": {
+      "type": "array",
       "items": {
+        "type": "object",
         "additionalProperties": false,
         "properties": {
           "device_id": {
@@ -613,6 +131,25 @@
           },
           "fact": {
             "type": "string"
+          },
+          "old": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "new": {
             "anyOf": [
@@ -635,25 +172,6 @@
           },
           "note": {
             "type": "string"
-          },
-          "old": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
@@ -662,76 +180,26 @@
           "old",
           "new",
           "note"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "devices": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "category": {
-            "type": "string"
-          },
-          "device_id": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "health": {
-            "type": "string"
-          },
-          "mode": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "device_id",
-          "display_name",
-          "category",
-          "mode",
-          "health",
-          "summary"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "facts": {
-      "additionalProperties": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "integer"
-          },
-          {
-            "type": "number"
-          },
-          {
-            "type": "boolean"
-          },
-          {
-            "type": "null"
-          }
         ]
-      },
-      "type": "object"
+      }
     },
     "frontier": {
+      "type": "array",
       "items": {
+        "type": "object",
         "additionalProperties": false,
         "properties": {
-          "approval_required": {
-            "type": "boolean"
+          "id": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
           },
           "args": {
+            "type": "object",
             "additionalProperties": {
               "anyOf": [
                 {
@@ -750,29 +218,7 @@
                   "type": "null"
                 }
               ]
-            },
-            "type": "object"
-          },
-          "description": {
-            "type": "string"
-          },
-          "expected_delta": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "hazard_class": {
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ],
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
+            }
           },
           "target_device": {
             "anyOf": [
@@ -784,8 +230,23 @@
               }
             ]
           },
-          "verb": {
+          "hazard_class": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
             "type": "string"
+          },
+          "approval_required": {
+            "type": "boolean"
+          },
+          "expected_delta": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
           }
         },
         "required": [
@@ -797,73 +258,1313 @@
           "hazard_class",
           "approval_required",
           "expected_delta"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "goal": {
-      "type": "string"
+        ]
+      }
     },
     "last_result": {
-      "additionalProperties": true,
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true
     },
     "pending_human": {
+      "type": "array",
       "items": {
         "type": "string"
-      },
-      "type": "array"
+      }
     },
-    "resources": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "attributes": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "string"
+    "decision_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "explicit_frontier_non_tuning_only": {
+          "const": true
+        },
+        "tuning_action_space_independently_legal": {
+          "const": true
+        },
+        "do_not_infer_tuning_illegality_from_explicit_frontier": {
+          "const": true
+        },
+        "max_actions": {
+          "const": 1
+        },
+        "prefer_bounded_action_when_supported": {
+          "const": true
+        },
+        "one_family_at_a_time": {
+          "const": true
+        },
+        "fresh_supported_signals_are_actionable": {
+          "const": true
+        },
+        "vision_signals_support_action_selection": {
+          "const": true
+        },
+        "notebook_signals_support_action_selection": {
+          "const": true
+        },
+        "blockers_and_legality_dominate": {
+          "const": true
+        },
+        "no_bundled_family_actions": {
+          "const": true
+        }
+      },
+      "required": [
+        "explicit_frontier_non_tuning_only",
+        "tuning_action_space_independently_legal",
+        "do_not_infer_tuning_illegality_from_explicit_frontier",
+        "max_actions",
+        "prefer_bounded_action_when_supported",
+        "one_family_at_a_time",
+        "fresh_supported_signals_are_actionable",
+        "vision_signals_support_action_selection",
+        "notebook_signals_support_action_selection",
+        "blockers_and_legality_dominate",
+        "no_bundled_family_actions"
+      ]
+    },
+    "decision_signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "notebook_notes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "global": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "note_id": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "enum": [
+                      "global",
+                      "local"
+                    ],
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "reason_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "suggested_families": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "speed",
+                        "flow",
+                        "nozzle",
+                        "bed",
+                        "pressure_advance"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "section_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "type": "integer"
+                "required": [
+                  "note_id",
+                  "scope",
+                  "title",
+                  "text",
+                  "confidence",
+                  "reason_tags",
+                  "suggested_families",
+                  "section_ids"
+                ]
+              }
+            },
+            "local": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "note_id": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "enum": [
+                      "global",
+                      "local"
+                    ],
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "reason_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "suggested_families": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "speed",
+                        "flow",
+                        "nozzle",
+                        "bed",
+                        "pressure_advance"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "section_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
+                "required": [
+                  "note_id",
+                  "scope",
+                  "title",
+                  "text",
+                  "confidence",
+                  "reason_tags",
+                  "suggested_families",
+                  "section_ids"
+                ]
+              }
+            },
+            "merged_reason_tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "planner_facts": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "global",
+            "local",
+            "merged_reason_tags",
+            "planner_facts"
+          ]
+        },
+        "vision_signal": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "usable": {
+              "type": "boolean"
+            },
+            "summary": {
+              "type": [
+                "string",
+                "null"
               ]
             },
-            "type": "object"
+            "finding_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "strength": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "weak",
+                "moderate",
+                "strong",
+                null
+              ]
+            },
+            "issue_level": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                null
+              ]
+            }
           },
-          "id": {
-            "type": "string"
+          "required": [
+            "usable",
+            "summary",
+            "finding_types",
+            "strength",
+            "issue_level"
+          ]
+        },
+        "last_result_notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "action_id": {
+                "type": "string"
+              },
+              "family": {
+                "enum": [
+                  "speed",
+                  "flow",
+                  "nozzle",
+                  "bed",
+                  "pressure_advance",
+                  "accel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "outcome": {
+                "enum": [
+                  "verified_effect",
+                  "verified_no_effect",
+                  "suppressed",
+                  "blocked",
+                  "verification_mismatch",
+                  "reset_restored",
+                  "no_action"
+                ],
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "reason_tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "observed_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_id",
+              "family",
+              "outcome",
+              "summary",
+              "reason_tags",
+              "observed_at"
+            ]
+          }
+        },
+        "recent_family_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "action_id": {
+                "type": "string"
+              },
+              "family": {
+                "enum": [
+                  "speed",
+                  "flow",
+                  "nozzle",
+                  "bed",
+                  "pressure_advance",
+                  "accel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "verified_effect",
+                  "verified_no_effect",
+                  "suppressed",
+                  "blocked",
+                  "verification_mismatch",
+                  "reset_restored",
+                  "no_action",
+                  null
+                ]
+              },
+              "direction": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "up",
+                  "down",
+                  "restore",
+                  null
+                ]
+              },
+              "size": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "small",
+                  "big",
+                  "restore",
+                  null
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "observed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "seconds_since_action": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "action_id",
+              "family",
+              "status",
+              "outcome",
+              "direction",
+              "size",
+              "summary",
+              "observed_at",
+              "seconds_since_action"
+            ]
+          }
+        },
+        "temporal_action_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "now_at": {
+              "type": "string"
+            },
+            "last_action_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_action_family": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "speed",
+                "flow",
+                "nozzle",
+                "bed",
+                "pressure_advance",
+                "accel",
+                "other",
+                null
+              ]
+            },
+            "last_action_status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_action_outcome": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "verified_effect",
+                "verified_no_effect",
+                "suppressed",
+                "blocked",
+                "verification_mismatch",
+                "reset_restored",
+                "no_action",
+                null
+              ]
+            },
+            "last_action_summary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_action_reason_tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "last_action_why": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_action_observed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seconds_since_last_action": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
           },
-          "kind": {
-            "type": "string"
+          "required": [
+            "available",
+            "now_at",
+            "last_action_id",
+            "last_action_family",
+            "last_action_status",
+            "last_action_outcome",
+            "last_action_summary",
+            "last_action_reason_tags",
+            "last_action_why",
+            "last_action_observed_at",
+            "seconds_since_last_action"
+          ]
+        },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "now_at": {
+              "type": "string"
+            },
+            "raw_observed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seconds_since_raw_observation": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "vision_observed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seconds_since_vision_observation": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "camera_last_capture_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "camera_frame_age_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "vision_usable": {
+              "type": "boolean"
+            }
           },
-          "owner": {
-            "type": "string"
+          "required": [
+            "now_at",
+            "raw_observed_at",
+            "seconds_since_raw_observation",
+            "vision_observed_at",
+            "seconds_since_vision_observation",
+            "camera_last_capture_at",
+            "camera_frame_age_s",
+            "vision_usable"
+          ]
+        },
+        "symptom_feedback": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "current_finding_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "current_strength": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "weak",
+                "moderate",
+                "strong",
+                null
+              ]
+            },
+            "current_issue_level": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                null
+              ]
+            },
+            "last_verified_finding_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "last_verified_strength": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "weak",
+                "moderate",
+                "strong",
+                null
+              ]
+            },
+            "last_verified_issue_level": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                null
+              ]
+            },
+            "same_issue_persisted": {
+              "type": "boolean"
+            },
+            "not_improving_after_last_action": {
+              "type": "boolean"
+            }
           },
-          "state": {
+          "required": [
+            "current_finding_types",
+            "current_strength",
+            "current_issue_level",
+            "last_verified_finding_types",
+            "last_verified_strength",
+            "last_verified_issue_level",
+            "same_issue_persisted",
+            "not_improving_after_last_action"
+          ]
+        },
+        "action_consequence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "action_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "family": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "speed",
+                "flow",
+                "nozzle",
+                "bed",
+                "pressure_advance",
+                "accel",
+                "other",
+                null
+              ]
+            },
+            "status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "time_since_action_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "post_action_issue_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "current_issue_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "issue": {
+              "type": "string",
+              "enum": [
+                "better",
+                "same",
+                "worse",
+                "unknown"
+              ]
+            },
+            "confidence": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "weak",
+                "moderate",
+                "strong",
+                null
+              ]
+            },
+            "summary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "compared_against_action_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "valid_for_escalation": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "available",
+            "action_id",
+            "family",
+            "status",
+            "time_since_action_s",
+            "post_action_issue_types",
+            "current_issue_types",
+            "issue",
+            "confidence",
+            "summary",
+            "compared_against_action_id",
+            "valid_for_escalation"
+          ]
+        },
+        "tuning_settle_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "family": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "speed",
+                "flow",
+                "nozzle",
+                "bed",
+                "pressure_advance",
+                "accel",
+                null
+              ]
+            },
+            "action_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "window_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "remaining_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "blocks_same_family": {
+              "type": "boolean"
+            },
+            "cross_family_requires_fresh_strong_signal": {
+              "type": "boolean"
+            },
+            "cross_family_signal_allows_action": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "active",
+            "family",
+            "action_id",
+            "window_s",
+            "remaining_s",
+            "blocks_same_family",
+            "cross_family_requires_fresh_strong_signal",
+            "cross_family_signal_allows_action"
+          ]
+        },
+        "cumulative_family_deltas": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "speed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "delta": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "const": "pct"
+                }
+              },
+              "required": [
+                "current",
+                "default",
+                "delta",
+                "unit"
+              ]
+            },
+            "flow": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "delta": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "const": "pct"
+                }
+              },
+              "required": [
+                "current",
+                "default",
+                "delta",
+                "unit"
+              ]
+            },
+            "nozzle": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "delta": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "const": "c"
+                }
+              },
+              "required": [
+                "current",
+                "default",
+                "delta",
+                "unit"
+              ]
+            },
+            "bed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "delta": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "const": "c"
+                }
+              },
+              "required": [
+                "current",
+                "default",
+                "delta",
+                "unit"
+              ]
+            },
+            "pressure_advance": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "delta": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "const": "ratio"
+                }
+              },
+              "required": [
+                "current",
+                "default",
+                "delta",
+                "unit"
+              ]
+            }
+          },
+          "required": [
+            "speed",
+            "flow",
+            "nozzle",
+            "bed",
+            "pressure_advance"
+          ]
+        },
+        "family_blockers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "speed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "flow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nozzle": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "pressure_advance": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "speed",
+            "flow",
+            "nozzle",
+            "bed",
+            "pressure_advance"
+          ]
+        },
+        "allowed_frontier_ids": {
+          "type": "array",
+          "items": {
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "kind",
-          "owner",
-          "state",
-          "attributes"
-        ],
-        "type": "object"
+        "tuning_action_space": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "speed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "family": {
+                  "enum": [
+                    "speed",
+                    "flow",
+                    "nozzle",
+                    "bed",
+                    "pressure_advance"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "allowed_directions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "allowed_magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "summary",
+                "allowed_directions",
+                "allowed_magnitudes"
+              ]
+            },
+            "flow": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "family": {
+                  "enum": [
+                    "speed",
+                    "flow",
+                    "nozzle",
+                    "bed",
+                    "pressure_advance"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "allowed_directions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "allowed_magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "summary",
+                "allowed_directions",
+                "allowed_magnitudes"
+              ]
+            },
+            "nozzle": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "family": {
+                  "enum": [
+                    "speed",
+                    "flow",
+                    "nozzle",
+                    "bed",
+                    "pressure_advance"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "allowed_directions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "allowed_magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "summary",
+                "allowed_directions",
+                "allowed_magnitudes"
+              ]
+            },
+            "bed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "family": {
+                  "enum": [
+                    "speed",
+                    "flow",
+                    "nozzle",
+                    "bed",
+                    "pressure_advance"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "allowed_directions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "allowed_magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "summary",
+                "allowed_directions",
+                "allowed_magnitudes"
+              ]
+            },
+            "pressure_advance": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "family": {
+                  "enum": [
+                    "speed",
+                    "flow",
+                    "nozzle",
+                    "bed",
+                    "pressure_advance"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "allowed_directions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "allowed_magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "summary",
+                "allowed_directions",
+                "allowed_magnitudes"
+              ]
+            }
+          }
+        }
       },
-      "type": "array"
+      "required": [
+        "notebook_notes",
+        "vision_signal",
+        "last_result_notes",
+        "recent_family_actions",
+        "temporal_action_context",
+        "freshness",
+        "symptom_feedback",
+        "action_consequence",
+        "tuning_settle_context",
+        "cumulative_family_deltas",
+        "family_blockers",
+        "allowed_frontier_ids",
+        "tuning_action_space"
+      ]
     }
   },
   "required": [
@@ -878,7 +1579,5 @@
     "pending_human",
     "decision_contract",
     "decision_signals"
-  ],
-  "title": "WorldPacketPromptView",
-  "type": "object"
+  ]
 }

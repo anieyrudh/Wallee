@@ -13,6 +13,8 @@ from wallee_v6.packs.prusa_core_one_plus.types import PrintableFile, PrusaLifecy
 class FakeSerialWriter:
     commands: list[str]
     session_keys: list[str | None] | None = None
+    pressure_advance: float = 0.04
+    print_accel_mm_s2: float = 2000.0
     closed: int = 0
 
     def bind_session(self, session_key: str | None) -> None:
@@ -21,9 +23,19 @@ class FakeSerialWriter:
 
     def send_command(self, command: str) -> None:
         self.commands.append(command)
+        if command.startswith("M572 S"):
+            self.pressure_advance = float(command.split("S", 1)[1])
+        if command.startswith("M204 P"):
+            self.print_accel_mm_s2 = float(command.split("P", 1)[1])
+        if command.startswith("M204 S"):
+            self.print_accel_mm_s2 = float(command.split("S", 1)[1])
 
     def query_command(self, command: str) -> list[str]:
         self.commands.append(f"QUERY:{command}")
+        if command == "M572":
+            return [f"M572 S{self.pressure_advance:.4f}"]
+        if command == "M204":
+            return [f"M204 P{int(round(self.print_accel_mm_s2))}"]
         return []
 
     def close(self) -> None:
@@ -199,6 +211,25 @@ def test_driver_read_status_uses_job_surface_for_current_file():
     snapshot = driver.read_status()
 
     assert snapshot.current_file == "Stringing Test.bgcode"
+
+
+def test_driver_accel_relative_targets_remain_compatible_with_high_active_baseline():
+    driver = PrusaDriver(http=FakeHttp(status={**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}), serial_writer=FakeSerialWriter([]), timeout_s=0.01, poll_s=0.0)
+
+    assert driver.print_accel_target_from_baseline(7000.0, direction="down", magnitude="small") == pytest.approx(6300.0)
+    assert driver.print_accel_target_from_baseline(7000.0, direction="down", magnitude="big") == pytest.approx(5600.0)
+    assert driver.print_accel_target_from_baseline(7000.0, direction="up", magnitude="small") == pytest.approx(7700.0)
+    assert driver.print_accel_target_from_baseline(7000.0, direction="up", magnitude="big") == pytest.approx(8400.0)
+
+
+def test_driver_pressure_advance_relative_targets_use_fixed_percentage_envelope():
+    driver = PrusaDriver(http=FakeHttp(status={**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}), serial_writer=FakeSerialWriter([]), timeout_s=0.01, poll_s=0.0)
+
+    assert driver.pressure_advance_bounds_for_baseline(0.04) == pytest.approx((0.03, 0.05))
+    assert driver.pressure_advance_target_from_baseline(0.04, direction="down", magnitude="small") == pytest.approx(0.036)
+    assert driver.pressure_advance_target_from_baseline(0.04, direction="down", magnitude="big") == pytest.approx(0.032)
+    assert driver.pressure_advance_target_from_baseline(0.04, direction="up", magnitude="small") == pytest.approx(0.044)
+    assert driver.pressure_advance_target_from_baseline(0.04, direction="up", magnitude="big") == pytest.approx(0.048)
 
 
 def test_driver_pause_resume_cancel_and_start():
@@ -527,6 +558,7 @@ def test_driver_trim_flow_down_small_failure_reports_send_and_verify_surfaces():
 
     serial.send_command = send_and_apply  # type: ignore[method-assign]
     driver = PrusaDriver(http=http, serial_writer=serial, timeout_s=0.01, poll_s=0.0)
+    driver.FLOW_HTTP_VERIFY_TIMEOUT_S = 0.01
 
     with pytest.raises(RuntimeError) as exc:
         driver.trim_flow_down_small(target_flow_pct=95.0)
@@ -595,6 +627,79 @@ def test_driver_trim_flow_up_small_writes_one_serial_command_and_verifies():
 
     assert serial.commands == ["M221 S100"]
     assert result["flow_pct"] == 100.0
+
+
+def test_driver_big_trim_variants_use_explicit_targets_and_verify():
+    status = {**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}
+    http = FakeHttp(status=status)
+    serial = FakeSerialWriter([])
+
+    def send_and_apply(command: str) -> None:
+        serial.commands.append(command)
+        if command == "M220 S90":
+            http.status["printer"]["speed"] = 90
+        if command == "M221 S90":
+            http.status["printer"]["flow"] = 90
+            serial.flow_pct = 90.0
+        if command == "M104 S205":
+            http.status["printer"]["target_nozzle"] = 205
+        if command == "M140 S50":
+            http.status["printer"]["target_bed"] = 50
+
+    serial.send_command = send_and_apply  # type: ignore[method-assign]
+    driver = PrusaDriver(http=http, serial_writer=serial, timeout_s=0.01, poll_s=0.0)
+
+    assert driver.trim_speed_down_big(target_speed_pct=90.0)["speed_pct"] == 90.0
+    assert driver.trim_flow_down_big(target_flow_pct=90.0)["flow_pct"] == 90.0
+    assert driver.trim_nozzle_down_big(target_nozzle_c=205.0, min_nozzle_target_c=170.0)["target_nozzle_c"] == 205.0
+    assert driver.trim_bed_down_big(target_bed_c=50.0)["target_bed_c"] == 50.0
+    assert "M220 S90" in serial.commands
+    assert "M221 S90" in serial.commands
+    assert "M104 S205" in serial.commands
+    assert "M140 S50" in serial.commands
+
+
+def test_driver_pressure_advance_write_and_readback():
+    status = {**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}
+    http = FakeHttp(status=status)
+    serial = FakeSerialWriter([], pressure_advance=0.04)
+    driver = PrusaDriver(http=http, serial_writer=serial, timeout_s=0.01, poll_s=0.0)
+
+    result = driver.trim_pressure_advance_up_big(target_pressure_advance=0.06)
+
+    assert result["pressure_advance"] == 0.06
+    assert "M572 S0.0600" in serial.commands
+    assert driver.read_pressure_advance() == 0.06
+
+
+def test_driver_pressure_advance_disabled_readback_maps_to_zero():
+    status = {**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}
+    http = FakeHttp(status=status)
+    serial = FakeSerialWriter([], pressure_advance=0.0)
+
+    def disabled_query(command: str) -> list[str]:
+        serial.commands.append(f"QUERY:{command}")
+        if command == "M572":
+            return ["echo:Pressure advance: disabled", "ok"]
+        return []
+
+    serial.query_command = disabled_query  # type: ignore[method-assign]
+    driver = PrusaDriver(http=http, serial_writer=serial, timeout_s=0.01, poll_s=0.0)
+
+    assert driver.read_pressure_advance() == 0.0
+
+
+def test_driver_print_accel_write_and_readback():
+    status = {**_STATUS, "printer": dict(_STATUS["printer"]), "job": dict(_STATUS["job"])}
+    http = FakeHttp(status=status)
+    serial = FakeSerialWriter([], print_accel_mm_s2=2000.0)
+    driver = PrusaDriver(http=http, serial_writer=serial, timeout_s=0.01, poll_s=0.0)
+
+    result = driver.trim_print_accel_down_big(target_print_accel_mm_s2=1500.0)
+
+    assert result["print_accel_mm_s2"] == 1500.0
+    assert "M204 P1500" in serial.commands
+    assert driver.read_print_accel_mm_s2() == 1500.0
 
 
 def test_driver_trim_nozzle_up_small_uses_explicit_target_and_verifies():

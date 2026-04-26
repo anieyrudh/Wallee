@@ -4,6 +4,8 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import time
+from types import SimpleNamespace
 from typing import Any
 
 from wallee_v6.models import PackManifest, WorldPacket
@@ -36,6 +38,8 @@ class FakeSerialWriter:
     commands: list[str]
     speed_pct: float = 100.0
     flow_pct: float = 100.0
+    pressure_advance: float = 0.04
+    print_accel_mm_s2: float = 2000.0
     closed: int = 0
 
     def bind_session(self, session_key: str | None) -> None:
@@ -47,12 +51,22 @@ class FakeSerialWriter:
             self.speed_pct = float(command.split("S", 1)[1])
         if command.startswith("M221 S"):
             self.flow_pct = float(command.split("S", 1)[1])
+        if command.startswith("M572 S"):
+            self.pressure_advance = float(command.split("S", 1)[1])
+        if command.startswith("M204 P"):
+            self.print_accel_mm_s2 = float(command.split("P", 1)[1])
+        if command.startswith("M204 S"):
+            self.print_accel_mm_s2 = float(command.split("S", 1)[1])
 
     def query_command(self, command: str) -> list[str]:
         if command == "M220":
             return [f"FR:{self.speed_pct:.0f}%"]
         if command == "M221":
             return [f"echo:E0 Flow: {self.flow_pct:.0f}%"]
+        if command == "M572":
+            return [f"M572 S{self.pressure_advance:.4f}"]
+        if command == "M204":
+            return [f"M204 P{int(round(self.print_accel_mm_s2))}"]
         return []
 
     def close(self) -> None:
@@ -185,6 +199,17 @@ class BrokenHttp:
         raise AssertionError
 
 
+class FlakyStatusHttp(FakeHttp):
+    def __init__(self, *, status: dict[str, Any], **kwargs: Any):
+        super().__init__(status=status, **kwargs)
+        self.fail_status_reads = False
+
+    def get_status(self):
+        if self.fail_status_reads:
+            raise TimeoutError("PrusaLink GET /api/v1/status failed: timed out")
+        return super().get_status()
+
+
 def _manifest() -> PackManifest:
     return PackManifest(
         pack_id="prusa_core_one_plus",
@@ -199,8 +224,11 @@ def _settings(
     *,
     serial_enabled: bool = False,
     experimental: bool = False,
+    planner_allowed_tuning_families: tuple[str, ...] = (),
     speed_tuning_verification_enabled: bool = False,
     flow_tuning_verification_enabled: bool = False,
+    pressure_advance_tuning_verification_enabled: bool = False,
+    accel_tuning_verification_enabled: bool = False,
     live_tuning_min_progress_pct: float = 5.0,
     live_tuning_max_progress_pct: float = 95.0,
     live_tuning_symptom_max_progress_pct: float = 99.0,
@@ -224,15 +252,25 @@ def _settings(
         notebook_download_enabled=True,
         notebook_lookahead_pct=5.0,
         enable_experimental_tuning=experimental,
+        planner_allowed_tuning_families=planner_allowed_tuning_families,
         speed_tuning_verification_enabled=speed_tuning_verification_enabled,
         flow_tuning_verification_enabled=flow_tuning_verification_enabled,
+        pressure_advance_tuning_verification_enabled=pressure_advance_tuning_verification_enabled,
+        accel_tuning_verification_enabled=accel_tuning_verification_enabled,
         live_tuning_min_progress_pct=live_tuning_min_progress_pct,
         live_tuning_max_progress_pct=live_tuning_max_progress_pct,
         live_tuning_symptom_max_progress_pct=live_tuning_symptom_max_progress_pct,
     )
 
 
-def _world_from_pack(pack: Pack, whiteboard: InMemoryWhiteboard, goal: str = "Test goal") -> WorldPacket:
+def _world_from_pack(
+    pack: Pack,
+    whiteboard: InMemoryWhiteboard,
+    goal: str = "Test goal",
+    *,
+    last_result: dict[str, Any] | None = None,
+    recent_results: list[dict[str, Any]] | None = None,
+) -> WorldPacket:
     pack.publish_raw_state(whiteboard)
     normalized = pack.normalize(whiteboard.snapshot().values)
     return WorldPacket(
@@ -243,7 +281,8 @@ def _world_from_pack(pack: Pack, whiteboard: InMemoryWhiteboard, goal: str = "Te
         blockers=normalized.blockers,
         deltas=[],
         frontier=[],
-        last_result={},
+        last_result=last_result or {},
+        recent_results=recent_results or [],
         pending_human=[],
     )
 
@@ -380,6 +419,91 @@ def test_publish_raw_state_surfaces_nozzle_camera_health_fields(tmp_path, monkey
     assert snapshot["printer_1.nozzle_cam_blockers"] == []
     assert normalized.facts["printer_1.nozzle_cam_usable"] is True
     assert normalized.facts["printer_1.nozzle_cam_health_state"] == "nominal"
+
+
+def test_startup_printing_does_not_run_vision_advisory(tmp_path, monkeypatch):
+    http = FakeHttp(status=_printing_status(progress=0.0, time_printing=12.0))
+    pack = Pack(_manifest(), http_client=http, settings=_settings(tmp_path))
+    snapshot = pack_module.status_to_snapshot(http.get_status(), job=http.get_job(), info=http.get_info())
+    observe_called = False
+
+    monkeypatch.setattr(
+        vision,
+        "evaluate_nozzle_camera_health",
+        lambda settings, active_printing: vision.NozzleCameraHealthResult(
+            report=vision.NozzleCameraHealthReport(
+                nozzle_cam_device_present=True,
+                nozzle_cam_service_ok=True,
+                nozzle_cam_capture_ok=True,
+                nozzle_cam_frame_fresh=True,
+                nozzle_cam_frame_valid=True,
+                nozzle_cam_frame_not_signal_slate=True,
+                nozzle_cam_frame_live=True,
+                nozzle_cam_usable=True,
+                nozzle_cam_health_state="nominal",
+                nozzle_cam_blockers=[],
+                nozzle_cam_last_capture_at="2026-04-14T06:00:30Z",
+                nozzle_cam_frame_age_s=0.2,
+                nozzle_cam_last_frame_ref="sha256:abc123",
+                nozzle_cam_repeated_identical_count=0,
+                frame_refs_used=["sha256:abc123"],
+            )
+        ),
+    )
+
+    def _observe(*args, **kwargs):
+        nonlocal observe_called
+        observe_called = True
+        raise AssertionError("startup should not run the vision LLM advisory")
+
+    monkeypatch.setattr(vision, "observe_nozzle_advisory", _observe)
+
+    result = pack._refresh_vision_snapshot(snapshot=snapshot, notebook=None)
+
+    assert result.capture_mode == "idle"
+    assert observe_called is False
+    assert result.payload["printer_1.nozzle_cam_usable"] is True
+    assert result.payload["printer_1.vision_advisory_summary"] is None
+
+
+def test_publish_raw_state_bounds_nonfatal_serial_overlay_reads(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=12.0))
+    serial = FakeSerialWriter([], pressure_advance=0.04, print_accel_mm_s2=2000.0)
+    original_query = serial.query_command
+
+    def hanging_query(command: str) -> list[str]:
+        if command == "M572":
+            time.sleep(1.0)
+        return original_query(command)
+
+    serial.query_command = hanging_query  # type: ignore[method-assign]
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    pack.settings.serial_timeout_s = 0.01
+    whiteboard = InMemoryWhiteboard()
+
+    started = time.monotonic()
+    pack.publish_raw_state(whiteboard)
+    raw = whiteboard.snapshot().values
+    normalized = pack.normalize(raw)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert normalized.facts["printer_1.pressure_advance"] is None
+    assert normalized.facts["printer_1.print_accel_mm_s2"] == 2000.0
+    assert raw["printer_1.raw.pressure_advance_read_warning"] == "pressure_advance_read_timeout"
+    assert raw["printer_1.raw.print_accel_read_warning"] is None
+    assert serial.closed >= 1
 
 
 def test_normalize_surfaces_flat_raw_observed_at_fact(tmp_path, monkeypatch):
@@ -545,6 +669,76 @@ def test_publish_raw_state_surfaces_bounded_vision_advisory_when_camera_usable(t
     assert normalized.facts["printer_1.vision_advisory_finding_types"] is None
     assert normalized.facts["printer_1.vision_observation_ref"] == "/tmp/frame-1.json"
     assert normalized.facts["printer_1.vision_frame_ref"] == "docs/evidence/prusa_core_one_plus/vision/frames/frame-1.jpg"
+
+
+def test_residue_only_vision_is_low_severity_advisory(tmp_path, monkeypatch):
+    http = FakeHttp(status=_printing_status(progress=12.0))
+    pack = Pack(_manifest(), http_client=http, settings=_settings(tmp_path))
+    whiteboard = InMemoryWhiteboard()
+
+    monkeypatch.setattr(
+        vision,
+        "evaluate_nozzle_camera_health",
+        lambda settings, active_printing: vision.NozzleCameraHealthResult(
+            report=vision.NozzleCameraHealthReport(
+                nozzle_cam_device_present=True,
+                nozzle_cam_service_ok=True,
+                nozzle_cam_capture_ok=True,
+                nozzle_cam_frame_fresh=True,
+                nozzle_cam_frame_valid=True,
+                nozzle_cam_frame_not_signal_slate=True,
+                nozzle_cam_frame_live=True,
+                nozzle_cam_usable=True,
+                nozzle_cam_health_state="nominal",
+                nozzle_cam_blockers=[],
+                nozzle_cam_last_capture_at="2026-04-14T06:00:30Z",
+                nozzle_cam_frame_age_s=0.2,
+                nozzle_cam_last_frame_ref="sha256:abc123",
+                nozzle_cam_repeated_identical_count=0,
+                frame_refs_used=["sha256:abc123"],
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        vision,
+        "observe_nozzle_advisory",
+        lambda settings, output_root, job_identity, capture_mode, lifecycle: vision.VisionAdvisoryResult(
+            observation=vision.VisionObservation(
+                schema_version="1.0",
+                frame_id="frame-1",
+                camera_id="camera-nozzle",
+                captured_at="2026-04-14T06:00:30Z",
+                image_ref="docs/evidence/prusa_core_one_plus/vision/frames/frame-1.jpg",
+                findings=[
+                    vision.VisionFinding(
+                        finding_id="finding-1",
+                        finding_type="residue",
+                        evidence_strength="strong",
+                        descriptors=["dark_residue"],
+                        note="Dark residue is visible on the nozzle exterior.",
+                    )
+                ],
+                summary="Dark residue is visible on the nozzle exterior.",
+            ),
+            observation_path=Path("/tmp/frame-1.json"),
+            frame=vision.PersistedFrame(
+                frame_id="frame-1",
+                camera_id="camera-nozzle",
+                captured_at="2026-04-14T06:00:30Z",
+                frame_path=Path("/tmp/frame-1.jpg"),
+                image_ref="docs/evidence/prusa_core_one_plus/vision/frames/frame-1.jpg",
+                artifact_stem="frame-1",
+                jpeg_bytes=b"jpeg",
+            ),
+            summary="vision:residue; Dark residue is visible on the nozzle exterior.",
+            finding_types=("residue",),
+        ),
+    )
+
+    world = _world_from_pack(pack, whiteboard)
+
+    assert world.facts["printer_1.vision_advisory_strength"] == "strong"
+    assert world.facts["printer_1.vision_advisory_issue_level"] == "low"
 
 
 def test_publish_raw_state_reuses_cached_vision_advisory_within_interval(tmp_path, monkeypatch):
@@ -838,6 +1032,41 @@ def test_publish_raw_state_rebuilds_stale_persisted_notebook_schema(tmp_path):
     rebuilt_world = _world_from_pack(Pack(_manifest(), http_client=http, settings=_settings(tmp_path)), whiteboard)
 
     assert first_world.facts["printer_1.job_hash"] == rebuilt_world.facts["printer_1.job_hash"]
+
+
+def test_publish_raw_state_rebuilds_previous_notebook_schema_version(tmp_path):
+    printable = PrintableFile(path="/usb/PRINTS/DEMO.GCODE", display_name="demo.gcode", size_bytes=1200000, modified_ts=1711800000)
+    http = FakeHttp(
+        status=_printing_status(current_file_display_name=printable.display_name, current_file_name="DEMO.GCODE"),
+        files=[printable],
+        file_info={
+            printable.path: {
+                "refs": {"download": "/api/files/usb/PRINTS/DEMO.GCODE/raw"},
+                "metadata": {"filament_type": "PLA", "layer_height": 0.2, "bed_temperature": 60},
+            }
+        },
+        file_text={printable.path: _SAMPLE_GCODE},
+    )
+    whiteboard = InMemoryWhiteboard()
+
+    _world_from_pack(Pack(_manifest(), http_client=http, settings=_settings(tmp_path)), whiteboard)
+    notebook_dir = tmp_path / "notebooks"
+    notebook_path = next(notebook_dir.glob("*.notebook.json"))
+    payload = json.loads(notebook_path.read_text(encoding="utf-8"))
+    payload["schema_version"] = "1.2"
+    for section in payload["sections"]:
+        section.pop("progress_start_pct", None)
+        section.pop("progress_end_pct", None)
+    notebook_path.write_text(json.dumps(payload), encoding="utf-8")
+    http.commands.clear()
+
+    rebuilt_world = _world_from_pack(Pack(_manifest(), http_client=http, settings=_settings(tmp_path)), whiteboard)
+    rebuilt_payload = json.loads(notebook_path.read_text(encoding="utf-8"))
+
+    assert rebuilt_world.facts["printer_1.job_hash"] is not None
+    assert rebuilt_payload["schema_version"] != "1.2"
+    assert "progress_start_pct" in rebuilt_payload["sections"][0]
+    assert "progress_end_pct" in rebuilt_payload["sections"][0]
     assert rebuilt_world.facts["printer_1.job_notebook_available"] is True
     assert "persisted_rebuilt" in (rebuilt_world.facts["printer_1.job_notebook_status"] or "")
     assert [command for command, _ in http.commands] == ["download"]
@@ -916,7 +1145,6 @@ def test_candidate_actions_printing_exposes_speed_flow_nozzle_and_bed_by_default
     action_ids = {action.action_id for action in actions}
 
     assert {
-        "A_PRUSA_PAUSE",
         "A_PRUSA_CANCEL",
         "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
         "A_PRUSA_TRIM_SPEED_UP_SMALL",
@@ -927,6 +1155,7 @@ def test_candidate_actions_printing_exposes_speed_flow_nozzle_and_bed_by_default
         "A_PRUSA_TRIM_BED_DOWN_SMALL",
         "A_PRUSA_TRIM_BED_UP_SMALL",
     }.issubset(action_ids)
+    assert "A_PRUSA_PAUSE" not in action_ids
 
 
 def test_candidate_actions_startup_printing_blocks_speed_trim_until_progress_advances(tmp_path):
@@ -958,6 +1187,33 @@ def test_candidate_actions_startup_printing_blocks_speed_trim_until_progress_adv
     assert "A_PRUSA_WAIT_COOL" not in action_ids
 
 
+def test_normalize_surfaces_startup_trend_facts_to_planner(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=0.0, time_printing=10.0, nozzle_target=170.0))
+    http.status["printer"]["temp_nozzle"] = 90.0
+    serial = FakeSerialWriter([])
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(tmp_path, serial_enabled=True),
+    )
+    whiteboard = InMemoryWhiteboard()
+
+    _world_from_pack(pack, whiteboard)
+    http.status["job"]["time_printing"] = 11.0
+    http.job["time_printing"] = 11.0
+    http.status["printer"]["temp_nozzle"] = 94.0
+    world = _world_from_pack(pack, whiteboard)
+
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.job_time_delta_s"] == 1.0
+    assert world.facts["printer_1.nozzle_temp_delta_c"] == 4.0
+    assert world.facts["printer_1.nozzle_temp_trend"] == "rising"
+    assert world.facts["printer_1.thermal_ramp_active"] is True
+    assert world.facts["printer_1.active_print_evidence"] == "job_time_advancing_only"
+    assert world.prompt_view()["decision_signals"]["runtime_trends"]["nozzle_temp_trend"] == "rising"
+
+
 def test_candidate_actions_block_live_tuning_until_min_progress_window(tmp_path):
     http = FakeHttp(status=_printing_status(progress=2.0))
     serial = FakeSerialWriter([])
@@ -977,18 +1233,20 @@ def test_candidate_actions_block_live_tuning_until_min_progress_window(tmp_path)
     world = _world_from_pack(pack, whiteboard)
     action_ids = {action.action_id for action in pack.candidate_actions(world)}
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
+    assert world.facts["printer_1.pre_tuning_window"] is True
     assert "speed_progress_not_ready" in (world.facts["printer_1.speed_autonomy_blockers"] or "")
     assert "flow_progress_not_ready" in (world.facts["printer_1.flow_shadow_blockers"] or "")
     assert "nozzle_progress_not_ready" in (world.facts["printer_1.nozzle_shadow_blockers"] or "")
     assert "bed_progress_not_ready" in (world.facts["printer_1.bed_shadow_blockers"] or "")
+    assert "A_PRUSA_PAUSE" not in action_ids
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
     assert "A_PRUSA_TRIM_NOZZLE_UP_SMALL" not in action_ids
 
 
-def test_candidate_actions_active_printing_keeps_pause_available(tmp_path):
-    http = FakeHttp(status=_printing_status(progress=2.0, time_printing=12.0))
+def test_candidate_actions_active_printing_suppresses_pause_when_bounded_tuning_exists(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0))
     serial = FakeSerialWriter([])
     pack = Pack(
         _manifest(),
@@ -1007,7 +1265,8 @@ def test_candidate_actions_active_printing_keeps_pause_available(tmp_path):
     action_ids = {action.action_id for action in pack.candidate_actions(world)}
 
     assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert "A_PRUSA_PAUSE" in action_ids
+    assert "A_PRUSA_PAUSE" not in action_ids
+    assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" in action_ids
 
 
 def test_candidate_actions_block_live_tuning_near_print_finish(tmp_path):
@@ -1235,8 +1494,10 @@ def test_candidate_actions_keep_speed_suppressed_when_progress_stays_zero_but_ti
 
     assert active_world.facts["printer_1.job_progress_pct"] == 0.0
     assert active_world.facts["printer_1.job_time_printing_s"] == 11.0
-    assert active_world.facts["printer_1.printing_phase"] == "active_printing"
-    assert active_world.facts["printer_1.active_printing"] is True
+    assert active_world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert active_world.facts["printer_1.active_printing"] is False
+    assert active_world.facts["printer_1.job_time_advancing"] is True
+    assert active_world.facts["printer_1.active_print_evidence"] == "job_time_advancing_only"
     assert active_world.facts["printer_1.speed_autonomy_eligible"] is False
     assert "speed_progress_not_ready" in (active_world.facts["printer_1.speed_autonomy_blockers"] or "")
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
@@ -1251,8 +1512,8 @@ def test_candidate_actions_keep_speed_suppressed_when_progress_stays_zero_but_ti
 
     assert stable_world.facts["printer_1.job_progress_pct"] == 0.0
     assert stable_world.facts["printer_1.job_time_printing_s"] == 11.0
-    assert stable_world.facts["printer_1.printing_phase"] == "active_printing"
-    assert stable_world.facts["printer_1.active_printing"] is True
+    assert stable_world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert stable_world.facts["printer_1.active_printing"] is False
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in stable_action_ids
 
 
@@ -1316,8 +1577,9 @@ def test_candidate_actions_keep_speed_suppressed_when_time_printing_advances_but
     world = _world_from_pack(pack, whiteboard)
     action_ids = {action.action_id for action in pack.candidate_actions(world)}
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
+    assert world.facts["printer_1.thermal_ramp_active"] is True
     assert world.facts["printer_1.speed_autonomy_eligible"] is False
     assert "speed_progress_not_ready" in (world.facts["printer_1.speed_autonomy_blockers"] or "")
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
@@ -1355,15 +1617,15 @@ def test_candidate_actions_keep_speed_suppressed_when_time_printing_advances_and
     world = _world_from_pack(pack, whiteboard)
     action_ids = {action.action_id for action in pack.candidate_actions(world)}
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
     assert world.facts["printer_1.speed_autonomy_eligible"] is False
     assert "speed_progress_not_ready" in (world.facts["printer_1.speed_autonomy_blockers"] or "")
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
 
 
 def test_candidate_actions_reset_active_printing_latch_when_job_identity_changes(tmp_path):
-    http = FakeHttp(status=_printing_status(progress=0.0, time_printing=10.0))
+    http = FakeHttp(status=_printing_status(progress=6.0, time_printing=10.0))
     serial = FakeSerialWriter([])
     pack = Pack(
         _manifest(),
@@ -1387,9 +1649,11 @@ def test_candidate_actions_reset_active_printing_latch_when_job_identity_changes
 
     http.status["job"]["id"] = 43
     http.status["job"]["file"]["display_name"] = "Other.bgcode"
+    http.status["job"]["progress"] = 0.0
     http.status["job"]["time_printing"] = 0.0
     http.job["id"] = 43
     http.job["file"]["display_name"] = "Other.bgcode"
+    http.job["progress"] = 0.0
     http.job["time_printing"] = 0.0
     identity_changed_world = _world_from_pack(pack, whiteboard)
 
@@ -1439,7 +1703,8 @@ def test_nozzle_shadow_mode_marks_eligible_when_active_and_grounded(tmp_path):
     assert world.facts["printer_1.nozzle_shadow_eligible"] is True
     assert world.facts["printer_1.nozzle_shadow_blockers"] is None
     assert world.facts["printer_1.nozzle_shadow_actions"] == (
-        "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL|A_PRUSA_TRIM_NOZZLE_UP_SMALL"
+        "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL|A_PRUSA_TRIM_NOZZLE_DOWN_BIG|"
+        "A_PRUSA_TRIM_NOZZLE_UP_SMALL|A_PRUSA_TRIM_NOZZLE_UP_BIG"
     )
 
 
@@ -1477,8 +1742,8 @@ def test_nozzle_shadow_mode_blocks_when_time_printing_advances_but_progress_is_z
     http.job["time_printing"] = 11.0
     world = _world_from_pack(pack, whiteboard)
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
     assert world.facts["printer_1.nozzle_shadow_eligible"] is False
     assert "nozzle_progress_not_ready" in (world.facts["printer_1.nozzle_shadow_blockers"] or "")
     assert world.facts["printer_1.nozzle_shadow_actions"] is None
@@ -1504,7 +1769,8 @@ def test_flow_shadow_mode_marks_eligible_when_progress_is_positive(tmp_path):
     assert world.facts["printer_1.flow_shadow_eligible"] is True
     assert world.facts["printer_1.flow_shadow_blockers"] is None
     assert world.facts["printer_1.flow_shadow_actions"] == (
-        "A_PRUSA_TRIM_FLOW_DOWN_SMALL|A_PRUSA_TRIM_FLOW_UP_SMALL"
+        "A_PRUSA_TRIM_FLOW_DOWN_SMALL|A_PRUSA_TRIM_FLOW_DOWN_BIG|"
+        "A_PRUSA_TRIM_FLOW_UP_SMALL|A_PRUSA_TRIM_FLOW_UP_BIG"
     )
 
 
@@ -1533,7 +1799,9 @@ def test_speed_and_flow_are_suppressed_without_verification_surface_support(tmp_
     assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
     assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" not in action_ids
     assert "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_NOZZLE_DOWN_BIG" not in action_ids
     assert "A_PRUSA_TRIM_BED_DOWN_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_BED_DOWN_BIG" not in action_ids
 
 
 def test_flow_shadow_mode_blocks_when_time_printing_advances_but_progress_is_zero(tmp_path):
@@ -1557,8 +1825,8 @@ def test_flow_shadow_mode_blocks_when_time_printing_advances_but_progress_is_zer
     http.job["time_printing"] = 11.0
     world = _world_from_pack(pack, whiteboard)
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
     assert world.facts["printer_1.flow_shadow_eligible"] is False
     assert "flow_progress_not_ready" in (world.facts["printer_1.flow_shadow_blockers"] or "")
     assert world.facts["printer_1.flow_shadow_actions"] is None
@@ -1584,7 +1852,8 @@ def test_bed_shadow_mode_marks_eligible_when_progress_is_positive(tmp_path):
     assert world.facts["printer_1.bed_shadow_eligible"] is True
     assert world.facts["printer_1.bed_shadow_blockers"] is None
     assert world.facts["printer_1.bed_shadow_actions"] == (
-        "A_PRUSA_TRIM_BED_DOWN_SMALL|A_PRUSA_TRIM_BED_UP_SMALL"
+        "A_PRUSA_TRIM_BED_DOWN_SMALL|A_PRUSA_TRIM_BED_DOWN_BIG|"
+        "A_PRUSA_TRIM_BED_UP_SMALL|A_PRUSA_TRIM_BED_UP_BIG"
     )
 
 
@@ -1648,15 +1917,15 @@ def test_bed_shadow_mode_blocks_when_time_printing_advances_but_progress_is_zero
     http.job["time_printing"] = 11.0
     world = _world_from_pack(pack, whiteboard)
 
-    assert world.facts["printer_1.printing_phase"] == "active_printing"
-    assert world.facts["printer_1.active_printing"] is True
+    assert world.facts["printer_1.printing_phase"] == "startup_printing"
+    assert world.facts["printer_1.active_printing"] is False
     assert world.facts["printer_1.bed_shadow_eligible"] is False
     assert "bed_progress_not_ready" in (world.facts["printer_1.bed_shadow_blockers"] or "")
     assert world.facts["printer_1.bed_shadow_actions"] is None
 
 
-def test_candidate_actions_printing_can_expose_experimental_flow_and_temp(tmp_path):
-    http = FakeHttp(status=_printing_status())
+def test_candidate_actions_printing_exposes_small_variants_on_fresh_frontier(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0))
     serial = FakeSerialWriter([])
     pack = Pack(
         _manifest(),
@@ -1668,10 +1937,18 @@ def test_candidate_actions_printing_can_expose_experimental_flow_and_temp(tmp_pa
             experimental=True,
             speed_tuning_verification_enabled=True,
             flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
         ),
     )
     whiteboard = InMemoryWhiteboard()
     world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance"] = 0.04
+    world.facts["printer_1.print_accel_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.accel_shadow_eligible"] = True
 
     actions = pack.candidate_actions(world)
     action_ids = {action.action_id for action in actions}
@@ -1685,7 +1962,55 @@ def test_candidate_actions_printing_can_expose_experimental_flow_and_temp(tmp_pa
         "A_PRUSA_TRIM_NOZZLE_UP_SMALL",
         "A_PRUSA_TRIM_BED_DOWN_SMALL",
         "A_PRUSA_TRIM_BED_UP_SMALL",
+        "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL",
+        "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "A_PRUSA_TRIM_ACCEL_DOWN_SMALL",
+        "A_PRUSA_TRIM_ACCEL_UP_SMALL",
     }.issubset(action_ids)
+    assert not any(action_id.endswith("_BIG") for action_id in action_ids if action_id.startswith("A_PRUSA_TRIM_"))
+
+
+def test_candidate_actions_can_limit_planner_to_second_order_families(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0))
+    serial = FakeSerialWriter([])
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            planner_allowed_tuning_families=("pressure_advance", "accel"),
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance"] = 0.04
+    world.facts["printer_1.print_accel_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.accel_shadow_eligible"] = True
+
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_BED_DOWN_SMALL" not in action_ids
+    assert "planner_family_disabled" in (world.facts["printer_1.speed_autonomy_blockers"] or "")
+    assert "planner_family_disabled" in (world.facts["printer_1.flow_shadow_blockers"] or "")
+    assert "planner_family_disabled" in (world.facts["printer_1.nozzle_shadow_blockers"] or "")
+    assert "planner_family_disabled" in (world.facts["printer_1.bed_shadow_blockers"] or "")
 
 
 def test_operator_actions_include_experimental_and_restore_without_planner_enable(tmp_path):
@@ -1701,22 +2026,42 @@ def test_operator_actions_include_experimental_and_restore_without_planner_enabl
             experimental=False,
             speed_tuning_verification_enabled=True,
             flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
         ),
     )
     whiteboard = InMemoryWhiteboard()
     world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance"] = 0.04
+    world.facts["printer_1.print_accel_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.accel_shadow_eligible"] = True
 
     planner_ids = {action.action_id for action in pack.candidate_actions(world)}
     operator_ids = {action.action_id for action in pack.operator_actions(world)}
 
     assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" in planner_ids
     assert "A_PRUSA_TRIM_FLOW_UP_SMALL" in planner_ids
+    assert "A_PRUSA_TRIM_FLOW_DOWN_BIG" not in planner_ids
+    assert "A_PRUSA_TRIM_FLOW_UP_BIG" not in planner_ids
     assert "A_PRUSA_TRIM_NOZZLE_UP_SMALL" in planner_ids
+    assert "A_PRUSA_TRIM_NOZZLE_UP_BIG" not in planner_ids
     assert "A_PRUSA_TRIM_BED_UP_SMALL" in planner_ids
+    assert "A_PRUSA_TRIM_BED_UP_BIG" not in planner_ids
     assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" in operator_ids
     assert "A_PRUSA_TRIM_FLOW_UP_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_FLOW_DOWN_BIG" in operator_ids
+    assert "A_PRUSA_TRIM_FLOW_UP_BIG" in operator_ids
     assert "A_PRUSA_TRIM_NOZZLE_UP_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_NOZZLE_UP_BIG" in operator_ids
     assert "A_PRUSA_TRIM_BED_UP_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_BED_UP_BIG" in operator_ids
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_SMALL" in operator_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_SMALL" in operator_ids
     assert "A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT" in operator_ids
     assert "A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT" not in operator_ids
 
@@ -1749,11 +2094,17 @@ def test_relative_trim_actions_carry_explicit_absolute_targets(tmp_path):
     assert planner_actions["A_PRUSA_TRIM_NOZZLE_UP_SMALL"].args["target_nozzle_c"] == 225.0
     assert planner_actions["A_PRUSA_TRIM_BED_UP_SMALL"].args["target_bed_c"] == 65.0
     assert operator_actions["A_PRUSA_TRIM_SPEED_DOWN_SMALL"].args["target_speed_pct"] == 95.0
+    assert operator_actions["A_PRUSA_TRIM_SPEED_DOWN_BIG"].args["target_speed_pct"] == 90.0
     assert operator_actions["A_PRUSA_TRIM_SPEED_UP_SMALL"].args["target_speed_pct"] == 105.0
+    assert operator_actions["A_PRUSA_TRIM_SPEED_UP_BIG"].args["target_speed_pct"] == 110.0
     assert operator_actions["A_PRUSA_TRIM_FLOW_DOWN_SMALL"].args["target_flow_pct"] == 95.0
+    assert operator_actions["A_PRUSA_TRIM_FLOW_DOWN_BIG"].args["target_flow_pct"] == 90.0
     assert operator_actions["A_PRUSA_TRIM_FLOW_UP_SMALL"].args["target_flow_pct"] == 105.0
+    assert operator_actions["A_PRUSA_TRIM_FLOW_UP_BIG"].args["target_flow_pct"] == 110.0
     assert operator_actions["A_PRUSA_TRIM_NOZZLE_UP_SMALL"].args["target_nozzle_c"] == 225.0
+    assert operator_actions["A_PRUSA_TRIM_NOZZLE_UP_BIG"].args["target_nozzle_c"] == 230.0
     assert operator_actions["A_PRUSA_TRIM_BED_UP_SMALL"].args["target_bed_c"] == 65.0
+    assert operator_actions["A_PRUSA_TRIM_BED_UP_BIG"].args["target_bed_c"] == 70.0
 
 
 def test_relative_trim_actions_use_expanded_speed_and_flow_envelope(tmp_path):
@@ -1780,6 +2131,398 @@ def test_relative_trim_actions_use_expanded_speed_and_flow_envelope(tmp_path):
     assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" not in planner_actions
     assert planner_actions["A_PRUSA_TRIM_SPEED_UP_SMALL"].args["target_speed_pct"] == 70.0
     assert planner_actions["A_PRUSA_TRIM_FLOW_UP_SMALL"].args["target_flow_pct"] == 70.0
+
+
+def test_big_family_cooldown_suppresses_planner_actions_but_not_operator_restore(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=6.0, flow=95.0))
+    serial = FakeSerialWriter([], flow_pct=95.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=False,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+
+    pack._activate_big_family_cooldown("A_PRUSA_TRIM_FLOW_DOWN_BIG")
+    world = _world_from_pack(pack, whiteboard)
+    planner_ids = {action.action_id for action in pack.candidate_actions(world)}
+    operator_ids = {action.action_id for action in pack.operator_actions(world)}
+
+    assert world.facts["printer_1.flow_big_cooldown_active"] is True
+    assert "flow_big_cooldown_active" in (world.facts["printer_1.flow_shadow_blockers"] or "")
+    assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" not in planner_ids
+    assert "A_PRUSA_TRIM_FLOW_DOWN_BIG" not in planner_ids
+    assert "A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT" in operator_ids
+
+
+def test_candidate_actions_suppress_pause_while_post_trim_settle_is_active(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0))
+    serial = FakeSerialWriter([])
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    last_result = {
+        "action_id": "A_PRUSA_TRIM_FLOW_DOWN_SMALL",
+        "status": "DONE",
+        "updated_ts_ms": int(time.time() * 1000),
+        "result": {},
+    }
+    world = _world_from_pack(pack, whiteboard, last_result=last_result)
+
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_PAUSE" not in action_ids
+    assert not any(action_id.startswith("A_PRUSA_TRIM_") for action_id in action_ids)
+
+
+def test_post_trim_settle_blocks_same_family_but_allows_fresh_strong_cross_family(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0, flow=95.0))
+    serial = FakeSerialWriter([], flow_pct=95.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    last_result = {
+        "action_id": "A_PRUSA_TRIM_FLOW_DOWN_SMALL",
+        "verb": "TUNE_FLOW",
+        "status": "DONE",
+        "updated_ts_ms": int(time.time() * 1000),
+        "result": {},
+    }
+    world = _world_from_pack(pack, whiteboard, last_result=last_result).model_copy(
+        update={
+            "facts": {
+                **_world_from_pack(pack, whiteboard, last_result=last_result).facts,
+                "printer_1.nozzle_cam_usable": True,
+                "printer_1.nozzle_cam_frame_age_s": 0.5,
+                "printer_1.vision_advisory_summary": "vision:stringing; A thin strand is visible.",
+                "printer_1.vision_advisory_finding_types": "stringing",
+                "printer_1.vision_advisory_strength": "strong",
+                "printer_1.vision_advisory_issue_level": "high",
+            }
+        }
+    )
+
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_TRIM_FLOW_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_FLOW_UP_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_SPEED_DOWN_SMALL" in action_ids
+
+
+def test_big_actions_require_same_family_non_improving_post_action_evidence(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=50.0, time_printing=120.0))
+    serial = FakeSerialWriter([])
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+
+    cold_world = _world_from_pack(pack, whiteboard)
+    cold_world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    cold_world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    cold_world.facts["printer_1.pressure_advance"] = 0.04
+    cold_ids = {action.action_id for action in pack.candidate_actions(cold_world)}
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG" not in cold_ids
+
+    last_result = {
+        "action_id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "status": "DONE",
+        "updated_ts_ms": int((time.time() - 50.0) * 1000),
+        "result": {
+            "post_action_vision_signal": {
+                "usable": True,
+                "summary": "Stringing still looks similar.",
+                "finding_types": ["stringing"],
+                "strength": "strong",
+                "issue_level": "high",
+                "comparison_delta": "same",
+                "comparison_confidence": "strong",
+                "comparison_summary": "The visible stringing looks about the same.",
+            }
+        },
+    }
+    world = _world_from_pack(pack, whiteboard, last_result=last_result)
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.pressure_advance"] = 0.04
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_BIG" not in action_ids
+
+
+def test_candidate_actions_stabilize_relative_accel_frontier_when_live_readback_skews_low(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=29.0))
+    serial = FakeSerialWriter([], print_accel_mm_s2=2500.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            planner_allowed_tuning_families=("accel",),
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.accel_shadow_eligible"] = True
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 3000.0
+    world.facts["printer_1.print_accel_mm_s2"] = 2500.0
+
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_BIG" not in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_BIG" not in action_ids
+
+
+def test_candidate_actions_prefer_recent_verified_accel_value_over_divergent_readback(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=29.0))
+    serial = FakeSerialWriter([], print_accel_mm_s2=2500.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            planner_allowed_tuning_families=("accel",),
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    recent_results = [
+        {
+            "action_id": "A_PRUSA_TRIM_ACCEL_DOWN_SMALL",
+            "status": "DONE",
+            "updated_ts_ms": int((time.time() - 60.0) * 1000),
+            "result": {"print_accel_mm_s2": 2700.0},
+        }
+    ]
+    world = _world_from_pack(pack, whiteboard, recent_results=recent_results)
+    world.facts["printer_1.accel_shadow_eligible"] = True
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 3000.0
+    world.facts["printer_1.print_accel_mm_s2"] = 2500.0
+
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_SMALL" in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_BIG" not in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_UP_BIG" not in action_ids
+
+
+def test_accel_shadow_actions_stabilize_relative_space_when_readback_skews_low(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=29.0))
+    serial = FakeSerialWriter([], print_accel_mm_s2=2500.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+
+    shadow = pack._derive_accel_shadow_state(
+        lifecycle="PRINTING",
+        job_active=True,
+        printing_phase="active_printing",
+        live_tuning_available=True,
+        planner_family_enabled=True,
+        accel_tuning_verification_enabled=True,
+        job_progress_pct=29.0,
+        print_accel_mm_s2=2500.0,
+        active_print_accel_baseline_mm_s2=3000.0,
+        late_tuning_symptom_active=False,
+    )
+
+    assert shadow["eligible"] is True
+    assert shadow["actions_text"] == (
+        "A_PRUSA_TRIM_ACCEL_DOWN_SMALL|A_PRUSA_TRIM_ACCEL_DOWN_BIG|"
+        "A_PRUSA_TRIM_ACCEL_UP_SMALL|A_PRUSA_TRIM_ACCEL_UP_BIG"
+    )
+
+
+def test_experimental_new_families_require_verification_support(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=6.0))
+    serial = FakeSerialWriter([])
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=False,
+            accel_tuning_verification_enabled=False,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    action_ids = {action.action_id for action in pack.candidate_actions(world)}
+
+    assert world.facts["printer_1.pressure_advance_shadow_eligible"] is False
+    assert world.facts["printer_1.accel_shadow_eligible"] is False
+    assert "pressure_advance_verification_unavailable" in (world.facts["printer_1.pressure_advance_shadow_blockers"] or "")
+    assert "accel_verification_unavailable" in (world.facts["printer_1.accel_shadow_blockers"] or "")
+    assert "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL" not in action_ids
+    assert "A_PRUSA_TRIM_ACCEL_DOWN_SMALL" not in action_ids
+
+
+def test_operator_actions_restore_new_family_defaults_only_when_baseline_known(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=6.0))
+    serial = FakeSerialWriter([], pressure_advance=0.06, print_accel_mm_s2=2500.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=False,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.accel_shadow_eligible"] = True
+
+    operator_ids = {action.action_id for action in pack.operator_actions(world)}
+
+    assert "A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT" in operator_ids
+    assert "A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT" in operator_ids
+
+    world.facts["printer_1.active_pressure_advance_baseline"] = None
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = None
+    operator_ids_without_baseline = {action.action_id for action in pack.operator_actions(world)}
+
+    assert "A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT" not in operator_ids_without_baseline
+    assert "A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT" not in operator_ids_without_baseline
+
+
+def test_operator_actions_use_active_baseline_relative_targets_for_pressure_advance_and_accel(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=6.0))
+    serial = FakeSerialWriter([], pressure_advance=0.04, print_accel_mm_s2=2000.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.pressure_advance_shadow_eligible"] = True
+    world.facts["printer_1.accel_shadow_eligible"] = True
+    world.facts["printer_1.active_pressure_advance_baseline"] = 0.04
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 2000.0
+    world.facts["printer_1.pressure_advance"] = 0.04
+    world.facts["printer_1.print_accel_mm_s2"] = 2000.0
+
+    operator_actions = {action.action_id: action for action in pack.operator_actions(world)}
+
+    assert operator_actions["A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL"].args["target_pressure_advance"] == 0.036
+    assert operator_actions["A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL"].args["target_pressure_advance"] == 0.044
+    assert operator_actions["A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_BIG"].args["target_pressure_advance"] == 0.032
+    assert operator_actions["A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG"].args["target_pressure_advance"] == 0.048
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_DOWN_SMALL"].args["target_print_accel_mm_s2"] == 1800.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_UP_SMALL"].args["target_print_accel_mm_s2"] == 2200.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_DOWN_BIG"].args["target_print_accel_mm_s2"] == 1600.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_UP_BIG"].args["target_print_accel_mm_s2"] == 2400.0
+
+
+def test_operator_actions_keep_relative_accel_targets_compatible_with_high_active_baseline(tmp_path):
+    http = FakeHttp(status=_printing_status(progress=6.0))
+    serial = FakeSerialWriter([], pressure_advance=0.03, print_accel_mm_s2=7000.0)
+    pack = Pack(
+        _manifest(),
+        http_client=http,
+        serial_writer=serial,
+        settings=_settings(
+            tmp_path,
+            serial_enabled=True,
+            experimental=True,
+            speed_tuning_verification_enabled=True,
+            flow_tuning_verification_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        ),
+    )
+    whiteboard = InMemoryWhiteboard()
+    world = _world_from_pack(pack, whiteboard)
+    world.facts["printer_1.accel_shadow_eligible"] = True
+    world.facts["printer_1.active_print_accel_baseline_mm_s2"] = 7000.0
+    world.facts["printer_1.print_accel_mm_s2"] = 7000.0
+
+    operator_actions = {action.action_id: action for action in pack.operator_actions(world)}
+
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_DOWN_SMALL"].args["target_print_accel_mm_s2"] == 6300.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_DOWN_BIG"].args["target_print_accel_mm_s2"] == 5600.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_UP_SMALL"].args["target_print_accel_mm_s2"] == 7700.0
+    assert operator_actions["A_PRUSA_TRIM_ACCEL_UP_BIG"].args["target_print_accel_mm_s2"] == 8400.0
 
 
 def test_pack_close_closes_serial_writer(tmp_path):
@@ -1828,7 +2571,7 @@ def test_candidate_actions_safe_part_without_handler_calls_human_to_unload(tmp_p
 
 
 def test_realize_pause_start_and_speed_trim_update_state(tmp_path):
-    http = FakeHttp(status=_printing_status())
+    http = FakeHttp(status=_printing_status(progress=2.0, time_printing=12.0))
     serial = FakeSerialWriter([])
 
     def send_and_apply(command: str) -> None:
@@ -1847,12 +2590,13 @@ def test_realize_pause_start_and_speed_trim_update_state(tmp_path):
             serial_enabled=True,
             speed_tuning_verification_enabled=True,
             flow_tuning_verification_enabled=True,
+            live_tuning_min_progress_pct=5.0,
         ),
     )
     whiteboard = InMemoryWhiteboard()
 
     world = _world_from_pack(pack, whiteboard)
-    pause = next(action for action in pack.candidate_actions(world) if action.verb == "PAUSE_PROCESS")
+    pause = SimpleNamespace(verb="PAUSE_PROCESS")
     result = pack._realize(pause, whiteboard)
     assert result["lifecycle"] == "PAUSED"
     assert http.commands[-1][0] == "pause"
@@ -1921,6 +2665,65 @@ def test_publish_raw_state_degrades_cleanly_when_http_is_unavailable(tmp_path):
 
     assert whiteboard.get("printer_1.raw.connected") is False
     assert whiteboard.get("printer_1.raw.health") == "OFFLINE"
+
+
+def test_publish_raw_state_reuses_last_active_print_state_on_transient_status_timeout(tmp_path):
+    status = {
+        "printer": {
+            "state": "PRINTING",
+            "temp_bed": 60.0,
+            "target_bed": 60.0,
+            "temp_nozzle": 220.0,
+            "target_nozzle": 220.0,
+            "flow": 100,
+            "speed": 100,
+        },
+        "job": {
+            "id": 270,
+            "state": "PRINTING",
+            "progress": 64.0,
+            "time_printing": 640.0,
+            "time_remaining": 120.0,
+        },
+    }
+    job = {
+        "id": 270,
+        "state": "PRINTING",
+        "progress": 64.0,
+        "time_printing": 640.0,
+        "time_remaining": 120.0,
+        "file": {
+            "name": "STRIN~27.BGC",
+            "display_name": "Stringing_Test_PLA_COREONE.bgcode",
+            "path": "/usb",
+        },
+    }
+    http = FlakyStatusHttp(status=status)
+    http.job = job
+    pack = Pack(_manifest(), http_client=http, settings=_settings(tmp_path))
+    whiteboard = InMemoryWhiteboard()
+
+    pack.publish_raw_state(whiteboard)
+    assert whiteboard.get("printer_1.raw.lifecycle") == "PRINTING"
+    assert whiteboard.get("printer_1.raw.job_active") is True
+    assert whiteboard.get("printer_1.raw.current_file") == "Stringing_Test_PLA_COREONE.bgcode"
+
+    http.fail_status_reads = True
+    pack.publish_raw_state(whiteboard)
+
+    assert whiteboard.get("printer_1.raw.connected") is False
+    assert whiteboard.get("printer_1.raw.health") == "OFFLINE"
+    assert whiteboard.get("printer_1.raw.lifecycle") == "PRINTING"
+    assert whiteboard.get("printer_1.raw.job_active") is True
+    assert whiteboard.get("printer_1.raw.current_file") == "Stringing_Test_PLA_COREONE.bgcode"
+    assert whiteboard.get("printer_1.raw.status_fault_temporary") is True
+    assert whiteboard.get("printer_1.raw.status_fault_reused_last_good") is True
+
+    world = _world_from_pack(pack, whiteboard)
+    assert world.facts["printer_1.lifecycle"] == "PRINTING"
+    assert world.facts["printer_1.job_active"] is True
+    assert world.facts["printer_1.status_fault_temporary"] is True
+    assert any("temporarily unreachable" in blocker for blocker in world.blockers)
 
 
 def test_registry_can_load_prusa_pack_without_touching_hardware(monkeypatch, tmp_path):

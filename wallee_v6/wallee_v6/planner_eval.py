@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from .config import Config
+from .models import _action_direction_from_id, _action_family_from_id, _action_magnitude_from_id
 from .planner import OpenRouterPlanner, PromptPackage
 
 
@@ -136,6 +137,226 @@ ACTION_CATALOG: dict[str, dict[str, Any]] = {
         "id": "A_PRUSA_TRIM_BED_DOWN_SMALL",
         "verb": "TUNE_BED_TARGET",
         "description": "Lower bed target temperature by 5C while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_SPEED_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_BIG",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed by a larger bounded step while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_SPEED_UP_SMALL": {
+        "id": "A_PRUSA_TRIM_SPEED_UP_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Increase print speed a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_SPEED_UP_BIG": {
+        "id": "A_PRUSA_TRIM_SPEED_UP_BIG",
+        "verb": "TUNE_SPEED",
+        "description": "Increase print speed by a larger bounded step while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT": {
+        "id": "A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT",
+        "verb": "TUNE_SPEED",
+        "description": "Restore print speed to the job default while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_FLOW_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_FLOW_DOWN_BIG",
+        "verb": "TUNE_FLOW",
+        "description": "Reduce flow by a larger bounded step while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_FLOW_UP_SMALL": {
+        "id": "A_PRUSA_TRIM_FLOW_UP_SMALL",
+        "verb": "TUNE_FLOW",
+        "description": "Increase flow a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_FLOW_UP_BIG": {
+        "id": "A_PRUSA_TRIM_FLOW_UP_BIG",
+        "verb": "TUNE_FLOW",
+        "description": "Increase flow by a larger bounded step while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT": {
+        "id": "A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT",
+        "verb": "TUNE_FLOW",
+        "description": "Restore flow to the job default while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_NOZZLE_UP_BIG": {
+        "id": "A_PRUSA_TRIM_NOZZLE_UP_BIG",
+        "verb": "TUNE_NOZZLE_TARGET",
+        "description": "Raise nozzle target temperature by 10C while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_NOZZLE_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_NOZZLE_DOWN_BIG",
+        "verb": "TUNE_NOZZLE_TARGET",
+        "description": "Lower nozzle target temperature by 10C while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_BED_UP_BIG": {
+        "id": "A_PRUSA_TRIM_BED_UP_BIG",
+        "verb": "TUNE_BED_TARGET",
+        "description": "Raise bed target temperature by 10C while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_BED_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_BED_DOWN_BIG",
+        "verb": "TUNE_BED_TARGET",
+        "description": "Lower bed target temperature by 10C while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL": {
+        "id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL",
+        "verb": "TUNE_PRESSURE_ADVANCE",
+        "description": "Reduce pressure advance by a small bounded step to bleed off nozzle pressure less aggressively during starts, stops, and direction changes while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_BIG",
+        "verb": "TUNE_PRESSURE_ADVANCE",
+        "description": "Reduce pressure advance by a larger bounded step to bleed off nozzle pressure less aggressively during starts, stops, and direction changes while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL": {
+        "id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "verb": "TUNE_PRESSURE_ADVANCE",
+        "description": "Increase pressure advance by a small bounded step to bleed off leftover nozzle pressure more aggressively during starts, stops, and direction changes while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG": {
+        "id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG",
+        "verb": "TUNE_PRESSURE_ADVANCE",
+        "description": "Increase pressure advance by a larger bounded step to bleed off leftover nozzle pressure more aggressively during starts, stops, and direction changes while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT": {
+        "id": "A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT",
+        "verb": "TUNE_PRESSURE_ADVANCE",
+        "description": "Restore pressure advance to the job default while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_ACCEL_DOWN_SMALL": {
+        "id": "A_PRUSA_TRIM_ACCEL_DOWN_SMALL",
+        "verb": "TUNE_PRINT_ACCEL",
+        "description": "Reduce print acceleration by a small bounded step to make pull-away moves gentler while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_ACCEL_DOWN_BIG": {
+        "id": "A_PRUSA_TRIM_ACCEL_DOWN_BIG",
+        "verb": "TUNE_PRINT_ACCEL",
+        "description": "Reduce print acceleration by a larger bounded step to make pull-away moves gentler while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_ACCEL_UP_SMALL": {
+        "id": "A_PRUSA_TRIM_ACCEL_UP_SMALL",
+        "verb": "TUNE_PRINT_ACCEL",
+        "description": "Increase print acceleration by a small bounded step to make departures more aggressive and reduce dwell while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_TRIM_ACCEL_UP_BIG": {
+        "id": "A_PRUSA_TRIM_ACCEL_UP_BIG",
+        "verb": "TUNE_PRINT_ACCEL",
+        "description": "Increase print acceleration by a larger bounded step to make departures more aggressive and reduce dwell while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": False,
+        "expected_delta": [],
+    },
+    "A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT": {
+        "id": "A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT",
+        "verb": "TUNE_PRINT_ACCEL",
+        "description": "Restore print acceleration to the job default while keeping the current print running.",
         "args": {},
         "target_device": "printer_1",
         "hazard_class": "low",
@@ -396,16 +617,7 @@ def _artifact_last_result_notes(payload: dict[str, Any]) -> list[dict[str, Any]]
 
 
 def _family_for_action(action_id: str) -> str:
-    text = action_id.upper()
-    if "SPEED" in text:
-        return "speed"
-    if "FLOW" in text:
-        return "flow"
-    if "NOZZLE" in text:
-        return "nozzle"
-    if "BED" in text:
-        return "bed"
-    return "other"
+    return _action_family_from_id(action_id) or "other"
 
 
 def _family_blockers_from_world(world_view: dict[str, Any]) -> dict[str, list[str]]:
@@ -414,6 +626,8 @@ def _family_blockers_from_world(world_view: dict[str, Any]) -> dict[str, list[st
         "flow": _split_blockers(world_view.get("flow_shadow_blockers")),
         "nozzle": _split_blockers(world_view.get("nozzle_shadow_blockers")),
         "bed": _split_blockers(world_view.get("bed_shadow_blockers")),
+        "pressure_advance": _split_blockers(world_view.get("pressure_advance_shadow_blockers")),
+        "accel": _split_blockers(world_view.get("accel_shadow_blockers")),
     }
 
 
@@ -434,6 +648,71 @@ def _timestamp_from_artifact_name(name: str) -> str:
     return f"{raw[:10]}T{raw[11:13]}:{raw[13:15]}:{raw[15:17]}Z"
 
 
+def _planner_tuning_action_space_from_ids(frontier_ids: list[str]) -> dict[str, dict[str, Any]]:
+    space: dict[str, dict[str, Any]] = {}
+    for action_id in frontier_ids:
+        family = _action_family_from_id(action_id)
+        direction = _action_direction_from_id(action_id)
+        magnitude = _action_magnitude_from_id(action_id)
+        if family is None or direction is None or magnitude is None:
+            continue
+        entry = space.setdefault(
+            family,
+            {
+                "family": family,
+                "allowed_directions": [],
+                "allowed_magnitudes": [],
+            },
+        )
+        if direction not in entry["allowed_directions"]:
+            entry["allowed_directions"].append(direction)
+        if magnitude not in entry["allowed_magnitudes"]:
+            entry["allowed_magnitudes"].append(magnitude)
+    return space
+
+
+def _materialized_sequence(plan_payload: dict[str, Any], planner_input: dict[str, Any]) -> list[str]:
+    sequence = [str(item) for item in (plan_payload.get("sequence") or [])]
+    if sequence:
+        return sequence
+    tuning_choice = plan_payload.get("tuning_choice")
+    if not isinstance(tuning_choice, dict):
+        return []
+    family = str(tuning_choice.get("family") or "").strip()
+    direction = str(tuning_choice.get("direction") or "").strip()
+    magnitude = str(tuning_choice.get("magnitude") or "").strip()
+    if not family or not direction or not magnitude:
+        return []
+    frontier_ids = planner_input.get("decision_signals", {}).get("allowed_frontier_ids", [])
+    if not isinstance(frontier_ids, list):
+        frontier_ids = []
+    matches = [
+        str(action_id)
+        for action_id in frontier_ids
+        if _action_family_from_id(str(action_id)) == family
+        and _action_direction_from_id(str(action_id)) == direction
+        and _action_magnitude_from_id(str(action_id)) == magnitude
+    ]
+    return matches[:1]
+
+
+def _backfill_tuning_action_space(planner_input: dict[str, Any]) -> dict[str, Any]:
+    decision_signals = planner_input.get("decision_signals")
+    if not isinstance(decision_signals, dict):
+        return planner_input
+    tuning_action_space = decision_signals.get("tuning_action_space")
+    if isinstance(tuning_action_space, dict):
+        return planner_input
+    allowed_frontier_ids = decision_signals.get("allowed_frontier_ids", [])
+    if not isinstance(allowed_frontier_ids, list):
+        allowed_frontier_ids = []
+    cloned = json.loads(json.dumps(planner_input))
+    cloned.setdefault("decision_signals", {})["tuning_action_space"] = _planner_tuning_action_space_from_ids(
+        [str(action_id) for action_id in allowed_frontier_ids]
+    )
+    return cloned
+
+
 def derive_case_from_artifact(
     repo_root: Path,
     *,
@@ -449,11 +728,11 @@ def derive_case_from_artifact(
     raw_payload = _artifact_payload(repo_root, source_artifact)
     raw_payload["source_artifact_name"] = Path(source_artifact).name
     if "planner_input" in raw_payload and step_index is None and isinstance(raw_payload["planner_input"], dict):
-        planner_input = raw_payload["planner_input"]
+        planner_input = _backfill_tuning_action_space(raw_payload["planner_input"])
     else:
         payload = _maybe_step_payload(raw_payload, step_index=step_index)
         if isinstance(payload.get("planner_input"), dict):
-            planner_input = payload["planner_input"]
+            planner_input = _backfill_tuning_action_space(payload["planner_input"])
         else:
             world_view = payload.get("world") or {}
             frontier_ids = payload.get("shadow_frontier_ids") or world_view.get("frontier_ids") or []
@@ -468,7 +747,9 @@ def derive_case_from_artifact(
                 "last_result": {},
                 "pending_human": [],
                 "decision_contract": {
-                    "frontier_only": True,
+                    "explicit_frontier_non_tuning_only": True,
+                    "tuning_action_space_independently_legal": True,
+                    "do_not_infer_tuning_illegality_from_explicit_frontier": True,
                     "max_actions": 1,
                     "prefer_bounded_action_when_supported": True,
                     "one_family_at_a_time": True,
@@ -483,6 +764,7 @@ def derive_case_from_artifact(
                     "last_result_notes": _artifact_last_result_notes(raw_payload),
                     "family_blockers": _family_blockers_from_world(world_view),
                     "allowed_frontier_ids": list(frontier_ids),
+                    "tuning_action_space": _planner_tuning_action_space_from_ids(list(frontier_ids)),
                 },
             }
     return EvalCase(
@@ -501,12 +783,13 @@ def load_eval_case(path: str | Path) -> EvalCase:
     path = Path(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     if "case_id" in payload:
+        planner_input = _backfill_tuning_action_space(payload["planner_input"])
         return EvalCase(
             case_id=payload["case_id"],
             category=payload["category"],
             source_artifact=payload["source_artifact"],
             goal=payload["goal"],
-            planner_input=payload["planner_input"],
+            planner_input=planner_input,
             expected_decision=payload["expected_decision"],
             allowed_sequences=payload["allowed_sequences"],
             expected_reason_tags=payload["expected_reason_tags"],
@@ -545,15 +828,31 @@ def load_case_set(repo_root: Path) -> list[EvalCase]:
 
 def score_plan(case: EvalCase, plan_payload: dict[str, Any]) -> EvalScore:
     decision = str(plan_payload.get("decision") or "")
-    sequence = [str(item) for item in (plan_payload.get("sequence") or [])]
+    sequence = _materialized_sequence(plan_payload, case.planner_input)
     exact_match = (
         decision == str(case.expected_decision.get("decision") or "")
         and sequence == [str(item) for item in (case.expected_decision.get("sequence") or [])]
     )
     allowed_sequence_match = sequence in case.allowed_sequences
     allowed_ids = set(case.planner_input.get("decision_signals", {}).get("allowed_frontier_ids", []))
-    frontier_only_compliance = all(item in allowed_ids for item in sequence)
-    one_action_compliance = len(sequence) <= 1
+    explicit_sequence = [str(item) for item in (plan_payload.get("sequence") or [])]
+    tuning_choice = plan_payload.get("tuning_choice")
+    tuning_space = case.planner_input.get("decision_signals", {}).get("tuning_action_space", {})
+    if not isinstance(tuning_space, dict):
+        tuning_space = {}
+    tuning_choice_legal = True
+    if isinstance(tuning_choice, dict):
+        family = str(tuning_choice.get("family") or "").strip()
+        direction = str(tuning_choice.get("direction") or "").strip()
+        magnitude = str(tuning_choice.get("magnitude") or "").strip()
+        entry = tuning_space.get(family)
+        tuning_choice_legal = (
+            isinstance(entry, dict)
+            and direction in (entry.get("allowed_directions") or [])
+            and magnitude in (entry.get("allowed_magnitudes") or [])
+        )
+    frontier_only_compliance = all(item in allowed_ids for item in sequence) and tuning_choice_legal
+    one_action_compliance = len(sequence) <= 1 and len(explicit_sequence) <= 1
     reason_text = f"{plan_payload.get('why') or ''} {plan_payload.get('call_human_message') or ''}".lower()
     reason_tag_coverage = all(tag.lower() in reason_text for tag in case.expected_reason_tags) if case.expected_reason_tags else True
     passed = (
@@ -697,16 +996,17 @@ def compare_prompt_packages(repo_root: Path) -> dict[str, Any]:
     return {
         "generated_at": _utc_now_iso(),
         "baseline_prompt_changes": [
-            "choose only from decision_signals.allowed_frontier_ids",
+            "treat decision_signals.allowed_frontier_ids as non-tuning explicit safety/operator IDs only",
+            "choose bounded tuning from decision_signals.tuning_action_space when fresh evidence supports it",
             "emit at most one action ID",
-            "prefer NO_ACTION when allowed_frontier_ids is empty, blockers remain, or evidence is weak/conflicting",
+            "prefer NO_ACTION when blockers remain or evidence is weak/conflicting after checking both explicit and tuning legality",
             "respect one-family-at-a-time execution",
         ],
         "context_schema_changes": [
             "persisted JobNotebook v1.0 schema",
             "derived ActiveNotes decision-time selector",
             "WorldPacket.prompt_view() adds decision_contract",
-            "WorldPacket.prompt_view() adds decision_signals with notebook notes, family blockers, last-result notes, and allowed_frontier_ids",
+            "WorldPacket.prompt_view() adds decision_signals with notebook notes, family blockers, last-result notes, allowed_frontier_ids, and tuning_action_space",
         ],
         "decision_improvement": {
             "improved_cases": improved_cases,

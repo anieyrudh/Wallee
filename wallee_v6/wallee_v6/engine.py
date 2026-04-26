@@ -1,4 +1,4 @@
-"""Deterministic execution engine for Wallee v6."""
+"""Deterministic execution engine for Wallee v6.5."""
 
 from __future__ import annotations
 
@@ -19,6 +19,9 @@ from .models import (
     PlanIR,
     PlanRecord,
     WorldPacket,
+    _action_direction_from_id,
+    _action_family_from_id,
+    _action_magnitude_from_id,
 )
 from .planning_context import WorldCompiler
 from .predicates import PredicateEvaluator, all_of
@@ -119,6 +122,7 @@ class Engine:
 
     def validate_plan(self, world: WorldPacket, plan: PlanIR) -> list[LegalAction]:
         """Validate that *plan* only references current frontier actions."""
+        plan = self.materialize_plan(world, plan)
         frontier = {action.action_id: action for action in world.frontier}
 
         if plan.decision == "NO_ACTION":
@@ -137,6 +141,38 @@ class Engine:
             actions.append(frontier[action_id])
         return actions
 
+    def materialize_plan(self, world: WorldPacket, plan: PlanIR) -> PlanIR:
+        """Resolve compact tuning choices into one exact legal frontier action."""
+        if plan.decision != "EXECUTE" or plan.tuning_choice is None:
+            return plan
+        matches = [
+            action.action_id
+            for action in world.frontier
+            if _action_family_from_id(action.action_id) == plan.tuning_choice.family
+            and _action_direction_from_id(action.action_id) == plan.tuning_choice.direction
+            and _action_magnitude_from_id(action.action_id) == plan.tuning_choice.magnitude
+        ]
+        if plan.sequence:
+            if len(matches) == 1:
+                return plan.model_copy(update={"sequence": [matches[0]], "tuning_choice": None})
+            return PlanIR(
+                decision="NO_ACTION",
+                sequence=[],
+                tuning_choice=None,
+                why=(
+                    "Malformed planner output included both an explicit sequence and a tuning choice, and the tuning "
+                    "choice did not resolve cleanly to one legal action. Skip this cycle."
+                ),
+                call_human_message=None,
+            )
+        if len(matches) != 1:
+            raise ValueError(
+                "compact tuning choice did not resolve to exactly one legal frontier action "
+                f"({plan.tuning_choice.family=} {plan.tuning_choice.direction=} "
+                f"{plan.tuning_choice.magnitude=} matches={matches})"
+            )
+        return plan.model_copy(update={"sequence": [matches[0]], "tuning_choice": None})
+
     def execute_plan(self, goal: str, world: WorldPacket, plan: PlanIR) -> ExecutionReport:
         """Execute a short-horizon plan.
 
@@ -144,6 +180,7 @@ class Engine:
         later refusal or approval block still leaves a durable record of what the
         planner wanted.
         """
+        plan = self.materialize_plan(world, plan)
         plan_id = new_id("plan")
         run_scope = _run_scope_from_world(world)
         self.runtime_db.store_plan(
@@ -332,21 +369,30 @@ class Engine:
 
     def _execute_builtin(self, action: LegalAction, goal: str) -> ExecutionResult:
         if action.verb == "WAIT_UNTIL":
-            timeout_s = int(action.args.get("timeout_s", 1) or 1)
+            raw_timeout_s = action.args.get("timeout_s", 1)
+            timeout_s = 1.0 if raw_timeout_s is None else max(0.0, float(raw_timeout_s))
+            raw_slice_s = action.args.get("slice_s", 2.0)
+            slice_s = 2.0 if raw_slice_s is None else max(0.0, float(raw_slice_s))
             nonfatal_timeout = bool(action.args.get("nonfatal_timeout", False))
-            deadline = time.monotonic() + timeout_s
+            wait_slice_s = min(timeout_s, slice_s)
+            deadline = time.monotonic() + wait_slice_s
             predicate = action.verify or action.preconditions
             while time.monotonic() < deadline:
                 world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
                 if self.predicate_evaluator.evaluate(predicate, world.facts):
                     return ExecutionResult(status="success", result={"waited": True})
-                time.sleep(0.05)
+                remaining_s = deadline - time.monotonic()
+                if remaining_s <= 0.0:
+                    break
+                time.sleep(min(0.05, remaining_s))
             if nonfatal_timeout:
                 return ExecutionResult(
                     status="success",
                     result={
                         "waited": True,
                         "predicate_satisfied": False,
+                        "wait_pending": True,
+                        "wait_slice_s": wait_slice_s,
                         "wait_timed_out": True,
                         "nonfatal_timeout": True,
                     },
@@ -399,6 +445,20 @@ class Engine:
 
         self._publish_raw_state(mode="verify")
         verified_world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
+        wait_pending = (
+            action.verb == "WAIT_UNTIL"
+            and isinstance(result.result, dict)
+            and bool(result.result.get("nonfatal_timeout"))
+        )
+        if wait_pending:
+            self.runtime_db.transition_action_run(
+                action_run_id,
+                ActionRunStatus.DONE,
+                result=_enrich_result_with_verified_world(result.result, verified_world),
+            )
+            report.post_execution_world = verified_world
+            report.notes.append(f"wait still pending for {action.action_id}")
+            return report
         if self._verify_action(action, verified_world):
             self.runtime_db.transition_action_run(
                 action_run_id,
@@ -454,12 +514,18 @@ def _world_vision_signal(world: WorldPacket) -> dict[str, Any]:
     usable = bool(facts.get("printer_1.nozzle_cam_usable", False)) and bool(summary)
     strength = _normalize_strength(facts.get("printer_1.vision_advisory_strength"))
     issue_level = _normalize_issue_level(facts.get("printer_1.vision_advisory_issue_level"))
+    comparison_delta = str(facts.get("printer_1.vision_comparison_delta") or "").strip() or None
+    comparison_confidence = _normalize_strength(facts.get("printer_1.vision_comparison_confidence"))
+    comparison_summary = str(facts.get("printer_1.vision_comparison_summary") or "").strip() or None
     return {
         "usable": usable,
         "summary": summary if usable else None,
         "finding_types": finding_types if usable else [],
         "strength": strength if usable else None,
         "issue_level": issue_level if usable else None,
+        "comparison_delta": comparison_delta if usable else None,
+        "comparison_confidence": comparison_confidence if usable else None,
+        "comparison_summary": comparison_summary if usable else None,
     }
 
 

@@ -49,6 +49,18 @@ def _resolve_csv_env(primary: str, *aliases: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def _default_vision_advisory_interval_s() -> float:
+    explicit = os.environ.get("PRUSA_CORE_ONE_VISION_ADVISORY_INTERVAL_S")
+    if explicit is not None and explicit.strip():
+        return float(explicit)
+    planner_interval_s = max(0.0, float(os.environ.get("WALLEE_PLANNER_MIN_INTERVAL_S", "0.0")))
+    planner_vision_lead_s = max(0.0, float(os.environ.get("WALLEE_PLANNER_VISION_LEAD_S", "15.0")))
+    derived = planner_interval_s - planner_vision_lead_s
+    if derived <= 0.0:
+        return 10.0
+    return max(1.0, derived)
+
+
 @dataclass(slots=True)
 class PrusaCoreOneSettings:
     """Runtime settings for the Prusa CORE One/+ pack."""
@@ -71,6 +83,7 @@ class PrusaCoreOneSettings:
     notebook_download_enabled: bool
     notebook_lookahead_pct: float
     enable_experimental_tuning: bool
+    planner_allowed_tuning_families: tuple[str, ...] = ()
     speed_tuning_verification_enabled: bool = False
     flow_tuning_verification_enabled: bool = False
     nozzle_camera_host: str = "127.0.0.1"
@@ -87,6 +100,35 @@ class PrusaCoreOneSettings:
     live_tuning_max_progress_pct: float = 95.0
     live_tuning_symptom_max_progress_pct: float = 99.0
     wait_cool_step_timeout_s: float = 30.0
+    speed_small_step_pct: float = 5.0
+    speed_big_step_pct: float = 10.0
+    speed_min_pct: float = 65.0
+    speed_default_pct: float = 100.0
+    speed_max_pct: float = 135.0
+    flow_small_step_pct: float = 5.0
+    flow_big_step_pct: float = 10.0
+    flow_min_pct: float = 65.0
+    flow_default_pct: float = 100.0
+    flow_max_pct: float = 135.0
+    temp_small_step_c: float = 5.0
+    temp_big_step_c: float = 10.0
+    pressure_advance_small_step_pct: float = 10.0
+    pressure_advance_big_step_pct: float = 20.0
+    pressure_advance_envelope_pct: float = 25.0
+    pressure_advance_min: float = 0.0
+    pressure_advance_max: float = 0.12
+    pressure_advance_tuning_verification_enabled: bool = False
+    accel_small_step_pct: float = 10.0
+    accel_big_step_pct: float = 20.0
+    accel_envelope_pct: float = 25.0
+    accel_min_mm_s2: float = 500.0
+    accel_max_mm_s2: float = 12000.0
+    accel_tuning_verification_enabled: bool = False
+    family_big_cooldown_s: float = 60.0
+    tuning_settle_window_s: float = 25.0
+    thermal_tuning_settle_window_s: float = 60.0
+    pressure_advance_tuning_settle_window_s: float = 45.0
+    accel_tuning_settle_window_s: float = 45.0
 
     @classmethod
     def from_env(cls) -> "PrusaCoreOneSettings":
@@ -114,6 +156,14 @@ class PrusaCoreOneSettings:
             notebook_lookahead_pct=float(os.environ.get("PRUSA_CORE_ONE_NOTEBOOK_LOOKAHEAD_PCT", "5.0")),
             enable_experimental_tuning=os.environ.get("PRUSA_CORE_ONE_ENABLE_EXPERIMENTAL_TUNING", "0").strip()
             not in {"0", "false", "False"},
+            planner_allowed_tuning_families=tuple(
+                family
+                for family in (
+                    value.strip().lower()
+                    for value in os.environ.get("PRUSA_CORE_ONE_PLANNER_ALLOWED_TUNING_FAMILIES", "").split(",")
+                )
+                if family
+            ),
             speed_tuning_verification_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_SPEED_TUNING_VERIFICATION", "0").strip()
             not in {"0", "false", "False"},
             flow_tuning_verification_enabled=os.environ.get("PRUSA_CORE_ONE_ENABLE_FLOW_TUNING_VERIFICATION", "0").strip()
@@ -138,13 +188,62 @@ class PrusaCoreOneSettings:
             or "google/gemini-3.1-flash-lite-preview",
             enable_vision_debug_context=os.environ.get("PRUSA_CORE_ONE_ENABLE_VISION_DEBUG_CONTEXT", "0").strip()
             not in {"0", "false", "False"},
-            vision_advisory_interval_s=float(os.environ.get("PRUSA_CORE_ONE_VISION_ADVISORY_INTERVAL_S", "10.0")),
+            vision_advisory_interval_s=_default_vision_advisory_interval_s(),
             live_tuning_min_progress_pct=float(os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_MIN_PROGRESS_PCT", "5.0")),
             live_tuning_max_progress_pct=float(os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_MAX_PROGRESS_PCT", "95.0")),
             live_tuning_symptom_max_progress_pct=float(
                 os.environ.get("PRUSA_CORE_ONE_LIVE_TUNING_SYMPTOM_MAX_PROGRESS_PCT", "99.0")
             ),
             wait_cool_step_timeout_s=float(os.environ.get("PRUSA_CORE_ONE_WAIT_COOL_STEP_TIMEOUT_S", "30.0")),
+            speed_small_step_pct=float(os.environ.get("PRUSA_CORE_ONE_SPEED_SMALL_STEP_PCT", "5.0")),
+            speed_big_step_pct=float(os.environ.get("PRUSA_CORE_ONE_SPEED_BIG_STEP_PCT", "10.0")),
+            speed_min_pct=float(os.environ.get("PRUSA_CORE_ONE_SPEED_MIN_PCT", "65.0")),
+            speed_default_pct=float(os.environ.get("PRUSA_CORE_ONE_SPEED_DEFAULT_PCT", "100.0")),
+            speed_max_pct=float(os.environ.get("PRUSA_CORE_ONE_SPEED_MAX_PCT", "135.0")),
+            flow_small_step_pct=float(os.environ.get("PRUSA_CORE_ONE_FLOW_SMALL_STEP_PCT", "5.0")),
+            flow_big_step_pct=float(os.environ.get("PRUSA_CORE_ONE_FLOW_BIG_STEP_PCT", "10.0")),
+            flow_min_pct=float(os.environ.get("PRUSA_CORE_ONE_FLOW_MIN_PCT", "65.0")),
+            flow_default_pct=float(os.environ.get("PRUSA_CORE_ONE_FLOW_DEFAULT_PCT", "100.0")),
+            flow_max_pct=float(os.environ.get("PRUSA_CORE_ONE_FLOW_MAX_PCT", "135.0")),
+            temp_small_step_c=float(os.environ.get("PRUSA_CORE_ONE_TEMP_SMALL_STEP_C", "5.0")),
+            temp_big_step_c=float(os.environ.get("PRUSA_CORE_ONE_TEMP_BIG_STEP_C", "10.0")),
+            pressure_advance_small_step_pct=float(
+                os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_SMALL_STEP_PCT", "10.0")
+            ),
+            pressure_advance_big_step_pct=float(
+                os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_BIG_STEP_PCT", "20.0")
+            ),
+            pressure_advance_envelope_pct=float(
+                os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_ENVELOPE_PCT", "25.0")
+            ),
+            pressure_advance_min=float(os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_MIN", "0.0")),
+            pressure_advance_max=float(os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_MAX", "0.12")),
+            pressure_advance_tuning_verification_enabled=os.environ.get(
+                "PRUSA_CORE_ONE_ENABLE_PRESSURE_ADVANCE_TUNING_VERIFICATION",
+                "0",
+            ).strip()
+            not in {"0", "false", "False"},
+            accel_small_step_pct=float(os.environ.get("PRUSA_CORE_ONE_ACCEL_SMALL_STEP_PCT", "10.0")),
+            accel_big_step_pct=float(os.environ.get("PRUSA_CORE_ONE_ACCEL_BIG_STEP_PCT", "20.0")),
+            accel_envelope_pct=float(os.environ.get("PRUSA_CORE_ONE_ACCEL_ENVELOPE_PCT", "25.0")),
+            accel_min_mm_s2=float(os.environ.get("PRUSA_CORE_ONE_ACCEL_MIN_MM_S2", "500.0")),
+            accel_max_mm_s2=float(os.environ.get("PRUSA_CORE_ONE_ACCEL_MAX_MM_S2", "12000.0")),
+            accel_tuning_verification_enabled=os.environ.get(
+                "PRUSA_CORE_ONE_ENABLE_ACCEL_TUNING_VERIFICATION",
+                "0",
+            ).strip()
+            not in {"0", "false", "False"},
+            family_big_cooldown_s=float(os.environ.get("PRUSA_CORE_ONE_FAMILY_BIG_COOLDOWN_S", "60.0")),
+            tuning_settle_window_s=float(os.environ.get("PRUSA_CORE_ONE_TUNING_SETTLE_WINDOW_S", "25.0")),
+            thermal_tuning_settle_window_s=float(
+                os.environ.get("PRUSA_CORE_ONE_THERMAL_TUNING_SETTLE_WINDOW_S", "60.0")
+            ),
+            pressure_advance_tuning_settle_window_s=float(
+                os.environ.get("PRUSA_CORE_ONE_PRESSURE_ADVANCE_TUNING_SETTLE_WINDOW_S", "45.0")
+            ),
+            accel_tuning_settle_window_s=float(
+                os.environ.get("PRUSA_CORE_ONE_ACCEL_TUNING_SETTLE_WINDOW_S", "45.0")
+            ),
         )
 
 

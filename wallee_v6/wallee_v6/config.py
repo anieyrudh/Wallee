@@ -57,13 +57,21 @@ class Config:
     planner_backend: str
     openrouter_api_key: str | None
     openrouter_model: str
+    openrouter_response_healing: bool
     reasoning_effort: str
+    planner_request_timeout_seconds: float
+    planner_retry_attempts: int
+    planner_retry_backoff_seconds: float
+    planner_failures_before_no_action: int
+    planner_min_interval_seconds: float
+    planner_vision_lead_seconds: float
     frontier_limit: int
     delta_limit_per_device: int
     approval_ttl_seconds: int
     heartbeat_timeout_seconds: int
     runtime_poll_interval_seconds: float
     flush_state_on_start: bool
+    monitor_when_inactive: bool
     simulation_mode: bool
     enabled_packs: tuple[str, ...]
     auto_approve_low_hazard: bool
@@ -112,13 +120,26 @@ class Config:
             planner_backend=os.environ.get("WALLEE_PLANNER_BACKEND", "heuristic").strip().lower(),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY"),
             openrouter_model=os.environ.get("OPENROUTER_MODEL", "openai/gpt-5-mini").strip(),
+            openrouter_response_healing=os.environ.get("WALLEE_OPENROUTER_RESPONSE_HEALING", "1").strip()
+            not in {"0", "false", "False"},
             reasoning_effort=os.environ.get("WALLEE_REASONING_EFFORT", "low").strip().lower(),
+            planner_request_timeout_seconds=float(os.environ.get("WALLEE_PLANNER_REQUEST_TIMEOUT_S", "20.0")),
+            planner_retry_attempts=max(1, int(os.environ.get("WALLEE_PLANNER_RETRY_ATTEMPTS", "3"))),
+            planner_retry_backoff_seconds=max(0.0, float(os.environ.get("WALLEE_PLANNER_RETRY_BACKOFF_S", "1.0"))),
+            planner_failures_before_no_action=max(
+                1,
+                int(os.environ.get("WALLEE_PLANNER_FAILURES_BEFORE_NO_ACTION", "3")),
+            ),
+            planner_min_interval_seconds=max(0.0, float(os.environ.get("WALLEE_PLANNER_MIN_INTERVAL_S", "0.0"))),
+            planner_vision_lead_seconds=max(0.0, float(os.environ.get("WALLEE_PLANNER_VISION_LEAD_S", "15.0"))),
             frontier_limit=int(os.environ.get("WALLEE_FRONTIER_LIMIT", "8")),
             delta_limit_per_device=int(os.environ.get("WALLEE_DELTA_LIMIT_PER_DEVICE", "3")),
             approval_ttl_seconds=int(os.environ.get("WALLEE_APPROVAL_TTL_SECONDS", "120")),
             heartbeat_timeout_seconds=int(os.environ.get("WALLEE_HEARTBEAT_TIMEOUT_SECONDS", "3")),
             runtime_poll_interval_seconds=float(os.environ.get("WALLEE_RUNTIME_POLL_INTERVAL_S", "5.0")),
             flush_state_on_start=os.environ.get("WALLEE_FLUSH_STATE_ON_START", "1").strip()
+            not in {"0", "false", "False"},
+            monitor_when_inactive=os.environ.get("WALLEE_MONITOR_WHEN_INACTIVE", "0").strip()
             not in {"0", "false", "False"},
             simulation_mode=simulation_mode,
             enabled_packs=enabled,

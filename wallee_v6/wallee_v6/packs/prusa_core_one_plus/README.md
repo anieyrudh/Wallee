@@ -59,6 +59,9 @@ It sees bounded action IDs such as:
 - `A_PRUSA_RESUME`
 - `A_PRUSA_CANCEL`
 - `A_PRUSA_TRIM_SPEED_DOWN_SMALL`
+- `A_PRUSA_TRIM_SPEED_DOWN_BIG`
+- `A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL`
+- `A_PRUSA_TRIM_ACCEL_DOWN_SMALL`
 - optional experimental tuning actions when enabled
 
 ## Current status terms
@@ -76,10 +79,13 @@ It sees bounded action IDs such as:
 
 - lifecycle over HTTP
 - grounded notebook build from file metadata and G-code
-- bounded speed trim down through serial `M220`, verified through HTTP status
-- bounded flow trim down through `M221`
-- bounded nozzle target up/down through `M104`
-- bounded bed target up/down through `M140`
+- bounded `SMALL` and `BIG` speed trims through serial `M220`, verified through HTTP status
+- bounded `SMALL` and `BIG` flow trims through `M221`
+- bounded `SMALL` and `BIG` nozzle target up/down through `M104`
+- bounded `SMALL` and `BIG` bed target up/down through `M140`
+- experimental pressure advance trims through `M572`
+- experimental print acceleration trims through `M204`
+- per-family `BIG` cooldown facts and legality suppression
 
 ### Direct-hardware-proven
 
@@ -103,12 +109,15 @@ It sees bounded action IDs such as:
 
 - lifecycle over HTTP
 - grounded notebook build from file metadata and G-code
-- bounded speed trim down through serial `M220`, verified through HTTP status
-- bounded flow trim down through `M221`, verified through HTTP status
-- bounded nozzle target up/down through `M104`, verified through HTTP status
-- bounded bed target up/down through `M140`, verified through HTTP status
+- bounded `SMALL` and `BIG` speed trims through serial `M220`, verified through HTTP status
+- bounded `SMALL` and `BIG` flow trims through `M221`, verified through HTTP status
+- bounded `SMALL` and `BIG` nozzle target up/down through `M104`, verified through HTTP status
+- bounded `SMALL` and `BIG` bed target up/down through `M140`, verified through HTTP status
+- experimental pressure advance and print acceleration families only when enabled and verification support is available
 
-All current bounded trim families are now planner-enabled.
+Planner-visible `BIG` actions always trigger a same-family cooldown for `60s`.
+During that cooldown, planner-visible actions in that family are suppressed, but
+operator restore actions remain available.
 
 ## Limited live operation
 
@@ -133,6 +142,9 @@ not smoke-harness sessions. The runtime boundary stayed the same:
 - no planner-visible arbitrary motion
 - no planner-visible position control
 - no planner-visible arbitrary raw temperature/flow targets
+- no `M900` linear advance in v6.5
+- no `M201` global axis acceleration in v6.5
+- no `M205` jerk/advanced motion tuning in v6.5
 - no second controller
 
 ## The job notebook

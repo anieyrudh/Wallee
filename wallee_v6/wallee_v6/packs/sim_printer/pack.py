@@ -118,7 +118,7 @@ class Pack(BasePack):
                     description="Wait until the printed part is cool enough to unload",
                     owner_pack="builtin",
                     execute_ref="builtin.wait_until",
-                    args={"timeout_s": 300, "predicate": f"{self.DEVICE_ID}.safe_to_unload == true"},
+                    args={"timeout_s": 300, "slice_s": 2.0, "predicate": f"{self.DEVICE_ID}.safe_to_unload == true"},
                     required_locks=[],
                     preconditions=atom(f"{self.DEVICE_ID}.part_present", "==", True),
                     verify=atom(f"{self.DEVICE_ID}.safe_to_unload", "==", True),

@@ -1,0 +1,74 @@
+{
+  "world_example": {
+    "goal": "Reduce stringing while keeping the current print running.",
+    "decision_contract": {
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": [
+        "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL"
+      ],
+      "family_blockers": {
+        "speed": [],
+        "flow": ["flow_big_cooldown_active"],
+        "nozzle": [],
+        "bed": [],
+        "pressure_advance": [],
+        "accel": []
+      },
+      "vision_signal": {
+        "usable": true,
+        "summary": "vision:stringing; Thin strands are still visible, but the flow family is cooling down after a BIG trim.",
+        "finding_types": ["stringing"]
+      },
+      "temporal_action_context": {
+        "available": true,
+        "last_action_id": "A_PRUSA_TRIM_FLOW_DOWN_BIG",
+        "last_action_family": "flow",
+        "last_action_status": "DONE",
+        "last_action_outcome": "verified_effect",
+        "last_action_summary": "Flow decreased by a larger bounded step and the family is cooling down.",
+        "last_action_reason_tags": ["verified_effect", "flow_big_cooldown_active"],
+        "last_action_why": "Use one stronger extrusion change before re-evaluating.",
+        "last_action_observed_at": "2026-04-17T11:15:00Z",
+        "seconds_since_last_action": 20.0
+      }
+    },
+    "frontier": [
+      {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed slightly while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      },
+      {
+        "id": "A_PRUSA_TRIM_NOZZLE_DOWN_SMALL",
+        "verb": "TUNE_NOZZLE_TARGET",
+        "description": "Reduce nozzle target temperature slightly while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+    "why": "Do not choose another flow action while the flow family BIG cooldown is active. Choose one different executable family action that remains legal this cycle instead of violating the cooldown semantics."
+  }
+}

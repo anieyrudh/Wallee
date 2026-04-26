@@ -49,7 +49,7 @@ class DummyPack(BasePack):
         return {}
 
 
-def test_world_packet_truncates_deltas_and_frontier(runtime):
+def test_world_packet_keeps_full_frontier_but_limits_planner_prompt(runtime):
     config = runtime["config"]
     config.delta_limit_per_device = 2
     config.frontier_limit = 3
@@ -70,4 +70,8 @@ def test_world_packet_truncates_deltas_and_frontier(runtime):
 
     world = compiler.compile("Test truncation")
     assert len([delta for delta in world.deltas if delta.device_id == "dummy_1"]) <= 2
-    assert len(world.frontier) == 3
+    assert len(world.frontier) >= 10
+    assert {f"A{i}" for i in range(10)}.issubset({action.action_id for action in world.frontier})
+    prompt_view = world.prompt_view()
+    assert len(prompt_view["frontier"]) == 3
+    assert prompt_view["decision_signals"]["allowed_frontier_ids"] == ["A0", "A1", "A2"]

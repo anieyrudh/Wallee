@@ -226,31 +226,55 @@ direct-fact reason as a pipe-delimited string.
 ### Planner-enabled live tuning families
 
 - `A_PRUSA_TRIM_SPEED_DOWN_SMALL`
-  - command: `M220 S(current-5)` within `75..125`
+  - command: `M220 S(current-5)` within `65..135`
   - verify: HTTP speed = explicit target
   - reset: `A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT`
   - status: implemented, direct-hardware-proven, managed-wallee-proven, and
     planner-enabled
   - Phase 1 autonomy boundary: only admit planner-driven speed trim once
     `printer_1.printing_phase == active_printing`
-- `A_PRUSA_TRIM_SPEED_UP_SMALL`
-  - command: `M220 S(current+5)` within `75..125`
+- `A_PRUSA_TRIM_SPEED_DOWN_BIG`
+  - command: `M220 S(current-10)` within `65..135`
   - verify: HTTP speed = explicit target
   - reset: `A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT`
   - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible speed actions for `60s` after execution
+- `A_PRUSA_TRIM_SPEED_UP_SMALL`
+  - command: `M220 S(current+5)` within `65..135`
+  - verify: HTTP speed = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT`
+  - status: implemented and planner-enabled
+- `A_PRUSA_TRIM_SPEED_UP_BIG`
+  - command: `M220 S(current+10)` within `65..135`
+  - verify: HTTP speed = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_SPEED_DEFAULT`
+  - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible speed actions for `60s` after execution
 - `A_PRUSA_TRIM_FLOW_DOWN_SMALL`
-  - command: `M221 S(current-5)` within `75..125`
+  - command: `M221 S(current-5)` within `65..135`
   - verify: flow readback = explicit target
   - reset: `A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT`
   - status: implemented, direct-hardware-proven, managed-wallee-proven, and
     planner-enabled
   - planner admission facts: only admit planner-driven flow trim when
     `printer_1.flow_shadow_eligible == true`
-- `A_PRUSA_TRIM_FLOW_UP_SMALL`
-  - command: `M221 S(current+5)` within `75..125`
+- `A_PRUSA_TRIM_FLOW_DOWN_BIG`
+  - command: `M221 S(current-10)` within `65..135`
   - verify: flow readback = explicit target
   - reset: `A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT`
   - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible flow actions for `60s` after execution
+- `A_PRUSA_TRIM_FLOW_UP_SMALL`
+  - command: `M221 S(current+5)` within `65..135`
+  - verify: flow readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT`
+  - status: implemented and planner-enabled
+- `A_PRUSA_TRIM_FLOW_UP_BIG`
+  - command: `M221 S(current+10)` within `65..135`
+  - verify: flow readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_FLOW_DEFAULT`
+  - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible flow actions for `60s` after execution
 - `A_PRUSA_TRIM_NOZZLE_DOWN_SMALL`
   - command: `M104 S(current-5)`
   - verify: HTTP nozzle target changed
@@ -267,6 +291,12 @@ direct-fact reason as a pipe-delimited string.
     planner-enabled
   - planner admission facts: only admit planner-driven nozzle trim when
     `printer_1.nozzle_shadow_eligible == true`
+- `A_PRUSA_TRIM_NOZZLE_DOWN_BIG` / `A_PRUSA_TRIM_NOZZLE_UP_BIG`
+  - command: `M104 S(current-10/+10)`
+  - verify: HTTP nozzle target changed
+  - reset: paired bounded opposite action
+  - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible nozzle actions for `60s` after execution
 - `A_PRUSA_TRIM_BED_DOWN_SMALL`
   - command: `M140 S(current-5)`
   - verify: HTTP bed target changed
@@ -283,6 +313,34 @@ direct-fact reason as a pipe-delimited string.
     planner-enabled
   - planner admission facts: only admit planner-driven bed trim when
     `printer_1.bed_shadow_eligible == true`
+- `A_PRUSA_TRIM_BED_DOWN_BIG` / `A_PRUSA_TRIM_BED_UP_BIG`
+  - command: `M140 S(current-10/+10)`
+  - verify: HTTP bed target changed
+  - reset: paired bounded opposite action
+  - status: implemented and planner-enabled
+  - cooldown: suppress planner-visible bed actions for `60s` after execution
+- `A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_SMALL` / `A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL`
+  - command: `M572 S(current-0.01/+0.01)` within `0.00..0.12`
+  - verify: serial pressure-advance readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT`
+  - status: implemented and experimental-gated
+- `A_PRUSA_TRIM_PRESSURE_ADVANCE_DOWN_BIG` / `A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_BIG`
+  - command: `M572 S(current-0.02/+0.02)` within `0.00..0.12`
+  - verify: serial pressure-advance readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_PRESSURE_ADVANCE_DEFAULT`
+  - status: implemented and experimental-gated
+  - cooldown: suppress planner-visible pressure-advance actions for `60s` after execution
+- `A_PRUSA_TRIM_ACCEL_DOWN_SMALL` / `A_PRUSA_TRIM_ACCEL_UP_SMALL`
+  - command: `M204 S(current-250/+250)` within `500..6000`
+  - verify: serial print-acceleration readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT`
+  - status: implemented and experimental-gated
+- `A_PRUSA_TRIM_ACCEL_DOWN_BIG` / `A_PRUSA_TRIM_ACCEL_UP_BIG`
+  - command: `M204 S(current-500/+500)` within `500..6000`
+  - verify: serial print-acceleration readback = explicit target
+  - reset: `A_PRUSA_OPERATOR_RESTORE_ACCEL_DEFAULT`
+  - status: implemented and experimental-gated
+  - cooldown: suppress planner-visible accel actions for `60s` after execution
 
 Managed proof artifacts for the trim families live under:
 
@@ -317,6 +375,12 @@ What these do and do not prove:
 
 Startup traces remain evidence only. They do not widen planner control and they
 do not change the `active_printing` gate.
+
+### v6.5 exclusions
+
+- `M900` linear advance remains out of scope
+- `M201` axis acceleration remains out of scope
+- `M205` jerk / advanced motion tuning remains out of scope
 
 ## 6. Not admitted
 

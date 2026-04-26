@@ -1,0 +1,82 @@
+{
+  "world_example": {
+    "goal": "Reduce stringing while keeping the current print running.",
+    "decision_contract": {
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true,
+      "blockers_and_legality_dominate": true,
+      "no_bundled_family_actions": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": [],
+      "tuning_action_space": {
+        "accel": {
+          "family": "accel",
+          "summary": "Adjust how gently or aggressively the printer pulls away from features and changes speed.",
+          "allowed_directions": ["down"],
+          "allowed_magnitudes": ["small"]
+        }
+      },
+      "vision_signal": {
+        "usable": true,
+        "summary": "vision:stringing; A thin strand is still visible after the pressure advance trim.",
+        "finding_types": ["stringing"],
+        "strength": "strong",
+        "issue_level": "high"
+      },
+      "freshness": {
+        "vision_usable": true,
+        "camera_frame_age_s": 0.6
+      },
+      "tuning_settle_context": {
+        "active": true,
+        "family": "pressure_advance",
+        "action_id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "window_s": 45.0,
+        "remaining_s": 18.0,
+        "blocks_same_family": true,
+        "cross_family_requires_fresh_strong_signal": true,
+        "cross_family_signal_allows_action": true
+      },
+      "action_consequence": {
+        "available": true,
+        "action_id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "family": "pressure_advance",
+        "status": "DONE",
+        "time_since_action_s": 27.0,
+        "post_action_issue_types": ["stringing"],
+        "current_issue_types": ["stringing"],
+        "issue": "same",
+        "confidence": "strong",
+        "summary": "The visible stringing looks the same after the pressure advance trim.",
+        "compared_against_action_id": "A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL",
+        "valid_for_escalation": true
+      },
+      "family_blockers": {
+        "pressure_advance": ["same_family_settle_active"],
+        "accel": [],
+        "speed": [],
+        "flow": [],
+        "nozzle": [],
+        "bed": []
+      }
+    }
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": [],
+    "tuning_choice": {
+      "family": "accel",
+      "direction": "down",
+      "magnitude": "small"
+    },
+    "why": "The pressure advance family is still settling, so same-family pressure advance is blocked. Fresh strong vision still shows stringing, and accel-down-small is the legal cross-family second-order trim."
+  }
+}

@@ -1,5 +1,5 @@
 [Unit]
-Description=Wallee v6 safety kernel
+Description=Wallee v6.5 safety kernel
 Before=wallee-main.service
 
 [Service]

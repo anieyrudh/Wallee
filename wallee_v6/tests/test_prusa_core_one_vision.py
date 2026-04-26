@@ -352,6 +352,76 @@ def test_analyze_persisted_frame_with_trace_captures_provider_metadata(tmp_path,
     assert trace.response_payload["id"] == "gen-123"
 
 
+def test_analyze_persisted_frame_with_trace_uses_previous_frame_for_comparison(tmp_path, monkeypatch):
+    payload = {
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "summary": "Thin strands remain visible near the nozzle.",
+                            "findings": [
+                                {
+                                    "finding_type": "stringing",
+                                    "descriptors": ["thin_strands"],
+                                    "evidence_strength": "strong",
+                                    "note": "Thin strands remain visible near the nozzle.",
+                                }
+                            ],
+                            "comparison_delta": "same",
+                            "comparison_confidence": "strong",
+                            "comparison_summary": "The visible stringing looks about the same.",
+                        }
+                    )
+                }
+            }
+        ]
+    }
+    captured: dict[str, Any] = {}
+
+    def _urlopen(req, timeout=45):
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        return _UrlopenResponse(json.dumps(payload))
+
+    monkeypatch.setattr(vision.request, "urlopen", _urlopen)
+
+    previous = vision.persist_frame(
+        vision.CapturedNozzleFrame(
+            camera_id="camera-nozzle",
+            captured_at="2026-04-14T15:30:05Z",
+            jpeg_bytes=_jpeg_bytes(),
+        ),
+        output_root=tmp_path,
+        job_identity="job-17",
+    )
+    current = vision.persist_frame(
+        vision.CapturedNozzleFrame(
+            camera_id="camera-nozzle",
+            captured_at="2026-04-14T15:30:15Z",
+            jpeg_bytes=_jpeg_bytes(),
+        ),
+        output_root=tmp_path,
+        job_identity="job-17",
+    )
+
+    observation, trace = vision.analyze_persisted_frame_with_trace(
+        current,
+        settings=_settings(),
+        capture_mode="active-print",
+        lifecycle="PRINTING",
+        previous_frame=previous,
+    )
+
+    content = captured["payload"]["messages"][0]["content"]
+    assert content[1]["text"].startswith("PREVIOUS frame")
+    assert content[2]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    assert observation.reference_image_ref == previous.image_ref
+    assert observation.comparison_delta == "same"
+    assert observation.comparison_confidence == "strong"
+    assert observation.comparison_summary == "The visible stringing looks about the same"
+    assert trace.request_payload["messages"][0]["content"][3]["text"].startswith("CURRENT frame")
+
+
 def test_analysis_rejects_forbidden_top_level_fields(tmp_path, monkeypatch):
     payload = {
         "choices": [

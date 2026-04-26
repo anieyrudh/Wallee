@@ -40,6 +40,8 @@ class Family(str, Enum):
     FLOW = "flow"
     NOZZLE = "nozzle"
     BED = "bed"
+    PRESSURE_ADVANCE = "pressure_advance"
+    ACCEL = "accel"
 
 
 class Confidence(str, Enum):
@@ -90,10 +92,38 @@ class PrusaStatusSnapshot:
     nozzle_target_c: float | None
     bed_temp_c: float | None
     bed_target_c: float | None
+    pressure_advance: float | None = None
+    print_accel_mm_s2: float | None = None
     min_extrusion_temp_c: float | None = None
     nozzle_diameter_mm: float | None = None
     model: str | None = None
     serial_number: str | None = None
+
+
+@dataclass(slots=True)
+class GcodeSnapshotWindow:
+    window_id: str
+    label: str
+    gcode_line_start: int | None
+    gcode_line_end: int | None
+    reason_tags: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class SectionGcodeFacts:
+    long_travel_count: int = 0
+    long_travel_distance_mm: float = 0.0
+    travel_distance_mm: float = 0.0
+    extrusion_move_distance_mm: float = 0.0
+    travel_to_extrusion_ratio: float | None = None
+    retraction_count: int = 0
+    restart_count: int = 0
+    active_m204_p_mm_s2: float | None = None
+    active_m204_t_mm_s2: float | None = None
+    active_m204_r_mm_s2: float | None = None
+    extrusion_cluster_count: int = 0
+    extrusion_bbox_mm: tuple[float, float, float, float] | None = None
+    snapshot_windows: tuple[GcodeSnapshotWindow, ...] = ()
 
 
 @dataclass(slots=True)
@@ -112,6 +142,9 @@ class JobSection:
     summary: str | None = None
     progress_start_pct: float = 0.0
     progress_end_pct: float = 100.0
+    pressure_advance_baseline: float | None = None
+    print_accel_baseline_mm_s2: float | None = None
+    gcode_facts: SectionGcodeFacts = field(default_factory=SectionGcodeFacts)
 
     @property
     def line_start(self) -> int | None:
@@ -185,6 +218,9 @@ class NotebookBaselines:
     flow_pct_default: float | None = None
     nozzle_target_c_default: float | None = None
     bed_target_c_default: float | None = None
+    pressure_advance_default: float | None = None
+    print_accel_mm_s2_default: float | None = None
+    estimated_print_time_s: float | None = None
 
 
 @dataclass(slots=True)
@@ -192,6 +228,22 @@ class NotebookBuild:
     parser_version: str
     notebook_builder: str
     built_at: str
+
+
+@dataclass(slots=True)
+class ActiveSectionPlanningFacts:
+    section_id: str
+    progress_start_pct: float
+    progress_end_pct: float
+    remaining_progress_pct: float | None
+    remaining_time_s: float | None
+    gcode_facts: SectionGcodeFacts
+
+
+@dataclass(slots=True)
+class ActivePlannerFacts:
+    active_section: ActiveSectionPlanningFacts | None = None
+    geometry: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -223,6 +275,7 @@ class ActiveNotes:
     job_hash: str
     selected_at: str
     selection_context: ActiveNotesSelectionContext
+    planner_facts: ActivePlannerFacts
     global_notes: tuple[ActiveNoteView, ...]
     local_notes: tuple[ActiveNoteView, ...]
     merged_reason_tags: tuple[str, ...]
@@ -296,6 +349,41 @@ class JobNotebook:
     @property
     def parser_version(self) -> str:
         return self.build.parser_version
+
+    def active_pressure_advance_baseline(self, progress_pct: float | None) -> float | None:
+        section = self.active_section(progress_pct)
+        if section is not None and section.pressure_advance_baseline is not None:
+            return section.pressure_advance_baseline
+        return self.baselines.pressure_advance_default
+
+    def active_print_accel_baseline_mm_s2(self, progress_pct: float | None) -> float | None:
+        section = self.active_section(progress_pct)
+        if section is not None and section.print_accel_baseline_mm_s2 is not None:
+            return section.print_accel_baseline_mm_s2
+        return self.baselines.print_accel_mm_s2_default
+
+    def active_planner_facts(self, progress_pct: float | None) -> ActivePlannerFacts:
+        section = self.active_section(progress_pct)
+        active_section = None
+        if section is not None:
+            remaining_progress_pct = None
+            remaining_time_s = None
+            if progress_pct is not None:
+                remaining_progress_pct = max(0.0, round(section.progress_end_pct - progress_pct, 2))
+                if self.baselines.estimated_print_time_s is not None:
+                    remaining_time_s = round((remaining_progress_pct / 100.0) * self.baselines.estimated_print_time_s, 1)
+            active_section = ActiveSectionPlanningFacts(
+                section_id=section.section_id,
+                progress_start_pct=section.progress_start_pct,
+                progress_end_pct=section.progress_end_pct,
+                remaining_progress_pct=remaining_progress_pct,
+                remaining_time_s=remaining_time_s,
+                gcode_facts=section.gcode_facts,
+            )
+        return ActivePlannerFacts(
+            active_section=active_section,
+            geometry=self._geometry_planner_facts(),
+        )
 
     def active_section(self, progress_pct: float | None) -> JobSection | None:
         """Return the section that most likely matches *progress_pct*."""
@@ -390,6 +478,7 @@ class JobNotebook:
             job_hash=self.job_hash,
             selected_at=_utc_now_iso(),
             selection_context=context,
+            planner_facts=self.active_planner_facts(progress_pct),
             global_notes=global_views,
             local_notes=local_views,
             merged_reason_tags=merged_reason_tags,
@@ -423,6 +512,27 @@ class JobNotebook:
             for section in self.sections
             if section.progress_start_pct <= progress_end and section.progress_end_pct >= progress_start
         ]
+
+    def _geometry_planner_facts(self) -> dict[str, Any]:
+        tagged = [
+            section
+            for section in self.sections
+            if "stringing_test_geometry" in section.tags or "repeated_tower" in section.tags
+        ]
+        if not tagged:
+            return {
+                "repeated_tower_or_stringing_test": False,
+                "confidence": Confidence.LOW.value,
+                "reason_tags": (),
+                "section_ids": (),
+            }
+        confidence = Confidence.HIGH if len(tagged) >= 3 else Confidence.MEDIUM
+        return {
+            "repeated_tower_or_stringing_test": True,
+            "confidence": confidence.value,
+            "reason_tags": ("repeated_tower", "stringing_test_geometry"),
+            "section_ids": tuple(section.section_id for section in tagged[:8]),
+        }
 
 
 def _confidence_rank(confidence: Confidence) -> int:

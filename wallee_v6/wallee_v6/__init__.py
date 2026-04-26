@@ -1,4 +1,4 @@
-"""Wallee v6 lean reference implementation."""
+"""Wallee v6.5 lean reference implementation."""
 
 __all__ = [
     "config",

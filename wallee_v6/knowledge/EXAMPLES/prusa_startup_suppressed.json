@@ -2,7 +2,9 @@
   "world_example": {
     "goal": "Reduce print speed a little while keeping the current print running.",
     "decision_contract": {
-      "frontier_only": true,
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
       "max_actions": 1,
       "prefer_bounded_action_when_supported": true,
       "one_family_at_a_time": true,
@@ -29,6 +31,6 @@
   "good_plan": {
     "decision": "NO_ACTION",
     "sequence": [],
-    "why": "No legal frontier action is available and the current blockers are unresolved, so the bounded runtime should wait."
+    "why": "No bounded action is currently executable because startup and progress gates still block every tuning family, so the bounded runtime should wait."
   }
 }

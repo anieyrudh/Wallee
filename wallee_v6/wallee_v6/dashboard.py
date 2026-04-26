@@ -14,7 +14,7 @@ from .runtime_db import RuntimeDB
 
 def create_app(world_compiler: WorldCompiler, runtime_db: RuntimeDB, goal: str) -> FastAPI:
     """Create a small read-only FastAPI application."""
-    app = FastAPI(title="Wallee v6 Dashboard", version="0.1.0")
+    app = FastAPI(title="Wallee v6.5 Dashboard", version="0.6.5")
 
     @app.get("/healthz")
     def health() -> dict[str, str]:

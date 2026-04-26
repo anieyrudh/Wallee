@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import time
 
 import pytest
 
@@ -1143,6 +1144,367 @@ def test_command_serial_preflight_uses_writer_and_closes(monkeypatch):
     assert payload["serial_enabled"] is True
     assert payload["command"] == "M400"
     assert closed["count"] == 1
+
+
+def test_command_status_includes_pressure_advance_and_accel_readback(monkeypatch):
+    class FakeHttp:
+        def __init__(self, _settings):
+            pass
+
+        def get_info(self):
+            return {"min_extrusion_temp": 170.0}
+
+        def get_status(self):
+            return {}
+
+        def get_job(self):
+            return {}
+
+    class FakeDriver:
+        def read_pressure_advance(self):
+            return 0.03
+
+        def read_print_accel_mm_s2(self):
+            return 1750.0
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke, "PrusaLinkHttpClient", FakeHttp)
+    monkeypatch.setattr(
+        hardware_smoke,
+        "status_to_snapshot",
+        lambda _status, job, info: SimpleNamespace(
+            lifecycle=SimpleNamespace(value="PRINTING"),
+            health="OK",
+            job_active=True,
+            job_id=11,
+            job_progress_pct=42.0,
+            job_time_printing_s=120.0,
+            current_file="demo.bgcode",
+            speed_pct=95.0,
+            flow_pct=90.0,
+            nozzle_temp_c=220.0,
+            nozzle_target_c=225.0,
+            bed_temp_c=58.0,
+            bed_target_c=60.0,
+            model="CORE One",
+            serial_number="SN123",
+            min_extrusion_temp_c=170.0,
+        ),
+    )
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+
+    payload = hardware_smoke._command_status(
+        SimpleNamespace(
+            serial_enabled=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        )
+    )
+
+    assert payload["pressure_advance"] == 0.03
+    assert payload["print_accel_mm_s2"] == 1750.0
+
+
+def test_main_trim_speed_big_uses_big_step_target(monkeypatch):
+    captured = {}
+
+    class FakeDriver:
+        speed_default_pct = 100.0
+        speed_big_step_pct = 10.0
+        speed_min_pct = 65.0
+        speed_max_pct = 135.0
+
+        def trim_speed_down_big(self, *, target_speed_pct):
+            captured["target_speed_pct"] = target_speed_pct
+            return {"speed_pct": target_speed_pct}
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke.PrusaCoreOneSettings, "from_env", staticmethod(lambda: SimpleNamespace()))
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+    monkeypatch.setattr(hardware_smoke, "_command_status", lambda _settings: _status(speed=100.0))
+    monkeypatch.setattr(hardware_smoke, "_emit", lambda payload: payload)
+
+    result = hardware_smoke.main(["trim-speed-big"])
+
+    assert captured["target_speed_pct"] == 90.0
+    assert result == {"speed_pct": 90.0}
+
+
+def test_command_status_reads_pa_and_accel_when_experimental_tuning_enabled(monkeypatch):
+    class FakeHttp:
+        def __init__(self, _settings):
+            pass
+
+        def get_info(self):
+            return {}
+
+        def get_status(self):
+            return {}
+
+        def get_job(self):
+            return {}
+
+    class FakeDriver:
+        def read_pressure_advance(self):
+            return 0.02
+
+        def read_print_accel_mm_s2(self):
+            return 1500.0
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke, "PrusaLinkHttpClient", FakeHttp)
+    monkeypatch.setattr(
+        hardware_smoke,
+        "status_to_snapshot",
+        lambda _status, job, info: SimpleNamespace(
+            lifecycle=SimpleNamespace(value="PRINTING"),
+            health="OK",
+            job_active=True,
+            job_id=99,
+            job_progress_pct=12.0,
+            job_time_printing_s=10.0,
+            current_file="demo.bgcode",
+            speed_pct=100.0,
+            flow_pct=100.0,
+            nozzle_temp_c=220.0,
+            nozzle_target_c=220.0,
+            bed_temp_c=60.0,
+            bed_target_c=60.0,
+            model="CORE One",
+            serial_number="SN",
+            min_extrusion_temp_c=170.0,
+        ),
+    )
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+
+    payload = hardware_smoke._command_status(
+        SimpleNamespace(
+            serial_enabled=True,
+            enable_experimental_tuning=True,
+            pressure_advance_tuning_verification_enabled=False,
+            accel_tuning_verification_enabled=False,
+        )
+    )
+
+    assert payload["pressure_advance"] == 0.02
+    assert payload["print_accel_mm_s2"] == 1500.0
+
+
+def test_command_status_skips_serial_readback_when_runtime_active(monkeypatch):
+    class FakeHttp:
+        def __init__(self, _settings):
+            pass
+
+        def get_info(self):
+            return {}
+
+        def get_status(self):
+            return {}
+
+        def get_job(self):
+            return {}
+
+    class FakeDriver:
+        def read_pressure_advance(self):
+            raise AssertionError("serial readback should be skipped when runtime owns the port")
+
+        def read_print_accel_mm_s2(self):
+            raise AssertionError("serial readback should be skipped when runtime owns the port")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke, "PrusaLinkHttpClient", FakeHttp)
+    monkeypatch.setattr(
+        hardware_smoke,
+        "status_to_snapshot",
+        lambda _status, job, info: SimpleNamespace(
+            lifecycle=SimpleNamespace(value="PRINTING"),
+            health="OK",
+            job_active=True,
+            job_id=42,
+            job_progress_pct=10.0,
+            job_time_printing_s=30.0,
+            current_file="demo.bgcode",
+            speed_pct=100.0,
+            flow_pct=100.0,
+            nozzle_temp_c=220.0,
+            nozzle_target_c=220.0,
+            bed_temp_c=60.0,
+            bed_target_c=60.0,
+            model="CORE One",
+            serial_number="SN",
+            min_extrusion_temp_c=170.0,
+        ),
+    )
+    monkeypatch.setattr(hardware_smoke, "_active_runtime_holds_serial", lambda: True)
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+
+    payload = hardware_smoke._command_status(
+        SimpleNamespace(
+            serial_enabled=True,
+            serial_timeout_s=0.01,
+            enable_experimental_tuning=True,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+        )
+    )
+
+    assert payload["pressure_advance"] is None
+    assert payload["print_accel_mm_s2"] is None
+    assert payload["serial_tuning_readback_skipped_reason"] == "runtime_serial_owner_active"
+    assert payload["pressure_advance_read_warning"] is None
+    assert payload["print_accel_mm_s2_read_warning"] is None
+
+
+def test_command_status_bounds_nonfatal_serial_readback(monkeypatch):
+    class FakeHttp:
+        def __init__(self, _settings):
+            pass
+
+        def get_info(self):
+            return {}
+
+        def get_status(self):
+            return {}
+
+        def get_job(self):
+            return {}
+
+    class FakeDriver:
+        def __init__(self):
+            self.closed = 0
+
+        def read_pressure_advance(self):
+            time.sleep(1.0)
+            return 0.03
+
+        def read_print_accel_mm_s2(self):
+            return 1750.0
+
+        def close(self):
+            self.closed += 1
+
+    driver = FakeDriver()
+    monkeypatch.setattr(hardware_smoke, "PrusaLinkHttpClient", FakeHttp)
+    monkeypatch.setattr(
+        hardware_smoke,
+        "status_to_snapshot",
+        lambda _status, job, info: SimpleNamespace(
+            lifecycle=SimpleNamespace(value="PRINTING"),
+            health="OK",
+            job_active=True,
+            job_id=11,
+            job_progress_pct=42.0,
+            job_time_printing_s=120.0,
+            current_file="demo.bgcode",
+            speed_pct=95.0,
+            flow_pct=90.0,
+            nozzle_temp_c=220.0,
+            nozzle_target_c=225.0,
+            bed_temp_c=58.0,
+            bed_target_c=60.0,
+            model="CORE One",
+            serial_number="SN123",
+            min_extrusion_temp_c=170.0,
+        ),
+    )
+    monkeypatch.setattr(hardware_smoke, "_active_runtime_holds_serial", lambda: False)
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: driver)
+
+    started = time.monotonic()
+    payload = hardware_smoke._command_status(
+        SimpleNamespace(
+            serial_enabled=True,
+            serial_timeout_s=0.01,
+            pressure_advance_tuning_verification_enabled=True,
+            accel_tuning_verification_enabled=True,
+            enable_experimental_tuning=False,
+        )
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert payload["pressure_advance"] is None
+    assert payload["print_accel_mm_s2"] == 1750.0
+    assert payload["pressure_advance_read_warning"] == "pressure_advance_read_timeout"
+    assert payload["print_accel_mm_s2_read_warning"] is None
+    assert payload["serial_tuning_readback_skipped_reason"] is None
+    assert driver.closed >= 1
+
+
+def test_main_trim_pressure_advance_up_uses_scalar_readback(monkeypatch):
+    captured = {}
+
+    class FakeDriver:
+        pressure_advance_min = 0.0
+        pressure_advance_max = 0.12
+
+        def pressure_advance_target_from_baseline(self, baseline, *, direction, magnitude):
+            pct = 0.2 if magnitude == "big" else 0.1
+            factor = 1.0 + pct if direction == "up" else 1.0 - pct
+            return min(self.pressure_advance_max, max(self.pressure_advance_min, baseline * factor))
+
+        def trim_pressure_advance_up_small(self, *, target_pressure_advance):
+            captured["target_pressure_advance"] = target_pressure_advance
+            return {"pressure_advance": target_pressure_advance}
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke.PrusaCoreOneSettings, "from_env", staticmethod(lambda: SimpleNamespace()))
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+    monkeypatch.setattr(
+        hardware_smoke,
+        "_command_status",
+        lambda _settings: {**_status(), "pressure_advance": 0.03, "print_accel_mm_s2": 1500.0},
+    )
+    monkeypatch.setattr(hardware_smoke, "_emit", lambda payload: payload)
+
+    result = hardware_smoke.main(["trim-pressure-advance-up"])
+
+    assert captured["target_pressure_advance"] == pytest.approx(0.033)
+    assert result == {"pressure_advance": pytest.approx(0.033)}
+
+
+def test_main_trim_accel_down_big_uses_scalar_readback(monkeypatch):
+    captured = {}
+
+    class FakeDriver:
+        accel_min_mm_s2 = 500.0
+        accel_max_mm_s2 = 6000.0
+
+        def print_accel_target_from_baseline(self, baseline, *, direction, magnitude):
+            pct = 0.2 if magnitude == "big" else 0.1
+            factor = 1.0 + pct if direction == "up" else 1.0 - pct
+            return min(self.accel_max_mm_s2, max(self.accel_min_mm_s2, baseline * factor))
+
+        def trim_print_accel_down_big(self, *, target_print_accel_mm_s2):
+            captured["target_print_accel_mm_s2"] = target_print_accel_mm_s2
+            return {"print_accel_mm_s2": target_print_accel_mm_s2}
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hardware_smoke.PrusaCoreOneSettings, "from_env", staticmethod(lambda: SimpleNamespace()))
+    monkeypatch.setattr(hardware_smoke, "_build_driver", lambda _settings: FakeDriver())
+    monkeypatch.setattr(
+        hardware_smoke,
+        "_command_status",
+        lambda _settings: {**_status(), "pressure_advance": 0.03, "print_accel_mm_s2": 2000.0},
+    )
+    monkeypatch.setattr(hardware_smoke, "_emit", lambda payload: payload)
+
+    result = hardware_smoke.main(["trim-accel-down-big"])
+
+    assert captured["target_print_accel_mm_s2"] == 1600.0
+    assert result == {"print_accel_mm_s2": 1600.0}
 
 
 def test_command_serial_preflight_requires_serial_enabled():
