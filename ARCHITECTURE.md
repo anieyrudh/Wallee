@@ -1,5 +1,7 @@
 # Wallee Architecture Reference
 
+> Latest maintained implementation: see [`wallee_v6/README.md`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/README.md) and [`wallee_v6/docs/ARCHITECTURE.md`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/ARCHITECTURE.md). This root document describes the earlier generic Wallee architecture line.
+
 Date: 2026-03-21
 
 Wallee is an architecture for safely letting LLMs operate physical hardware without trusting the model to execute directly. The core contribution is hardware-agnostic: the LLM is untrusted, deterministic code owns validation and dispatch, and device packs contain the hardware-specific tools, state conventions, and integration details.

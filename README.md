@@ -10,6 +10,22 @@
 
 An architecture for safely letting LLMs operate physical hardware.
 
+## Latest version
+
+The latest maintained implementation in this repository is **Wallee v6.5** in
+[`wallee_v6/`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6).
+
+Start there if you want the current runtime, planner, schemas, tests, and Prusa
+CORE One/+ reference pack:
+
+- [v6.5 README](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/README.md)
+- [v6.5 architecture notes](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/ARCHITECTURE.md)
+- [v6.5 experiment retrospective](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/2026-05-04-v65-experiment-retrospective.md)
+
+The root-level `wallee/` tree and root-level architecture documents are the
+earlier generic architecture line. The active printer-control work now lives in
+`wallee_v6/`.
+
 ## The problem
 
 LLMs can reason about physical systems — diagnose faults from sensor data,
@@ -157,6 +173,10 @@ Device packs are where the hardware-specific work lives: sensor publishers, actu
 - `wallee/testing/` contains the offline replay harness and 60 scenario files used for regression-style decision checks.
 
 ## Repository layout
+
+- `wallee_v6/` - latest maintained implementation, currently v6.5
+- `wallee/` - earlier generic architecture/runtime line
+- `ARCHITECTURE.md` - legacy root architecture reference
 
 - [`README.md`](README.md): public overview, quick start, validation summary, and example deployment pointer.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): deeper data flow, trust boundaries, runtime contracts, and validation notes.
