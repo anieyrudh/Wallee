@@ -1,0 +1,72 @@
+{
+  "world_example": {
+    "goal": "Improve the active print conservatively.",
+    "decision_contract": {
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": [
+        "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "A_PRUSA_TRIM_FLOW_DOWN_SMALL"
+      ],
+      "family_blockers": {
+        "speed": [],
+        "flow": [],
+        "nozzle": [],
+        "bed": []
+      },
+      "notebook_notes": {
+        "global": [
+          {
+            "note_id": "global_flow_watch",
+            "scope": "global",
+            "title": "Flow watch",
+            "text": "High-flow sections exist. Watch extrusion consistency before changing multiple controls at once.",
+            "confidence": "medium",
+            "reason_tags": ["high_flow"],
+            "suggested_families": ["flow", "speed"],
+            "section_ids": []
+          }
+        ],
+        "local": [],
+        "merged_reason_tags": ["high_flow"]
+      },
+      "last_result_notes": []
+    },
+    "frontier": [
+      {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      },
+      {
+        "id": "A_PRUSA_TRIM_FLOW_DOWN_SMALL",
+        "verb": "TUNE_FLOW",
+        "description": "Reduce flow a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "EXECUTE",
+    "sequence": ["A_PRUSA_TRIM_FLOW_DOWN_SMALL"],
+    "why": "Flow is a legal single-family action and the notebook evidence points to a flow-heavy region, so choose one bounded flow action only."
+  }
+}

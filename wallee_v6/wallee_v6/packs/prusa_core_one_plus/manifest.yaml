@@ -1,0 +1,30 @@
+pack_id: prusa_core_one_plus
+display_name: Prusa Core One+
+category: additive
+python_entrypoint: wallee_v6.packs.prusa_core_one_plus.pack:Pack
+capabilities:
+  - publish_supported_prusa_status
+  - publish_printer_job_and_file_inventory
+  - build_grounded_job_notebook
+  - start_process_from_usb
+  - pause_process
+  - resume_process
+  - stop_process
+  - tune_speed_down_small
+  - experimental_tune_flow_and_temperature
+detection:
+  env_var:
+    - PRUSA_CORE_ONE_HOST
+    - PRUSALINK_HOST
+resources:
+  - id: printer_1.bed
+    kind: bed
+  - id: printer_1.usb_storage
+    kind: storage
+notes: |
+  Supported surfaces first.
+  HTTP via PrusaLink is the authoritative read and lifecycle-control surface.
+  Serial is used only for bounded live tuning writes.
+  Verification comes back through HTTP-observed post-state.
+  The pack auto-builds a grounded job notebook when a printable file is known.
+  Position control is intentionally not planner-visible in this redesign pass.

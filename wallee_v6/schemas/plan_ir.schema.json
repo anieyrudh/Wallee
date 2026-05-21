@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "TuningChoice": {
+      "additionalProperties": false,
+      "description": "Compact tuning selector returned by the planner.",
+      "properties": {
+        "direction": {
+          "enum": [
+            "up",
+            "down"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            "speed",
+            "flow",
+            "nozzle",
+            "bed",
+            "pressure_advance",
+            "accel"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "magnitude": {
+          "enum": [
+            "small",
+            "big"
+          ],
+          "title": "Magnitude",
+          "type": "string"
+        }
+      },
+      "required": [
+        "family",
+        "direction",
+        "magnitude"
+      ],
+      "title": "TuningChoice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Canonical planner output contract.\n\nThe planner may either choose an explicit non-tuning frontier action ID or a\ncompact tuning choice that deterministic code resolves into one exact legal\naction ID.",
+  "properties": {
+    "call_human_message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Call Human Message"
+    },
+    "decision": {
+      "enum": [
+        "NO_ACTION",
+        "EXECUTE",
+        "CALL_HUMAN"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "sequence": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sequence",
+      "type": "array"
+    },
+    "tuning_choice": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TuningChoice"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "why": {
+      "title": "Why",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "why"
+  ],
+  "title": "PlanIR",
+  "type": "object"
+}

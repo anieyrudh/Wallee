@@ -1,0 +1,17 @@
+pack_id: sim_arm
+display_name: Simulated Arm
+category: handling
+python_entrypoint: wallee_v6.packs.sim_arm.pack:Pack
+capabilities:
+  - unload_part
+  - move_home
+  - place_in_tray
+detection:
+  simulate: true
+resources:
+  - id: arm_1.gripper
+    kind: gripper
+  - id: tray_A
+    kind: tray
+notes: |
+  Reference handling pack used for simulation and tests.

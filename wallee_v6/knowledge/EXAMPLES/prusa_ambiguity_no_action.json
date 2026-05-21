@@ -1,0 +1,57 @@
+{
+  "world_example": {
+    "goal": "Reduce print speed a little while keeping the current print running.",
+    "decision_contract": {
+      "explicit_frontier_non_tuning_only": true,
+      "tuning_action_space_independently_legal": true,
+      "do_not_infer_tuning_illegality_from_explicit_frontier": true,
+      "max_actions": 1,
+      "prefer_bounded_action_when_supported": true,
+      "one_family_at_a_time": true,
+      "fresh_supported_signals_are_actionable": true,
+      "vision_signals_support_action_selection": true,
+      "notebook_signals_support_action_selection": true
+    },
+    "decision_signals": {
+      "allowed_frontier_ids": ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+      "family_blockers": {
+        "speed": [],
+        "flow": [],
+        "nozzle": [],
+        "bed": []
+      },
+      "notebook_notes": {
+        "global": [],
+        "local": [],
+        "merged_reason_tags": []
+      },
+      "last_result_notes": [
+        {
+          "action_id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+          "family": "speed",
+          "outcome": "verification_mismatch",
+          "summary": "A_PRUSA_TRIM_SPEED_DOWN_SMALL did not verify on supported surfaces.",
+          "reason_tags": ["verification", "ambiguous_state"],
+          "observed_at": "2026-04-12T21:08:20Z"
+        }
+      ]
+    },
+    "frontier": [
+      {
+        "id": "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "verb": "TUNE_SPEED",
+        "description": "Reduce print speed a little while keeping the current print running.",
+        "args": {},
+        "target_device": "printer_1",
+        "hazard_class": "low",
+        "approval_required": false,
+        "expected_delta": []
+      }
+    ]
+  },
+  "good_plan": {
+    "decision": "NO_ACTION",
+    "sequence": [],
+    "why": "The action is legal, but recent verification mismatch evidence makes the situation ambiguous, so the bounded runtime should not act."
+  }
+}

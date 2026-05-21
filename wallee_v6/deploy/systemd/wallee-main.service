@@ -1,0 +1,16 @@
+[Unit]
+Description=Wallee v6.5 main runtime
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wallee_v6
+Environment=WALLEE_SIMULATION=0
+ExecStart=/usr/bin/python -m wallee_v6.main
+Restart=on-failure
+User=wallee
+Group=wallee
+
+[Install]
+WantedBy=multi-user.target
