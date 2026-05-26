@@ -359,6 +359,31 @@ def _world_tuning_frontier_ids(world) -> list[str]:
     return [action.action_id for action in getattr(world, "frontier", []) if action.verb.startswith("TUNE_")]
 
 
+def _world_visible_allowed_frontier_ids(world, tuning_action_space: dict[str, object]) -> list[str]:
+    visible_families = {str(family) for family in tuning_action_space.keys()}
+    visible_action_ids: list[str] = []
+    for action in getattr(world, "frontier", []):
+        if not action.verb.startswith("TUNE_"):
+            visible_action_ids.append(action.action_id)
+            continue
+        family = _artifact_action_family(action.action_id)
+        if family is not None and family in visible_families:
+            visible_action_ids.append(action.action_id)
+    return visible_action_ids
+
+
+def _world_visible_tuning_frontier_ids(world, tuning_action_space: dict[str, object]) -> list[str]:
+    visible_families = {str(family) for family in tuning_action_space.keys()}
+    visible_action_ids: list[str] = []
+    for action in getattr(world, "frontier", []):
+        if not action.verb.startswith("TUNE_"):
+            continue
+        family = _artifact_action_family(action.action_id)
+        if family is not None and family in visible_families:
+            visible_action_ids.append(action.action_id)
+    return visible_action_ids
+
+
 def _world_prompt_allowed_frontier_ids(world) -> list[str]:
     prompt_view = world.prompt_view()
     decision_signals = prompt_view.get("decision_signals") if isinstance(prompt_view, dict) else None
@@ -651,7 +676,9 @@ def _world_artifact_payload(world) -> dict[str, object]:
     )
     explicit_frontier_ids = _world_explicit_frontier_ids(world)
     executable_frontier_ids = _world_allowed_frontier_ids(world)
+    visible_frontier_ids = executable_frontier_ids
     tuning_frontier_ids = _world_tuning_frontier_ids(world)
+    visible_tuning_frontier_ids = tuning_frontier_ids
     tuning_action_space: dict[str, object] = {}
     if isinstance(decision_signals, dict):
         raw_allowed_frontier_ids = decision_signals.get("allowed_frontier_ids")
@@ -660,6 +687,8 @@ def _world_artifact_payload(world) -> dict[str, object]:
         raw_tuning_action_space = decision_signals.get("tuning_action_space")
         if isinstance(raw_tuning_action_space, dict):
             tuning_action_space = raw_tuning_action_space
+    visible_frontier_ids = _world_visible_allowed_frontier_ids(world, tuning_action_space)
+    visible_tuning_frontier_ids = _world_visible_tuning_frontier_ids(world, tuning_action_space)
     family_blockers: dict[str, list[str]] = {}
     if isinstance(decision_signals, dict):
         raw_family_blockers = decision_signals.get("family_blockers")
@@ -683,11 +712,11 @@ def _world_artifact_payload(world) -> dict[str, object]:
         sort_keys=True,
     )
     artifact_facts["printer_1.allowed_frontier_ids_json"] = json.dumps(
-        executable_frontier_ids,
+        visible_frontier_ids,
         sort_keys=True,
     )
     artifact_facts["printer_1.tuning_frontier_ids_json"] = json.dumps(
-        tuning_frontier_ids,
+        visible_tuning_frontier_ids,
         sort_keys=True,
     )
     artifact_facts["printer_1.tuning_action_space_json"] = json.dumps(
@@ -720,8 +749,8 @@ def _world_artifact_payload(world) -> dict[str, object]:
         "planner_world_packet": planner_world_packet,
         "frontier_ids": executable_frontier_ids,
         "explicit_frontier_ids": explicit_frontier_ids,
-        "allowed_frontier_ids": executable_frontier_ids,
-        "tuning_frontier_ids": tuning_frontier_ids,
+        "allowed_frontier_ids": visible_frontier_ids,
+        "tuning_frontier_ids": visible_tuning_frontier_ids,
         "tuning_action_space": tuning_action_space,
         "capability_actions": capability_actions,
         "executable_actions_by_family": executable_actions_by_family,

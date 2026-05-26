@@ -8,7 +8,13 @@ from wallee_v6.config import Config
 from wallee_v6.engine import Engine
 from wallee_v6.human import HumanGateway
 from wallee_v6.ids import action_args_hash
-from wallee_v6.main import _RuntimeArchive, _artifact_planning_current, _write_cycle_artifact, reset_runtime_start_state
+from wallee_v6.main import (
+    _RuntimeArchive,
+    _artifact_planning_current,
+    _world_artifact_payload,
+    _write_cycle_artifact,
+    reset_runtime_start_state,
+)
 from wallee_v6.models import ActionRunStatus, DeviceSummary, ExecutionResult, HazardClass, LegalAction, PlanIR, PlanRecord, WorldPacket
 from wallee_v6.predicates import PredicateEvaluator, atom
 from wallee_v6.runtime_db import RuntimeDB
@@ -967,3 +973,65 @@ def test_artifact_planning_current_uses_trusted_live_value_when_accel_readback_s
         "effective_value": 0.03,
         "source": "live_readback",
     }
+
+
+def test_world_artifact_payload_hides_accel_from_visible_allowed_frontier_ids():
+    world = WorldPacket(
+        goal="Improve the active print conservatively.",
+        device_summaries=[],
+        facts={},
+        resources=[],
+        blockers=[],
+        deltas=[],
+        frontier=[
+            LegalAction(
+                action_id="A_PRUSA_CANCEL",
+                verb="CANCEL",
+                description="Cancel the print.",
+                owner_pack="prusa_core_one_plus",
+                execute_ref="cancel",
+                hazard_class=HazardClass.HIGH,
+            ),
+            LegalAction(
+                action_id="A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+                verb="TUNE_SPEED",
+                description="Reduce print speed a little while keeping the current print running.",
+                owner_pack="prusa_core_one_plus",
+                execute_ref="trim_speed_down_small",
+                hazard_class=HazardClass.LOW,
+            ),
+            LegalAction(
+                action_id="A_PRUSA_TRIM_ACCEL_DOWN_SMALL",
+                verb="TUNE_ACCEL",
+                description="Reduce print acceleration a little while keeping the current print running.",
+                owner_pack="prusa_core_one_plus",
+                execute_ref="trim_accel_down_small",
+                hazard_class=HazardClass.LOW,
+            ),
+        ],
+        last_result={},
+        pending_human=[],
+    )
+
+    payload = _world_artifact_payload(world)
+
+    assert payload["frontier_ids"] == [
+        "A_PRUSA_CANCEL",
+        "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+        "A_PRUSA_TRIM_ACCEL_DOWN_SMALL",
+    ]
+    assert payload["allowed_frontier_ids"] == [
+        "A_PRUSA_CANCEL",
+        "A_PRUSA_TRIM_SPEED_DOWN_SMALL",
+    ]
+    assert payload["tuning_frontier_ids"] == ["A_PRUSA_TRIM_SPEED_DOWN_SMALL"]
+    assert payload["tuning_action_space"] == {
+        "speed": {
+            "family": "speed",
+            "summary": "Adjust print motion rate.",
+            "allowed_directions": ["down"],
+            "allowed_magnitudes": ["small"],
+        }
+    }
+    assert json.loads(payload["facts"]["printer_1.allowed_frontier_ids_json"]) == payload["allowed_frontier_ids"]
+    assert json.loads(payload["facts"]["printer_1.tuning_frontier_ids_json"]) == payload["tuning_frontier_ids"]
