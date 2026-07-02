@@ -8,9 +8,7 @@ no sleeping. The SIGKILL end-to-end proof lives in the contract suite.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
 
 from wallee_v6.safety_watchdog import SafetyWatchdog, clear_latch
 

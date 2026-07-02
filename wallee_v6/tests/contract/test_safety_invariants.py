@@ -30,7 +30,7 @@ from wallee_v6.main import build_runtime, reconcile_runtime_start_state
 from wallee_v6.models import ActionRunStatus, HazardClass, PlanIR
 from wallee_v6.safety import SafetyKernel
 
-from .conftest import PLAN, REPO_ROOT, make_hazardous, pin_world
+from .conftest import REPO_ROOT, make_hazardous, pin_world
 
 GOAL = "Unload cooled part from printer_1 into tray_A"
 SENTINEL = "G28 ; INJECTED-FREE-TEXT-MUST-NEVER-REACH-A-DRIVER"
