@@ -12,6 +12,7 @@ Boot order (per spec):
 
 import logging
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -126,17 +127,21 @@ def main():
             "fault_monitors": safety_profile.fault_monitors,
         })
 
-    # 4. Safety kernel starts FIRST — as a separate OS process
+    # 4. Safety kernel starts FIRST — as a separate OS process.
+    # The API key travels via the child's environment, never argv:
+    # argv is world-readable through /proc/<pid>/cmdline.
+    kernel_env = dict(os.environ)
+    kernel_env["WALLEE_SAFETY_CONTROL_API_KEY"] = str(safety_kwargs["control_api_key"] or "")
     safety_proc = subprocess.Popen(
         [sys.executable, "-m", "wallee.safety.kernel_main",
          "--redis-url", str(cfg.redis_url),
          "--control-host", str(safety_kwargs["control_host"] or ""),
-         "--control-api-key", str(safety_kwargs["control_api_key"] or ""),
          "--primary-stop-json", json.dumps(safety_kwargs["primary_stop"]),
          "--fallback-stop-json", json.dumps(safety_kwargs["fallback_stop"]),
          "--fault-monitors-json", json.dumps(safety_kwargs["fault_monitors"]),
          "--check-interval", "2.0",
          "--heartbeat-timeout", "30.0"],
+        env=kernel_env,
     )
     logger.info(f"Safety kernel started as separate process (PID {safety_proc.pid})")
 
@@ -209,9 +214,9 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
 
     # 8. Dashboard (read-only web UI)
-    dashboard = DashboardServer(wb, host="0.0.0.0", port=cfg.dashboard_port)
+    dashboard = DashboardServer(wb, host=cfg.dashboard_host, port=cfg.dashboard_port)
     dashboard.start()
-    logger.info(f"Dashboard at http://0.0.0.0:{cfg.dashboard_port}")
+    logger.info(f"Dashboard at http://{cfg.dashboard_host}:{cfg.dashboard_port}")
 
     # 9. Telegram bot (if configured)
     if cfg.telegram_bot_token and cfg.telegram_chat_id:

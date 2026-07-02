@@ -75,6 +75,16 @@ class TelegramBot:
         }
         if not self.allowed_user_ids and self.chat_id.isdigit():
             self.allowed_user_ids = {self.chat_id}
+        if not self.allowed_user_ids:
+            # A group/channel chat id (or an empty one) with no explicit
+            # allowlist would authorize EVERY member of the chat to approve
+            # actions, inject intents, and trigger or clear ESTOP. Refuse to
+            # start the bot in that configuration.
+            raise ValueError(
+                "TELEGRAM_ALLOWED_USER_IDS must be set explicitly when "
+                "TELEGRAM_CHAT_ID is not a single numeric user id "
+                "(group chats would otherwise authorize every member)"
+            )
         self.intent_ttl = intent_ttl
         self.urgent_ttl = urgent_ttl
         self.image_ttl = image_ttl
@@ -111,6 +121,7 @@ class TelegramBot:
         self._app.add_handler(_telegram_ext.CommandHandler("status", self._cmd_status))
         self._app.add_handler(_telegram_ext.CommandHandler("urgent", self._cmd_urgent))
         self._app.add_handler(_telegram_ext.CommandHandler("estop", self._cmd_estop))
+        self._app.add_handler(_telegram_ext.CommandHandler("estop_clear", self._cmd_estop_clear))
         self._app.add_handler(_telegram_ext.CommandHandler("snapshot", self._cmd_snapshot))
         self._app.add_handler(_telegram_ext.CommandHandler("approve", self._cmd_approve))
         self._app.add_handler(_telegram_ext.CommandHandler("reject", self._cmd_reject))
@@ -278,7 +289,8 @@ class TelegramBot:
             _telegram.BotCommand("status", "Printer status & temps"),
             _telegram.BotCommand("snapshot", "Camera snapshots"),
             _telegram.BotCommand("urgent", "Flag as urgent"),
-            _telegram.BotCommand("estop", "Emergency stop"),
+            _telegram.BotCommand("estop", "Emergency stop (latches)"),
+            _telegram.BotCommand("estop_clear", "Clear the ESTOP latch"),
             _telegram.BotCommand("approve", "Approve pending action"),
             _telegram.BotCommand("reject", "Reject pending action"),
             _telegram.BotCommand("queue", "Manage print queue"),
@@ -326,7 +338,8 @@ class TelegramBot:
             "/snapshot — Camera photos (nozzle + buddy)\n"
             "/queue — View/add to print queue\n"
             "/urgent — Flag next cycle as urgent\n"
-            "/estop — Emergency stop\n"
+            "/estop — Emergency stop (latches until cleared)\n"
+            "/estop_clear — Clear the ESTOP latch\n"
             "/approve <id> — Approve a pending action\n"
             "/reject <id> — Reject a pending action\n\n"
             "Or just type what you want:\n"
@@ -419,13 +432,34 @@ class TelegramBot:
             return
 
         if self.wb:
-            self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
+            # No TTL: ESTOP latches until a human explicitly clears it with
+            # /estop_clear. An emergency stop that silently expires is unsafe.
+            self.wb.publish("safety.estop", True)
         estop_printer(os.environ.get("PRUSALINK_HOST", ""), os.environ.get("PRUSALINK_API_KEY", ""))
         if self._wake_agent:
             self._wake_agent()
         logger.critical("ESTOP triggered via Telegram")
         await update.message.reply_text(
-            "🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."
+            "🛑 ESTOP ACTIVATED — printer paused. Latched until /estop_clear."
+        )
+
+    async def _cmd_estop_clear(self, update, context):
+        if not await self._ensure_authorized(update):
+            return
+
+        if not self.wb:
+            await update.message.reply_text("Whiteboard not connected")
+            return
+        if not self.wb.read("safety.estop"):
+            await update.message.reply_text("No ESTOP latch is set.")
+            return
+        self.wb.delete("safety.estop")
+        if self._wake_agent:
+            self._wake_agent()
+        user = getattr(update, "effective_user", None)
+        logger.critical("ESTOP latch cleared via Telegram by user %s", getattr(user, "id", None))
+        await update.message.reply_text(
+            "✅ ESTOP latch cleared. Verify machine state before resuming operation."
         )
 
     async def _cmd_queue(self, update, context):

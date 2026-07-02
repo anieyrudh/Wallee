@@ -188,6 +188,29 @@ class TestGate4Approval:
         assert result == "DONE"
         assert registry._call_counts["approval_action"] == 1
 
+    def test_approval_after_deadline_still_executes(self, engine, ledger, registry):
+        """An operator approval must not be voided by proposal age.
+
+        Regression: the deadline gate ran before the approval gate against the
+        original created_mono, so any approval arriving after
+        max_proposal_age_ms was rejected as expired — the human approved and
+        the action silently died. WAITING_APPROVAL proposals stop aging; the
+        approval-timeout loop bounds the wait instead.
+        """
+        aid = ledger.propose(
+            "approval_action", {}, "test", "test_group",
+            requires_approval=True, max_proposal_age_ms=50,
+        )
+        result = engine.process_proposal(ledger.get_action(aid))
+        assert result == "WAITING_APPROVAL"
+
+        time.sleep(0.1)  # now well past max_proposal_age_ms
+        ledger.record_approval(aid, "APPROVE", "operator")
+        result = engine.process_proposal(ledger.get_action(aid))
+
+        assert result == "DONE"
+        assert registry._call_counts["approval_action"] == 1
+
     def test_sends_approval_notification_once(self, wb, ledger, registry, tmp_path):
         notifications = []
 

@@ -96,6 +96,10 @@ class Whiteboard:
             return None
         return json.loads(val)
 
+    def delete(self, key: str) -> None:
+        """Remove a key. Used for explicit human-cleared flags like safety.estop."""
+        self.r.delete(key)
+
     def read_history(self, key: str) -> list:
         """Read ring buffer for a key. Newest first."""
         try:

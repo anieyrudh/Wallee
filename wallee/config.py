@@ -90,8 +90,11 @@ class Config:
     # Device packs to load (comma-separated in .env)
     device_packs: list = field(default_factory=lambda: ["host_pi"])
 
-    # Dashboard (8081 to avoid conflict with camera server on 8080)
+    # Dashboard (8081 to avoid conflict with camera server on 8080).
+    # Loopback by default: the dashboard streams the whole whiteboard
+    # including camera frames. Non-loopback hosts require DASHBOARD_TOKEN.
     dashboard_port: int = 8081
+    dashboard_host: str = "127.0.0.1"
 
 
 def load_config(env_path: Path | None = None) -> Config:
@@ -135,4 +138,5 @@ def load_config(env_path: Path | None = None) -> Config:
         default_max_proposal_age_ms=int(os.environ.get("DEFAULT_MAX_PROPOSAL_AGE_MS", "30000")),
         device_packs=[p.strip() for p in os.environ.get("DEVICE_PACKS", "host_pi").split(",") if p.strip()],
         dashboard_port=int(os.environ.get("DASHBOARD_PORT", "8081")),
+        dashboard_host=os.environ.get("DASHBOARD_HOST", "127.0.0.1").strip() or "127.0.0.1",
     )

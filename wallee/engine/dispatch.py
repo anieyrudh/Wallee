@@ -136,11 +136,20 @@ class Engine:
             return "SKIPPED"
 
         # Gate 2: Deadline — reject stale proposals
-        age_ms = (time.monotonic() - proposal["created_mono"]) * 1000
-        max_age = proposal["max_proposal_age_ms"]
-        if age_ms > max_age:
-            self.ledger.reject(action_id, f"expired ({age_ms:.0f}ms > {max_age}ms)")
-            return "REJECTED"
+        # Proposals re-processed after an operator approval have status
+        # WAITING_APPROVAL and stop aging here: the approval-timeout loop in
+        # run() bounds how long they may wait, the human's explicit approval
+        # supersedes proposal freshness, and the TOCTOU precheck (Gate 4)
+        # still re-validates machine state immediately before dispatch.
+        # Without this skip, every approval arriving after max_proposal_age_ms
+        # (~30s for cancel_print) was rejected as expired — the human
+        # approved and the action silently died.
+        if proposal.get("status") != "WAITING_APPROVAL":
+            age_ms = (time.monotonic() - proposal["created_mono"]) * 1000
+            max_age = proposal["max_proposal_age_ms"]
+            if age_ms > max_age:
+                self.ledger.reject(action_id, f"expired ({age_ms:.0f}ms > {max_age}ms)")
+                return "REJECTED"
 
         # Gate 3: Approval — if required, check for approval record
         if proposal["requires_approval"]:

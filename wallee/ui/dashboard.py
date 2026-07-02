@@ -15,12 +15,14 @@ is set via textContent or safe DOM APIs to prevent XSS.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import os
 import sqlite3
 import threading
 import time
+import urllib.parse
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 logger = logging.getLogger(__name__)
@@ -221,7 +223,7 @@ function setStat(id, value, meta) {
 
 function connect() {
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.hostname + ':WS_PORT');
+  ws = new WebSocket(proto + '//' + location.hostname + ':WS_PORT' + location.search);
   ws.onopen = function() { setIndicator(document.getElementById('conn'), 'green', 'live'); };
   ws.onclose = function() { setIndicator(document.getElementById('conn'), 'red', 'disconnected'); setTimeout(connect, 3000); };
   ws.onmessage = function(e) { try { update(JSON.parse(e.data)); } catch(err) { console.error(err); } };
@@ -507,10 +509,19 @@ connect();
 class DashboardServer:
     """Read-only web dashboard with websocket live updates."""
 
-    def __init__(self, whiteboard, host: str = "0.0.0.0", port: int = 8080):
+    def __init__(self, whiteboard, host: str = "127.0.0.1", port: int = 8080, token: str | None = None):
+        # Default to loopback: the dashboard streams the whole whiteboard —
+        # including camera frames — with no other access control. Exposing it
+        # beyond localhost requires an explicit host AND a token.
         self.wb = whiteboard
         self.host = host
         self.port = port
+        self.token = (token if token is not None else os.environ.get("DASHBOARD_TOKEN", "")).strip()
+        if host not in ("127.0.0.1", "localhost", "::1") and not self.token:
+            raise ValueError(
+                "DASHBOARD_TOKEN must be set when the dashboard binds a non-loopback host "
+                f"({host!r}): it streams camera frames and full runtime state to any client"
+            )
         self._ws_port = port + 1
         self._clients: set = set()
         self._thread: threading.Thread | None = None
@@ -557,6 +568,18 @@ class DashboardServer:
             })
         return entries
 
+    def _token_authorized(self, raw_path: str) -> bool:
+        """Check the token query parameter on an HTTP/WS request path."""
+        if not self.token:
+            return True
+        query = urllib.parse.urlparse(raw_path or "").query
+        supplied = urllib.parse.parse_qs(query).get("token", [""])[0]
+        return hmac.compare_digest(supplied, self.token)
+
+    def _ws_request_authorized(self, websocket) -> bool:
+        request = getattr(websocket, "request", None)
+        return self._token_authorized(getattr(request, "path", "") or "")
+
     def start(self):
         """Start dashboard in a background thread."""
         if self._running:
@@ -580,6 +603,9 @@ class DashboardServer:
             return
 
         async def ws_handler(websocket):
+            if self.token and not self._ws_request_authorized(websocket):
+                await websocket.close(code=4401, reason="unauthorized")
+                return
             self._clients.add(websocket)
             try:
                 async for _ in websocket:
@@ -636,6 +662,12 @@ class DashboardServer:
 
         class Handler(SimpleHTTPRequestHandler):
             def do_GET(self):
+                if not outer._token_authorized(self.path):
+                    self.send_response(401)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b"unauthorized: append ?token=<DASHBOARD_TOKEN> to the URL")
+                    return
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -671,6 +703,12 @@ class DashboardServer:
 
         class Handler(SimpleHTTPRequestHandler):
             def do_GET(self):
+                if not outer._token_authorized(self.path):
+                    self.send_response(401)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b"unauthorized: append ?token=<DASHBOARD_TOKEN> to the URL")
+                    return
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()

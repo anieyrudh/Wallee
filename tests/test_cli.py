@@ -148,3 +148,21 @@ class TestMisc:
 
     def test_empty_input(self, cli):
         assert cli.process_command("") is True
+
+
+class TestEstop:
+    def test_estop_latches_without_ttl(self, cli, wb, capsys):
+        cli.process_command("estop")
+        assert wb.read("safety.estop") is True
+        # The latch must never expire on its own: only a human clears it.
+        assert wb.r.ttl("safety.estop") == -1
+
+    def test_estop_clear_removes_latch(self, cli, wb, capsys):
+        wb.publish("safety.estop", True)
+        cli.process_command("estop_clear")
+        assert wb.read("safety.estop") is None
+        assert "cleared" in capsys.readouterr().out
+
+    def test_estop_clear_without_latch_is_noop(self, cli, wb, capsys):
+        cli.process_command("estop_clear")
+        assert "No ESTOP latch" in capsys.readouterr().out

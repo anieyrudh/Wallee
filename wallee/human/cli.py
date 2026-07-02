@@ -46,7 +46,8 @@ Wallee CLI Commands:
   status               — Show whiteboard state
   pending              — Show actions waiting for approval
   history              — Show recent actions
-  estop                — Emergency stop (future: GPIO relay)
+  estop                — Emergency stop (latches until estop_clear)
+  estop_clear          — Clear the ESTOP latch after verifying the machine
   help                 — Show this help
   quit                 — Exit CLI
 """)
@@ -141,11 +142,22 @@ Wallee CLI Commands:
                 print(f"    RESULT: {action['result_json']}")
 
     def _handle_estop(self):
-        self.wb.publish("safety.estop", True, ttl=self.estop_ttl)
+        # No TTL: ESTOP latches until a human explicitly clears it with
+        # `estop_clear`. An emergency stop that silently expires is unsafe.
+        self.wb.publish("safety.estop", True)
         estop_printer(os.environ.get("PRUSALINK_HOST", ""), os.environ.get("PRUSALINK_API_KEY", ""))
         if self._wake_agent:
             self._wake_agent()
-        print("ESTOP ACTIVATED — printer paused. Manual intervention required.")
+        print("ESTOP ACTIVATED — printer paused. Latched until `estop_clear`.")
+
+    def _handle_estop_clear(self):
+        if not self.wb.read("safety.estop"):
+            print("No ESTOP latch is set.")
+            return
+        self.wb.delete("safety.estop")
+        if self._wake_agent:
+            self._wake_agent()
+        print("ESTOP latch cleared. Verify machine state before resuming operation.")
 
     def process_command(self, line: str) -> bool:
         """Process a single command. Returns False to quit."""
@@ -177,6 +189,8 @@ Wallee CLI Commands:
             self._handle_history()
         elif cmd == "estop":
             self._handle_estop()
+        elif cmd == "estop_clear":
+            self._handle_estop_clear()
         else:
             print(f"Unknown command: {cmd}. Type 'help' for options.")
         return True

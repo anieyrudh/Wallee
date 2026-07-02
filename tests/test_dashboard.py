@@ -3,6 +3,7 @@
 import json
 import threading
 import time
+import urllib.error
 import urllib.request
 
 import fakeredis
@@ -83,3 +84,43 @@ class TestDashboardServer:
             assert resp.status == 200
         finally:
             server2.stop()
+
+
+class TestDashboardAuth:
+    def test_default_host_is_loopback(self, wb):
+        server = DashboardServer(wb)
+        assert server.host == "127.0.0.1"
+
+    def test_non_loopback_host_without_token_refuses_to_start(self, wb, monkeypatch):
+        monkeypatch.delenv("DASHBOARD_TOKEN", raising=False)
+        with pytest.raises(ValueError, match="DASHBOARD_TOKEN"):
+            DashboardServer(wb, host="0.0.0.0", port=18770)
+
+    def test_non_loopback_host_with_token_is_allowed(self, wb):
+        server = DashboardServer(wb, host="0.0.0.0", port=18770, token="secret")
+        assert server.token == "secret"
+
+    def test_token_authorized_paths(self, wb):
+        server = DashboardServer(wb, host="127.0.0.1", port=18770, token="secret")
+        assert server._token_authorized("/?token=secret") is True
+        assert server._token_authorized("/?token=wrong") is False
+        assert server._token_authorized("/") is False
+
+    def test_no_token_configured_authorizes_everything(self, wb):
+        server = DashboardServer(wb, host="127.0.0.1", port=18770, token="")
+        assert server._token_authorized("/") is True
+
+    def test_http_requires_token_when_configured(self, wb):
+        server = DashboardServer(wb, host="127.0.0.1", port=18771, token="secret")
+        server.start()
+        time.sleep(0.5)
+        try:
+            with pytest.raises(urllib.error.HTTPError) as excinfo:
+                urllib.request.urlopen("http://127.0.0.1:18771", timeout=3)
+            assert excinfo.value.code == 401
+
+            resp = urllib.request.urlopen("http://127.0.0.1:18771/?token=secret", timeout=3)
+            assert resp.status == 200
+            assert "WALLEE" in resp.read().decode()
+        finally:
+            server.stop()

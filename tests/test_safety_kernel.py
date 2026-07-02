@@ -338,3 +338,33 @@ class TestSafetyKernelSubprocess:
         assert "kernel_main" in content
         # Thread-based safety launch must be gone
         assert "Thread(target=safety.run" not in content
+
+
+class TestMonitorValueIsFault:
+    """Fault-monitor values are JSON-encoded; decode before judging.
+
+    Regression: comparing the raw string to "0" treated "0.0" (numeric zero
+    from a float-valued monitor) as a fault and fired a false-positive ESTOP.
+    """
+
+    def test_none_is_not_fault(self):
+        from wallee.safety.kernel_main import monitor_value_is_fault
+        assert monitor_value_is_fault(None) is False
+
+    def test_json_zero_variants_are_not_faults(self):
+        from wallee.safety.kernel_main import monitor_value_is_fault
+        assert monitor_value_is_fault("0") is False
+        assert monitor_value_is_fault("0.0") is False
+        assert monitor_value_is_fault("false") is False
+
+    def test_truthy_values_are_faults(self):
+        from wallee.safety.kernel_main import monitor_value_is_fault
+        assert monitor_value_is_fault("1") is True
+        assert monitor_value_is_fault("2.5") is True
+        assert monitor_value_is_fault("true") is True
+        assert monitor_value_is_fault('"OVERCURRENT"') is True
+
+    def test_non_json_strings_fall_back_to_truthiness(self):
+        from wallee.safety.kernel_main import monitor_value_is_fault
+        assert monitor_value_is_fault("OVERCURRENT") is True
+        assert monitor_value_is_fault("") is False

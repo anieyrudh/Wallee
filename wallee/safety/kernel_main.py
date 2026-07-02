@@ -36,6 +36,21 @@ def _estop_printer(host: str, api_key: str = "", primary_request: dict | None = 
     estop_printer(host, api_key, primary_request=primary_request, fallback_request=fallback_request)
 
 
+def monitor_value_is_fault(raw_value) -> bool:
+    """Decide whether a fault-monitor whiteboard value indicates a fault.
+
+    Whiteboard values are JSON-encoded: numeric zero may arrive as "0",
+    "0.0", or "false". Comparing the raw string to "0" false-positived an
+    ESTOP on "0.0". Decode first; any truthy decoded value is a fault.
+    """
+    if raw_value is None:
+        return False
+    try:
+        return bool(json.loads(raw_value))
+    except (ValueError, TypeError):
+        return bool(raw_value)
+
+
 def run_kernel(
     redis_url: str = "redis://localhost:6379",
     check_interval: float = 2.0,
@@ -120,7 +135,7 @@ def run_kernel(
                 key = monitor.get("key", "")
                 label = monitor.get("label", "configured fault")
                 raw_value = r.get(key) if key else None
-                if raw_value and raw_value != "0":
+                if monitor_value_is_fault(raw_value):
                     if not fault_alerted.get(key):
                         logger.critical(f"SAFETY FAULT: {label} ({key}={raw_value})")
                         _estop_printer(control_host, control_api_key,
@@ -143,8 +158,14 @@ def run_kernel(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Wallee safety kernel (standalone process)")
     parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379"))
-    parser.add_argument("--control-host", default="")
-    parser.add_argument("--control-api-key", default="")
+    parser.add_argument("--control-host", default=os.environ.get("WALLEE_SAFETY_CONTROL_HOST", ""))
+    # The API key is env-only on purpose: argv is world-readable via
+    # /proc/<pid>/cmdline, so secrets must never be passed as flags.
+    parser.add_argument(
+        "--control-api-key",
+        default="",
+        help="DEPRECATED: use the WALLEE_SAFETY_CONTROL_API_KEY environment variable; argv leaks via /proc",
+    )
     parser.add_argument("--primary-stop-json", default="")
     parser.add_argument("--fallback-stop-json", default="")
     parser.add_argument("--fault-monitors-json", default="[]")
@@ -155,7 +176,7 @@ if __name__ == "__main__":
     run_kernel(
         redis_url=args.redis_url,
         control_host=args.control_host,
-        control_api_key=args.control_api_key,
+        control_api_key=os.environ.get("WALLEE_SAFETY_CONTROL_API_KEY", "") or args.control_api_key,
         primary_stop=_parse_json(args.primary_stop_json, {"method": "POST", "path": "/api/v1/gcode", "json": {"command": "M25"}}),
         fallback_stop=_parse_json(args.fallback_stop_json, {"method": "DELETE", "path": "/api/v1/job"}),
         fault_monitors=_parse_json(args.fault_monitors_json, []),

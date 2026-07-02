@@ -109,6 +109,18 @@ class TestTelegramAuth:
         assert bot._is_authorized(self._make_update(-555, 42)) is True
         assert bot._is_authorized(self._make_update(-555, 99)) is False
 
+    def test_group_chat_without_allowlist_refuses_to_start(self):
+        # An empty allowlist on a group chat would authorize EVERY member to
+        # approve actions and trigger/clear ESTOP.
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            with pytest.raises(ValueError, match="TELEGRAM_ALLOWED_USER_IDS"):
+                TelegramBot(token="token", chat_id="-555")
+
+    def test_empty_chat_id_without_allowlist_refuses_to_start(self):
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            with pytest.raises(ValueError, match="TELEGRAM_ALLOWED_USER_IDS"):
+                TelegramBot(token="token", chat_id="")
+
     def test_wrong_chat_is_rejected(self):
         with patch("wallee.human.telegram._ensure_telegram", return_value=None):
             bot = TelegramBot(token="token", chat_id="12345", allowed_user_ids=["12345"])
@@ -253,7 +265,63 @@ class TestTelegramCallHumanWrapper:
 
         assert wb.read("safety.estop") is True
         assert wb.read("human.estop") is None
-        assert replies == ["🛑 ESTOP ACTIVATED — printer paused. Manual intervention required."]
+        # The latch must never expire on its own: only a human clears it.
+        assert wb.r.ttl("safety.estop") == -1
+        assert replies == ["🛑 ESTOP ACTIVATED — printer paused. Latched until /estop_clear."]
+
+    def test_estop_clear_removes_latch(self):
+        wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(
+                token="token",
+                chat_id="12345",
+                allowed_user_ids=["12345"],
+                whiteboard=wb,
+            )
+
+        replies = []
+
+        async def reply_text(message):
+            replies.append(message)
+
+        update = SimpleNamespace(
+            effective_chat=SimpleNamespace(id=12345),
+            effective_user=SimpleNamespace(id=12345),
+            callback_query=None,
+            message=SimpleNamespace(reply_text=reply_text),
+        )
+
+        wb.publish("safety.estop", True)
+        asyncio.run(bot._cmd_estop_clear(update, None))
+
+        assert wb.read("safety.estop") is None
+        assert replies == ["✅ ESTOP latch cleared. Verify machine state before resuming operation."]
+
+    def test_estop_clear_without_latch_is_a_noop(self):
+        wb = Whiteboard(_redis=fakeredis.FakeRedis(decode_responses=True))
+        with patch("wallee.human.telegram._ensure_telegram", return_value=None):
+            bot = TelegramBot(
+                token="token",
+                chat_id="12345",
+                allowed_user_ids=["12345"],
+                whiteboard=wb,
+            )
+
+        replies = []
+
+        async def reply_text(message):
+            replies.append(message)
+
+        update = SimpleNamespace(
+            effective_chat=SimpleNamespace(id=12345),
+            effective_user=SimpleNamespace(id=12345),
+            callback_query=None,
+            message=SimpleNamespace(reply_text=reply_text),
+        )
+
+        asyncio.run(bot._cmd_estop_clear(update, None))
+
+        assert replies == ["No ESTOP latch is set."]
 
 
 class TestSafetyCallHumanWrapper:

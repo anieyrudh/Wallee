@@ -146,3 +146,28 @@ class TestSensorLoop:
 
         assert wb.calls == [({"env.temperature": 21.5, "env.humidity": 55.0}, 1, 5)]
 
+
+
+class TestApprovalToolsHavePrechecks:
+    def test_every_requires_approval_tool_has_a_precheck(self):
+        """Approval-gated tools may execute long after they were proposed
+        (the operator's approval supersedes proposal freshness), so the
+        TOCTOU precheck is their only pre-dispatch re-validation against
+        live machine state. An approval-gated tool without a precheck would
+        dispatch on stale state with no re-check at all.
+        """
+        from pathlib import Path
+
+        from wallee.tools.registry import ToolRegistry
+
+        packs_root = Path(__file__).resolve().parents[1] / "wallee" / "device_packs"
+        registry = ToolRegistry()
+        registry.load_builtins()
+        for pack_dir in sorted(packs_root.iterdir()):
+            if pack_dir.is_dir() and (pack_dir / "__init__.py").exists():
+                registry.load_pack(f"wallee.device_packs.{pack_dir.name}")
+
+        approval_tools = [t for t in registry.list_actuators() if t.requires_approval]
+        assert approval_tools, "expected at least one approval-gated actuator across shipped packs"
+        missing = [t.name for t in approval_tools if not t.has_precheck]
+        assert not missing, f"approval-gated tools without a TOCTOU precheck: {missing}"
