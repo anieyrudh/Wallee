@@ -79,6 +79,26 @@ jobs:
       - name: Check contract manifest and xfail hygiene
         run: python scripts/check_contract_manifest.py
 
+  cassette-replay:
+    name: cassette-replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee_v6 (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "wallee_v6[dev]"
+      - name: Replay recorded planner traffic through the production planner
+        # Offline and deterministic. A red here means the outbound prompt or
+        # payload changed: regenerate with wallee_v6/scripts/record_cassettes.py
+        # in a separate [re-record] commit.
+        run: pytest wallee_v6/tests/test_cassette_replay.py -q
+
   docs-and-contracts:
     name: docs-contract
     runs-on: ubuntu-latest

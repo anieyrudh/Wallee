@@ -9,11 +9,12 @@ import json
 from pathlib import Path
 import time
 from typing import Any
-from urllib import error, request
+from urllib import error
 
 from jsonschema import Draft202012Validator
 
 from .config import Config
+from .llm_transport import LiveOpenRouterTransport, PlannerTransport
 from .models import (
     PlanIR,
     WorldPacket,
@@ -85,12 +86,25 @@ class OpenRouterPlanner(Planner):
     to help.  The dynamic world packet is injected later in the message list.
     """
 
-    def __init__(self, config: Config, plan_schema_path: str | Path, prompt_package: PromptPackage | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        plan_schema_path: str | Path,
+        prompt_package: PromptPackage | None = None,
+        transport: PlannerTransport | None = None,
+    ) -> None:
         self.config = config
         self.plan_validator = Draft202012Validator(json.loads(Path(plan_schema_path).read_text(encoding="utf-8")))
         self.last_request_payload: dict[str, Any] | None = None
         self.last_response_payload: dict[str, Any] | None = None
         self.last_provider_metadata: dict[str, Any] | None = None
+        # The HTTP exchange is injectable so recorded traffic can be replayed
+        # through this exact class (schema validation, normalization and
+        # suppression policies included) with zero network access.
+        self.transport: PlannerTransport = transport or LiveOpenRouterTransport(
+            api_key=config.openrouter_api_key or "",
+            timeout_s=float(getattr(config, "planner_request_timeout_seconds", 20.0)),
+        )
         self.prompt_package = prompt_package or PromptPackage(
             contract_text=(config.knowledge_dir / "CONTRACT.md").read_text(encoding="utf-8"),
             rubric_text=(config.knowledge_dir / "RUBRIC.md").read_text(encoding="utf-8"),
@@ -116,24 +130,11 @@ class OpenRouterPlanner(Planner):
         payload = self.build_payload(world)
         request_started_at = utc_now_iso()
         request_started_monotonic = time.time()
-        body = json.dumps(payload).encode("utf-8")
         self.last_request_payload = payload
         self.last_response_payload = None
         self.last_provider_metadata = None
-        req = request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.config.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-        timeout_s = max(1.0, float(getattr(self.config, "planner_request_timeout_seconds", 20.0)))
         try:
-            with request.urlopen(req, timeout=timeout_s) as response:
-                raw_body = response.read()
-                response_headers = dict(response.headers.items())
+            raw_body, response_headers = self.transport.post(payload)
         except error.HTTPError as exc:
             raw_body = exc.read()
             response_headers = dict(exc.headers.items()) if exc.headers is not None else {}

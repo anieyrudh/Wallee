@@ -64,9 +64,27 @@ def normalize_openrouter_metadata(
             "model": response.get("model"),
             "usage": usage_payload,
             "finish_reason": finish_reason,
-            "headers": headers or {},
+            "headers": _allowlist_headers(headers),
         },
     }
+
+
+# This metadata is persisted wholesale into cycle artifacts, replay bundles,
+# and cassettes. Headers are allowlisted at normalization time so no
+# persistence path can ever store an auth echo, cookie, or future
+# secret-bearing header — regardless of what the provider sends back.
+_HEADER_ALLOWLIST = {
+    "content-type",
+    "x-request-id",
+    "x-openrouter-provider",
+    "x-ratelimit-remaining",
+}
+
+
+def _allowlist_headers(headers: dict[str, str] | None) -> dict[str, str]:
+    if not headers:
+        return {}
+    return {k: v for k, v in headers.items() if k.lower() in _HEADER_ALLOWLIST}
 
 
 def _provider_name(provider: Any) -> str | None:

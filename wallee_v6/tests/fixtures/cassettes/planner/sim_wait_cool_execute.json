@@ -1,0 +1,256 @@
+{
+  "cassette_version": 1,
+  "meta": {
+    "case_id": "sim_wait_cool_execute",
+    "expected_plan": {
+      "call_human_message": null,
+      "decision": "EXECUTE",
+      "sequence": [
+        "A_PRN_WAIT_COOL"
+      ],
+      "tuning_choice": null,
+      "why": "The part is too hot; waiting is the only productive legal action."
+    },
+    "recorded": "synthetic",
+    "world": {
+      "blockers": [
+        "printer_1: part too hot to unload"
+      ],
+      "compilation": null,
+      "deltas": [],
+      "device_summaries": [],
+      "facts": {
+        "printer_1.health": "OK",
+        "printer_1.mode": "PAUSED",
+        "printer_1.part_present": true,
+        "printer_1.part_temp_c": 39.5,
+        "printer_1.safe_to_unload": false
+      },
+      "frontier": [
+        {
+          "action_id": "A_PRN_WAIT_COOL",
+          "approval_required": false,
+          "args": {
+            "predicate": "printer_1.safe_to_unload == true",
+            "slice_s": 2.0,
+            "timeout_s": 300
+          },
+          "description": "Wait until the printed part is cool enough to unload",
+          "execute_ref": "builtin.wait_until",
+          "expected_delta": [],
+          "hazard_class": "low",
+          "owner_pack": "builtin",
+          "preconditions": {
+            "all": []
+          },
+          "rank_hint": 100,
+          "required_locks": [],
+          "target_device": null,
+          "verb": "WAIT_UNTIL",
+          "verify": null
+        },
+        {
+          "action_id": "A_ARM_CALL_HUMAN",
+          "approval_required": false,
+          "args": {},
+          "description": "Ask the operator to intervene",
+          "execute_ref": "builtin.call_human",
+          "expected_delta": [],
+          "hazard_class": "low",
+          "owner_pack": "builtin",
+          "preconditions": {
+            "all": []
+          },
+          "rank_hint": 100,
+          "required_locks": [],
+          "target_device": null,
+          "verb": "CALL_HUMAN",
+          "verify": null
+        }
+      ],
+      "goal": "Unload cooled part from printer_1 into tray_A",
+      "last_result": {},
+      "pending_human": [],
+      "prompt_frontier_limit": null,
+      "recent_results": [],
+      "resources": []
+    }
+  },
+  "request": {
+    "fingerprint": "sha256:ab9f3b65c7ebaac5d83ecb62b610facee157cbac3ed348eff39847c592a72e9b",
+    "payload": {
+      "messages": [
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "content": "<role>\nYou are the planning layer of a bounded physical AI system.\nYou do not control hardware directly.\n</role>\n\n<hard_boundaries>\n- `decision_signals.allowed_frontier_ids` lists only legal non-tuning explicit safety or operator actions.\n- Legal tuning moves are listed separately in `decision_signals.tuning_action_space` and are independently legal.\n- If `decision_signals.tuning_action_space` is non-empty, legal bounded tuning remains available even when `decision_signals.allowed_frontier_ids` is empty or contains only pause/cancel.\n- You may only choose explicit action IDs that appear in `decision_signals.allowed_frontier_ids`.\n- You may only emit a `tuning_choice` that matches `decision_signals.tuning_action_space`.\n- You may emit at most one action in this bounded runtime.\n- You must never invent raw device commands, raw numeric controls, coordinates, or parameters.\n- Notebook notes, vision signals, and last-result notes are grounded planning inputs. Use them to rank legal frontier actions.\n- They never override legality, blockers, or frontier membership.\n- If the bounded runtime rules and grounded evidence disagree, bounded runtime rules win.\n</hard_boundaries>\n",
+          "role": "system"
+        },
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "content": "<task>\nReturn only valid PlanIR JSON for one bounded planner decision.\n</task>\n\n<decision_principles>\n- Choose exactly one legal bounded action when fresh grounded evidence supports it.\n- `decision_signals.allowed_frontier_ids` lists only legal non-tuning explicit safety or operator actions.\n- Legal tuning choices are listed separately in `decision_signals.tuning_action_space` and are independently legal.\n- If `decision_signals.tuning_action_space` is non-empty, legal bounded tuning remains available even when `decision_signals.allowed_frontier_ids` is empty or contains only `A_PRUSA_PAUSE` or `A_PRUSA_CANCEL`.\n- Do not infer tuning illegality from `decision_signals.allowed_frontier_ids` being empty or safety-only.\n- Respect blockers, cooldowns, settle context, terminal phase, and the one-family-at-a-time rule.\n- Use `action_consequence`, `vision_signal`, `freshness`, `recent_family_actions`, and `cumulative_family_deltas` to judge whether a previous action helped.\n- Prefer `NO_ACTION` when evidence is stale, still settling, weak, conflicting, or no legal follow-up is clearly supported.\n- Treat nozzle residue alone as observational. Ignore it unless it is visibly causing print defects, dragging filament, forming a blob, contacting the part, or co-occurring with stringing, spaghetti, or adhesion failure.\n- Use `CALL_HUMAN` only for true operator intervention, fault, or recovery conditions, not when bounded tuning remains legal.\n</decision_principles>\n\n<ambiguity_policy>\n- If legal actions remain but the evidence is genuinely weak or conflicting, prefer `NO_ACTION`.\n- Do not use `CALL_HUMAN` for residue-only observations during a healthy advancing print.\n- If bounded tuning remains legal during a healthy active print, prefer tuning or `NO_ACTION` over `CALL_HUMAN`.\n</ambiguity_policy>\n\n<output_contract>\n- Return only valid PlanIR JSON.\n- Emit exactly one of:\n  - one legal explicit action ID in `sequence`\n  - one legal `tuning_choice`\n  - `NO_ACTION`\n  - `CALL_HUMAN`\n- Never emit IDs outside the non-tuning explicit safety/operator IDs in `decision_signals.allowed_frontier_ids`.\n- Never emit a `tuning_choice` outside `decision_signals.tuning_action_space`.\n</output_contract>",
+          "role": "developer"
+        },
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "content": "Planning rubric and examples. Keep horizons short and one-family-at-a-time. When fresh grounded evidence supports one legal bounded action, take it. If a recent action verified and the same issue persists across fresh later observations, choose one additional legal follow-up action instead of waiting indefinitely. Treat `decision_signals.allowed_frontier_ids` as non-tuning explicit safety/operator actions only; tuning legality comes from `decision_signals.tuning_action_space`. If that tuning space is non-empty, legal bounded tuning remains available even when `decision_signals.allowed_frontier_ids` is empty or only contains pause/cancel.\n\n# Planning Rubric\n\nChoose the best bounded decision using this order:\n\n1. One legal bounded action strongly supported by current live evidence, whether it comes from the non-tuning explicit frontier or from `decision_signals.tuning_action_space`.\n2. If a recent legal action verified but fresh later observations still show the same visible issue, choose one additional legal bounded follow-up action best matched to the remaining issue.\n3. Otherwise `NO_ACTION` only when no single legal explicit or tuning action is clearly supported.\n4. `CALL_HUMAN` only for true recovery, ambiguity, or escalation cases.\n\nTie-break rules:\n- Prefer the action better supported by notebook or vision when legality and blockers already allow both.\n- Prefer the action less contradicted by recent results.\n- Prefer one bounded action backed by fresh repeated issue signals over waiting for perfect certainty.\n- Prefer one additional legal follow-up action over repeated waiting when a recent action verified and fresh later observations still show the same issue.\n- Do not infer tuning illegality from `decision_signals.allowed_frontier_ids` being empty or pause/cancel-only when `decision_signals.tuning_action_space` is non-empty.\n- Never bundle families.\n- Never treat supporting context as permission by itself.\n\n\n{\n  \"world_example\": {\n    \"goal\": \"Reduce stringing while keeping the current print running.\",\n    \"decision_contract\": {\n      \"explicit_frontier_non_tuning_only\": true,\n      \"tuning_action_space_independently_legal\": true,\n      \"do_not_infer_tuning_illegality_from_explicit_frontier\": true,\n      \"max_actions\": 1,\n      \"prefer_bounded_action_when_supported\": true,\n      \"one_family_at_a_time\": true,\n      \"fresh_supported_signals_are_actionable\": true,\n      \"vision_signals_support_action_selection\": true,\n      \"notebook_signals_support_action_selection\": true\n    },\n    \"decision_signals\": {\n      \"allowed_frontier_ids\": [\n        \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\",\n        \"A_PRUSA_TRIM_NOZZLE_DOWN_SMALL\"\n      ],\n      \"family_blockers\": {\n        \"speed\": [],\n        \"flow\": [\"flow_big_cooldown_active\"],\n        \"nozzle\": [],\n        \"bed\": [],\n        \"pressure_advance\": [],\n        \"accel\": []\n      },\n      \"vision_signal\": {\n        \"usable\": true,\n        \"summary\": \"vision:stringing; Thin strands are still visible, but the flow family is cooling down after a BIG trim.\",\n        \"finding_types\": [\"stringing\"]\n      },\n      \"temporal_action_context\": {\n        \"available\": true,\n        \"last_action_id\": \"A_PRUSA_TRIM_FLOW_DOWN_BIG\",\n        \"last_action_family\": \"flow\",\n        \"last_action_status\": \"DONE\",\n        \"last_action_outcome\": \"verified_effect\",\n        \"last_action_summary\": \"Flow decreased by a larger bounded step and the family is cooling down.\",\n        \"last_action_reason_tags\": [\"verified_effect\", \"flow_big_cooldown_active\"],\n        \"last_action_why\": \"Use one stronger extrusion change before re-evaluating.\",\n        \"last_action_observed_at\": \"2026-04-17T11:15:00Z\",\n        \"seconds_since_last_action\": 20.0\n      }\n    },\n    \"frontier\": [\n      {\n        \"id\": \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\",\n        \"verb\": \"TUNE_SPEED\",\n        \"description\": \"Reduce print speed slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      },\n      {\n        \"id\": \"A_PRUSA_TRIM_NOZZLE_DOWN_SMALL\",\n        \"verb\": \"TUNE_NOZZLE_TARGET\",\n        \"description\": \"Reduce nozzle target temperature slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      }\n    ]\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [\"A_PRUSA_TRIM_SPEED_DOWN_SMALL\"],\n    \"why\": \"Do not choose another flow action while the flow family BIG cooldown is active. Choose one different executable family action that remains legal this cycle instead of violating the cooldown semantics.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Reduce stringing while keeping the current print running.\",\n    \"decision_contract\": {\n      \"explicit_frontier_non_tuning_only\": true,\n      \"tuning_action_space_independently_legal\": true,\n      \"do_not_infer_tuning_illegality_from_explicit_frontier\": true,\n      \"max_actions\": 1,\n      \"prefer_bounded_action_when_supported\": true,\n      \"one_family_at_a_time\": true,\n      \"fresh_supported_signals_are_actionable\": true,\n      \"vision_signals_support_action_selection\": true,\n      \"notebook_signals_support_action_selection\": true\n    },\n    \"decision_signals\": {\n      \"allowed_frontier_ids\": [\n        \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n        \"A_PRUSA_TRIM_FLOW_DOWN_BIG\",\n        \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\"\n      ],\n      \"family_blockers\": {\n        \"speed\": [],\n        \"flow\": [],\n        \"nozzle\": [],\n        \"bed\": [],\n        \"pressure_advance\": [],\n        \"accel\": []\n      },\n      \"vision_signal\": {\n        \"usable\": true,\n        \"summary\": \"vision:stringing,residue; Multiple thin strands are still visible after earlier trims.\",\n        \"finding_types\": [\"stringing\", \"residue\"]\n      },\n      \"last_result_notes\": [\n        {\n          \"action_id\": \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n          \"family\": \"flow\",\n          \"outcome\": \"verified_effect\",\n          \"summary\": \"Flow decreased to 90%, but fresh later observations still show strong stringing.\",\n          \"reason_tags\": [\"verified_effect\", \"stringing_persisted\"],\n          \"observed_at\": \"2026-04-17T11:05:00Z\"\n        }\n      ],\n      \"temporal_action_context\": {\n        \"available\": true,\n        \"last_action_id\": \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n        \"last_action_family\": \"flow\",\n        \"last_action_status\": \"DONE\",\n        \"last_action_outcome\": \"verified_effect\",\n        \"last_action_summary\": \"Flow decreased to 90%, but fresh later observations still show strong stringing.\",\n        \"last_action_reason_tags\": [\"verified_effect\", \"stringing_persisted\"],\n        \"last_action_why\": \"Reduce extrusion slightly to reduce stringing.\",\n        \"last_action_observed_at\": \"2026-04-17T11:05:00Z\",\n        \"seconds_since_last_action\": 180.0\n      },\n      \"freshness\": {\n        \"now_at\": \"2026-04-17T11:08:00Z\",\n        \"raw_observed_at\": \"2026-04-17T11:07:58Z\",\n        \"seconds_since_raw_observation\": 2.0,\n        \"vision_observed_at\": \"2026-04-17T11:07:57Z\",\n        \"seconds_since_vision_observation\": 3.0,\n        \"camera_last_capture_at\": \"2026-04-17T11:07:57Z\",\n        \"camera_frame_age_s\": 0.6,\n        \"vision_usable\": true\n      }\n    },\n    \"frontier\": [\n      {\n        \"id\": \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n        \"verb\": \"TUNE_FLOW\",\n        \"description\": \"Reduce flow slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      },\n      {\n        \"id\": \"A_PRUSA_TRIM_FLOW_DOWN_BIG\",\n        \"verb\": \"TUNE_FLOW\",\n        \"description\": \"Reduce flow by a larger bounded step while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      },\n      {\n        \"id\": \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\",\n        \"verb\": \"TUNE_SPEED\",\n        \"description\": \"Reduce print speed slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      }\n    ]\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [\"A_PRUSA_TRIM_FLOW_DOWN_BIG\"],\n    \"why\": \"Fresh evidence still shows strong stringing after a recent verified flow reduction, so a stronger bounded follow-up in the same family is justified. Choose the legal BIG flow trim rather than stacking multiple weaker exploratory moves.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Reduce stringing while keeping the current print running.\",\n    \"decision_contract\": {\n      \"explicit_frontier_non_tuning_only\": true,\n      \"tuning_action_space_independently_legal\": true,\n      \"do_not_infer_tuning_illegality_from_explicit_frontier\": true,\n      \"max_actions\": 1,\n      \"prefer_bounded_action_when_supported\": true,\n      \"one_family_at_a_time\": true,\n      \"fresh_supported_signals_are_actionable\": true,\n      \"vision_signals_support_action_selection\": true,\n      \"notebook_signals_support_action_selection\": true\n    },\n    \"decision_signals\": {\n      \"allowed_frontier_ids\": [\n        \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\",\n        \"A_PRUSA_TRIM_NOZZLE_DOWN_SMALL\",\n        \"A_PRUSA_TRIM_NOZZLE_UP_SMALL\"\n      ],\n      \"family_blockers\": {\n        \"speed\": [],\n        \"flow\": [],\n        \"nozzle\": [],\n        \"bed\": []\n      },\n      \"vision_signal\": {\n        \"usable\": true,\n        \"summary\": \"vision:residue,stringing; A thin strand is still trailing from the nozzle.\",\n        \"finding_types\": [\"residue\", \"stringing\"]\n      },\n      \"notebook_notes\": {\n        \"global\": [\n          {\n            \"note_id\": \"global_stringing_watch\",\n            \"scope\": \"global\",\n            \"title\": \"Stringing watch\",\n            \"text\": \"Stringing-sensitive sections exist. Prefer speed reduction before broader temperature changes when thin strands persist.\",\n            \"confidence\": \"high\",\n            \"reason_tags\": [\"stringing\"],\n            \"suggested_families\": [\"speed\", \"nozzle\"],\n            \"section_ids\": []\n          }\n        ],\n        \"local\": [],\n        \"merged_reason_tags\": [\"stringing\"]\n      },\n      \"last_result_notes\": [\n        {\n          \"action_id\": \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n          \"family\": \"flow\",\n          \"outcome\": \"verified_effect\",\n          \"summary\": \"Flow decreased to 95%, but fresh later observations still show stringing.\",\n          \"reason_tags\": [\"verified_effect\", \"stringing_persisted\"],\n          \"observed_at\": \"2026-04-15T09:10:00Z\"\n        }\n      ],\n      \"temporal_action_context\": {\n        \"available\": true,\n        \"last_action_id\": \"A_PRUSA_TRIM_FLOW_DOWN_SMALL\",\n        \"last_action_family\": \"flow\",\n        \"last_action_status\": \"DONE\",\n        \"last_action_outcome\": \"verified_effect\",\n        \"last_action_summary\": \"Flow decreased to 95%, but fresh later observations still show stringing.\",\n        \"last_action_reason_tags\": [\"verified_effect\", \"stringing_persisted\"],\n        \"last_action_why\": \"Reduce extrusion slightly to reduce stringing.\",\n        \"last_action_observed_at\": \"2026-04-15T09:10:00Z\",\n        \"seconds_since_last_action\": 180.0\n      },\n      \"freshness\": {\n        \"now_at\": \"2026-04-15T09:13:00Z\",\n        \"raw_observed_at\": \"2026-04-15T09:12:58Z\",\n        \"seconds_since_raw_observation\": 2.0,\n        \"vision_observed_at\": \"2026-04-15T09:12:57Z\",\n        \"seconds_since_vision_observation\": 3.0,\n        \"camera_last_capture_at\": \"2026-04-15T09:12:57Z\",\n        \"camera_frame_age_s\": 0.6,\n        \"vision_usable\": true\n      }\n    },\n    \"frontier\": [\n      {\n        \"id\": \"A_PRUSA_TRIM_SPEED_DOWN_SMALL\",\n        \"verb\": \"TUNE_SPEED\",\n        \"description\": \"Reduce print speed slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      },\n      {\n        \"id\": \"A_PRUSA_TRIM_NOZZLE_DOWN_SMALL\",\n        \"verb\": \"TUNE_NOZZLE_TEMP\",\n        \"description\": \"Reduce nozzle target temperature slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      },\n      {\n        \"id\": \"A_PRUSA_TRIM_NOZZLE_UP_SMALL\",\n        \"verb\": \"TUNE_NOZZLE_TEMP\",\n        \"description\": \"Increase nozzle target temperature slightly while keeping the current print running.\",\n        \"args\": {},\n        \"target_device\": \"printer_1\",\n        \"hazard_class\": \"low\",\n        \"approval_required\": false,\n        \"expected_delta\": []\n      }\n    ]\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [\"A_PRUSA_TRIM_SPEED_DOWN_SMALL\"],\n    \"why\": \"A recent flow trim verified, but fresh later observations still show stringing, so choose one additional legal follow-up action. Speed is the best-matched bounded next step because the notebook and vision both still point to persistent thin strands.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Reduce stringing while keeping the current print running.\",\n    \"decision_contract\": {\n      \"explicit_frontier_non_tuning_only\": true,\n      \"tuning_action_space_independently_legal\": true,\n      \"do_not_infer_tuning_illegality_from_explicit_frontier\": true,\n      \"max_actions\": 1,\n      \"prefer_bounded_action_when_supported\": true,\n      \"one_family_at_a_time\": true,\n      \"fresh_supported_signals_are_actionable\": true,\n      \"vision_signals_support_action_selection\": true,\n      \"notebook_signals_support_action_selection\": true,\n      \"blockers_and_legality_dominate\": true,\n      \"no_bundled_family_actions\": true\n    },\n    \"decision_signals\": {\n      \"allowed_frontier_ids\": [],\n      \"tuning_action_space\": {\n        \"accel\": {\n          \"family\": \"accel\",\n          \"summary\": \"Adjust how gently or aggressively the printer pulls away from features and changes speed.\",\n          \"allowed_directions\": [\"down\"],\n          \"allowed_magnitudes\": [\"small\"]\n        }\n      },\n      \"vision_signal\": {\n        \"usable\": true,\n        \"summary\": \"vision:stringing; A thin strand is still visible after the pressure advance trim.\",\n        \"finding_types\": [\"stringing\"],\n        \"strength\": \"strong\",\n        \"issue_level\": \"high\"\n      },\n      \"freshness\": {\n        \"vision_usable\": true,\n        \"camera_frame_age_s\": 0.6\n      },\n      \"tuning_settle_context\": {\n        \"active\": true,\n        \"family\": \"pressure_advance\",\n        \"action_id\": \"A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL\",\n        \"window_s\": 45.0,\n        \"remaining_s\": 18.0,\n        \"blocks_same_family\": true,\n        \"cross_family_requires_fresh_strong_signal\": true,\n        \"cross_family_signal_allows_action\": true\n      },\n      \"action_consequence\": {\n        \"available\": true,\n        \"action_id\": \"A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL\",\n        \"family\": \"pressure_advance\",\n        \"status\": \"DONE\",\n        \"time_since_action_s\": 27.0,\n        \"post_action_issue_types\": [\"stringing\"],\n        \"current_issue_types\": [\"stringing\"],\n        \"issue\": \"same\",\n        \"confidence\": \"strong\",\n        \"summary\": \"The visible stringing looks the same after the pressure advance trim.\",\n        \"compared_against_action_id\": \"A_PRUSA_TRIM_PRESSURE_ADVANCE_UP_SMALL\",\n        \"valid_for_escalation\": true\n      },\n      \"family_blockers\": {\n        \"pressure_advance\": [\"same_family_settle_active\"],\n        \"accel\": [],\n        \"speed\": [],\n        \"flow\": [],\n        \"nozzle\": [],\n        \"bed\": []\n      }\n    }\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [],\n    \"tuning_choice\": {\n      \"family\": \"accel\",\n      \"direction\": \"down\",\n      \"magnitude\": \"small\"\n    },\n    \"why\": \"The pressure advance family is still settling, so same-family pressure advance is blocked. Fresh strong vision still shows stringing, and accel-down-small is the legal cross-family second-order trim.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Reduce print speed a little while keeping the current print running.\",\n    \"decision_contract\": {\n      \"explicit_frontier_non_tuning_only\": true,\n      \"tuning_action_space_independently_legal\": true,\n      \"do_not_infer_tuning_illegality_from_explicit_frontier\": true,\n      \"max_actions\": 1,\n      \"prefer_bounded_action_when_supported\": true,\n      \"one_family_at_a_time\": true,\n      \"fresh_supported_signals_are_actionable\": true,\n      \"vision_signals_support_action_selection\": true,\n      \"notebook_signals_support_action_selection\": true\n    },\n    \"decision_signals\": {\n      \"allowed_frontier_ids\": [],\n      \"family_blockers\": {\n        \"speed\": [\"speed_progress_not_ready\"],\n        \"flow\": [\"flow_progress_not_ready\"],\n        \"nozzle\": [\"nozzle_progress_not_ready\"],\n        \"bed\": [\"bed_progress_not_ready\"]\n      },\n      \"notebook_notes\": {\n        \"global\": [],\n        \"local\": [],\n        \"merged_reason_tags\": []\n      },\n      \"last_result_notes\": []\n    }\n  },\n  \"good_plan\": {\n    \"decision\": \"NO_ACTION\",\n    \"sequence\": [],\n    \"why\": \"No bounded action is currently executable because startup and progress gates still block every tuning family, so the bounded runtime should wait.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Unload cooled part from printer_1 into tray_A\",\n    \"frontier\": [\n      {\n        \"id\": \"A_PRN_WAIT_COOL\",\n        \"verb\": \"WAIT_UNTIL\"\n      }\n    ]\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [\"A_PRN_WAIT_COOL\"],\n    \"why\": \"The part is still too hot, so waiting is the only action that safely advances the goal.\"\n  }\n}\n\n{\n  \"world_example\": {\n    \"goal\": \"Unload cooled part from printer_1 into tray_A\",\n    \"frontier\": [\n      {\n        \"id\": \"A_ARM_UNLOAD\",\n        \"verb\": \"UNLOAD_PART\"\n      }\n    ]\n  },\n  \"good_plan\": {\n    \"decision\": \"EXECUTE\",\n    \"sequence\": [\"A_ARM_UNLOAD\"],\n    \"why\": \"The arm is available, the part is cool, and the tray is empty.\"\n  }\n}",
+          "role": "user"
+        },
+        {
+          "content": "{\"blockers\": [\"printer_1: part too hot to unload\"], \"decision_contract\": {\"blockers_and_legality_dominate\": true, \"do_not_infer_tuning_illegality_from_explicit_frontier\": true, \"explicit_frontier_non_tuning_only\": true, \"fresh_supported_signals_are_actionable\": true, \"max_actions\": 1, \"no_bundled_family_actions\": true, \"notebook_signals_support_action_selection\": true, \"one_family_at_a_time\": true, \"prefer_bounded_action_when_supported\": true, \"tuning_action_space_independently_legal\": true, \"vision_signals_support_action_selection\": true}, \"decision_signals\": {\"action_consequence\": {\"action_id\": null, \"available\": false, \"compared_against_action_id\": null, \"confidence\": null, \"current_issue_types\": [], \"family\": null, \"issue\": \"unknown\", \"post_action_issue_types\": [], \"status\": null, \"summary\": null, \"time_since_action_s\": null, \"valid_for_escalation\": false}, \"allowed_frontier_ids\": [\"A_PRN_WAIT_COOL\", \"A_ARM_CALL_HUMAN\"], \"cumulative_family_deltas\": {\"bed\": {\"current\": null, \"default\": null, \"delta\": null, \"unit\": \"c\"}, \"flow\": {\"current\": null, \"default\": null, \"delta\": null, \"unit\": \"pct\"}, \"nozzle\": {\"current\": null, \"default\": null, \"delta\": null, \"unit\": \"c\"}, \"pressure_advance\": {\"current\": null, \"default\": null, \"delta\": null, \"unit\": \"ratio\"}, \"speed\": {\"current\": null, \"default\": null, \"delta\": null, \"unit\": \"pct\"}}, \"family_blockers\": {\"bed\": [], \"flow\": [], \"nozzle\": [], \"pressure_advance\": [], \"speed\": []}, \"freshness\": {\"camera_frame_age_s\": null, \"camera_last_capture_at\": null, \"now_at\": \"2026-07-02T15:14:49.407000Z\", \"raw_observed_at\": null, \"seconds_since_raw_observation\": null, \"seconds_since_vision_observation\": null, \"vision_observed_at\": null, \"vision_usable\": false}, \"last_result_notes\": [], \"notebook_notes\": {\"global\": [], \"local\": [], \"merged_reason_tags\": [], \"planner_facts\": {}}, \"recent_family_actions\": [], \"runtime_trends\": {\"active_print_evidence\": \"unknown\", \"bed_temp_delta_c\": null, \"bed_temp_trend\": \"unknown\", \"job_time_advancing\": false, \"job_time_delta_s\": null, \"motion_confirmed\": null, \"nozzle_temp_delta_c\": null, \"nozzle_temp_trend\": \"unknown\", \"pre_tuning_window\": false, \"progress_advancing\": false, \"progress_delta_pct\": null, \"sample_elapsed_s\": null, \"targets_nonzero\": false, \"thermal_ramp_active\": false}, \"symptom_feedback\": {\"current_finding_types\": [], \"current_issue_level\": null, \"current_strength\": null, \"last_verified_finding_types\": [], \"last_verified_issue_level\": null, \"last_verified_strength\": null, \"not_improving_after_last_action\": false, \"same_issue_persisted\": false}, \"temporal_action_context\": {\"available\": false, \"last_action_family\": null, \"last_action_id\": null, \"last_action_observed_at\": null, \"last_action_outcome\": null, \"last_action_reason_tags\": [], \"last_action_status\": null, \"last_action_summary\": null, \"last_action_why\": null, \"now_at\": \"2026-07-02T15:14:49.407000Z\", \"seconds_since_last_action\": null}, \"tuning_action_space\": {}, \"tuning_settle_context\": {\"action_id\": null, \"active\": false, \"blocks_same_family\": false, \"cross_family_requires_fresh_strong_signal\": false, \"cross_family_signal_allows_action\": false, \"family\": null, \"remaining_s\": null, \"window_s\": null}, \"vision_signal\": {\"finding_types\": [], \"issue_level\": null, \"strength\": null, \"summary\": null, \"usable\": false}}, \"deltas\": [], \"devices\": [], \"facts\": {\"printer_1.health\": \"OK\", \"printer_1.mode\": \"PAUSED\", \"printer_1.part_present\": true, \"printer_1.part_temp_c\": 39.5, \"printer_1.safe_to_unload\": false}, \"frontier\": [{\"approval_required\": false, \"args\": {\"predicate\": \"printer_1.safe_to_unload == true\", \"slice_s\": 2.0, \"timeout_s\": 300}, \"description\": \"Wait until the printed part is cool enough to unload\", \"expected_delta\": [], \"hazard_class\": \"low\", \"id\": \"A_PRN_WAIT_COOL\", \"target_device\": null, \"verb\": \"WAIT_UNTIL\"}, {\"approval_required\": false, \"args\": {}, \"description\": \"Ask the operator to intervene\", \"expected_delta\": [], \"hazard_class\": \"low\", \"id\": \"A_ARM_CALL_HUMAN\", \"target_device\": null, \"verb\": \"CALL_HUMAN\"}], \"goal\": \"Unload cooled part from printer_1 into tray_A\", \"last_result\": {}, \"pending_human\": [], \"resources\": []}",
+          "role": "user"
+        }
+      ],
+      "model": "synthetic/planner-cassette",
+      "plugins": [
+        {
+          "id": "response-healing"
+        }
+      ],
+      "reasoning": {
+        "effort": "low"
+      },
+      "response_format": {
+        "json_schema": {
+          "name": "plan_ir",
+          "schema": {
+            "$defs": {
+              "TuningChoice": {
+                "additionalProperties": false,
+                "description": "Compact tuning selector returned by the planner.",
+                "properties": {
+                  "direction": {
+                    "enum": [
+                      "up",
+                      "down"
+                    ],
+                    "title": "Direction",
+                    "type": "string"
+                  },
+                  "family": {
+                    "enum": [
+                      "speed",
+                      "flow",
+                      "nozzle",
+                      "bed",
+                      "pressure_advance",
+                      "accel"
+                    ],
+                    "title": "Family",
+                    "type": "string"
+                  },
+                  "magnitude": {
+                    "enum": [
+                      "small",
+                      "big"
+                    ],
+                    "title": "Magnitude",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "family",
+                  "direction",
+                  "magnitude"
+                ],
+                "title": "TuningChoice",
+                "type": "object"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Canonical planner output contract.\n\nThe planner may either choose an explicit non-tuning frontier action ID or a\ncompact tuning choice that deterministic code resolves into one exact legal\naction ID.",
+            "properties": {
+              "call_human_message": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Call Human Message"
+              },
+              "decision": {
+                "enum": [
+                  "NO_ACTION",
+                  "EXECUTE",
+                  "CALL_HUMAN"
+                ],
+                "title": "Decision",
+                "type": "string"
+              },
+              "sequence": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Sequence",
+                "type": "array"
+              },
+              "tuning_choice": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/TuningChoice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "why": {
+                "title": "Why",
+                "type": "string"
+              }
+            },
+            "required": [
+              "call_human_message",
+              "decision",
+              "sequence",
+              "tuning_choice",
+              "why"
+            ],
+            "title": "PlanIR",
+            "type": "object"
+          },
+          "strict": true
+        },
+        "type": "json_schema"
+      },
+      "stream": false,
+      "temperature": 0.1
+    },
+    "url": "https://openrouter.ai/api/v1/chat/completions"
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "content": "{\"decision\": \"EXECUTE\", \"sequence\": [\"A_PRN_WAIT_COOL\"], \"why\": \"The part is too hot; waiting is the only productive legal action.\"}",
+            "role": "assistant"
+          }
+        }
+      ],
+      "id": "gen-synthetic-sim_wait_cool_execute",
+      "model": "synthetic/planner-cassette",
+      "provider": "synthetic",
+      "usage": {
+        "completion_tokens": 60,
+        "prompt_tokens": 4200
+      }
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-request-id": "synthetic-sim_wait_cool_execute"
+    },
+    "status": 200
+  }
+}

@@ -28,7 +28,8 @@ DEVICE_KNOWLEDGE = re.compile(r"printer_1|PRUSA|_TRIM_")
 # Network/process I/O allowed in core, each with a reason. Anything else
 # performing I/O in core is a boundary violation.
 NETWORK_ALLOWLIST = {
-    "planner.py": "the LLM transport itself",
+    "planner.py": "raises/handles urllib errors from the transport",
+    "llm_transport.py": "the LLM HTTP transport itself (live/recording/replay seam)",
     "registry.py": "pack presence detection probes (to become manifest-driven)",
     "dashboard.py": "read-only HTTP surface (currently not wired into main)",
 }
