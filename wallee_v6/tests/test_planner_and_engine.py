@@ -1174,7 +1174,7 @@ def test_boot_reconcile_marks_dispatched_unknown_frees_locks_and_escalates(runti
 
     swept = reconcile_runtime_start_state(config)
 
-    assert swept == {"unknown": 1, "aborted": 0}
+    assert swept["unknown"] == 1 and swept["aborted"] == 0
     assert db.list_action_runs_by_status(ActionRunStatus.DISPATCHED) == []
     unknown_runs = db.list_action_runs_by_status(ActionRunStatus.UNKNOWN)
     assert [run.action_run_id for run in unknown_runs] == [residue.action_run_id]
@@ -1196,7 +1196,7 @@ def test_boot_reconcile_aborts_stale_proposed_and_authorized_runs(runtime):
 
     swept = reconcile_runtime_start_state(config)
 
-    assert swept == {"unknown": 0, "aborted": 2}
+    assert swept["unknown"] == 0 and swept["aborted"] == 2
     aborted_ids = {run.action_run_id for run in db.list_action_runs_by_status(ActionRunStatus.ABORTED)}
     assert aborted_ids == {proposed.action_run_id, authorized.action_run_id}
     assert db.list_action_runs_by_status(ActionRunStatus.PROPOSED) == []

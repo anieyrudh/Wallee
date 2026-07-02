@@ -348,7 +348,12 @@ def reconcile_runtime_start_state(config: Config) -> dict[str, int]:
                     error={"reason": f"stale {stale_status.value} run from a previous runtime start"},
                 )
                 swept["aborted"] += 1
-        if swept["unknown"] or swept["aborted"]:
+        # An IN_FLIGHT exec-journal row means the pack committed the durability
+        # barrier and may have started a hardware side effect before the crash.
+        # Finalize it UNKNOWN so a retry of the same idempotency key does not
+        # assume the effect never happened.
+        swept["journal_unknown"] = runtime_db.finalize_in_flight_journal_unknown()
+        if swept["unknown"] or swept["aborted"] or swept.get("journal_unknown"):
             runtime_db.record_event("runtime", "WARN", "boot_reconcile_summary", context=dict(swept))
     finally:
         runtime_db.close()
@@ -512,6 +517,25 @@ def _world_has_active_print(world) -> bool:
     lifecycle = str(world.facts.get("printer_1.lifecycle") or "").strip().upper()
     job_active = bool(world.facts.get("printer_1.job_active"))
     return lifecycle == "PRINTING" and job_active
+
+
+def _write_heartbeat_beacon(config: Config, *, cycle_index: int, job_active: bool) -> None:
+    """Write the liveness beacon the independent watchdog reads.
+
+    The watchdog keys on the file's mtime (immune to clock-content bugs) and
+    reads `job_active` to decide stop-vs-escalate. Written every cycle from the
+    control loop, so a wedged loop stops updating it.
+    """
+    path = config.heartbeat_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "wall_ts": time.time(),
+        "cycle_index": cycle_index,
+        "job_active": bool(job_active),
+    }
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _world_is_actionable_print(world) -> bool:
@@ -1247,7 +1271,18 @@ def main(argv: list[str] | None = None) -> int:
                 _end_timed_step(cycle_timing, "execution", step_started)
                 cycle_timing["execution_finished_at"] = _utc_now_iso()
                 step_started = _begin_timed_step(cycle_timing, "safety_poll")
-                safety.poll()
+                if safety.poll():
+                    runtime_db.record_event(
+                        "runtime",
+                        "CRITICAL",
+                        "safety_interlock_engaged",
+                        context={"reason": safety.interlock.reason},
+                    )
+                _write_heartbeat_beacon(
+                    config,
+                    cycle_index=cycle_index,
+                    job_active=_world_has_active_print(world),
+                )
                 _end_timed_step(cycle_timing, "safety_poll", step_started)
                 post_execution_world = report.post_execution_world or world
                 _mark_skipped_step(

@@ -59,6 +59,34 @@ _ALLOWED_TRANSITIONS: dict[ActionRunStatus, set[ActionRunStatus]] = {
 }
 
 
+# Ordered schema migrations. Version 1 is the baseline created by _init_schema
+# on a fresh DB (and stamped onto pre-tracking DBs). Later versions are ALTERs,
+# applied idempotently and recorded in schema_migrations.
+_MIGRATIONS: list[tuple[int, tuple[str, ...]]] = [
+    (1, ()),  # baseline schema (created by _init_schema)
+    (
+        2,
+        (
+            # Wall-clock timestamps beside the monotonic ones: monotonic values
+            # are meaningless across restarts — exactly the crash-recovery case
+            # the exec journal exists for.
+            "ALTER TABLE exec_journal ADD COLUMN started_ts_ms INTEGER",
+            "ALTER TABLE exec_journal ADD COLUMN ended_ts_ms INTEGER",
+        ),
+    ),
+    (
+        3,
+        (
+            "CREATE INDEX IF NOT EXISTS idx_action_runs_status ON action_runs(status)",
+            "CREATE INDEX IF NOT EXISTS idx_action_runs_scope_updated ON action_runs(run_scope, updated_ts_ms)",
+            "CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(action_run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exec_journal_run ON exec_journal(action_run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts_ms)",
+        ),
+    ),
+]
+
+
 class RuntimeDB:
     """SQLite WAL-backed runtime database.
 
@@ -155,26 +183,84 @@ class RuntimeDB:
             );
             """
         )
-        self._ensure_plan_schema()
+        self._apply_migrations()
         self._conn.commit()
 
-    def _ensure_plan_schema(self) -> None:
-        plan_columns = {
-            str(row["name"])
-            for row in self._conn.execute("PRAGMA table_info(plans)").fetchall()
-        }
-        if "world_compilation_json" not in plan_columns:
-            self._conn.execute(
-                "ALTER TABLE plans ADD COLUMN world_compilation_json TEXT NOT NULL DEFAULT '{}'"
-            )
-        if "run_scope" not in plan_columns:
-            self._conn.execute("ALTER TABLE plans ADD COLUMN run_scope TEXT")
-        action_columns = {
-            str(row["name"])
-            for row in self._conn.execute("PRAGMA table_info(action_runs)").fetchall()
-        }
-        if "run_scope" not in action_columns:
-            self._conn.execute("ALTER TABLE action_runs ADD COLUMN run_scope TEXT")
+    def _apply_migrations(self) -> None:
+        """Versioned, tracked, transactional schema migrations.
+
+        Replaces the ad-hoc PRAGMA-table_info + ALTER approach, which could
+        half-apply a multi-statement change. A `schema_migrations` table
+        records what has run; existing DBs that predate the tracking table are
+        stamped up to the version implied by columns already present.
+        """
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations("
+            "version INTEGER PRIMARY KEY, applied_ts_ms INTEGER NOT NULL)"
+        )
+        applied = {row[0] for row in self._conn.execute("SELECT version FROM schema_migrations")}
+
+        # Stamp DBs created by the pre-migration schema so their already-present
+        # columns are not re-added.
+        if not applied:
+            plan_cols = {str(r["name"]) for r in self._conn.execute("PRAGMA table_info(plans)")}
+            if "world_compilation_json" in plan_cols and "run_scope" in plan_cols:
+                self._stamp(1)
+                applied.add(1)
+
+        for version, statements in _MIGRATIONS:
+            if version in applied:
+                continue
+            with self._conn:  # transactional: a half-applied migration rolls back
+                for statement in statements:
+                    self._maybe_execute(statement)
+                self._conn.execute(
+                    "INSERT INTO schema_migrations(version, applied_ts_ms) VALUES (?, ?)",
+                    (version, self._now_ms()),
+                )
+
+    def _stamp(self, version: int) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_ts_ms) VALUES (?, ?)",
+            (version, self._now_ms()),
+        )
+
+    def _maybe_execute(self, statement: str) -> None:
+        """Run an ALTER TABLE ADD COLUMN idempotently (skip if the column exists)."""
+        try:
+            self._conn.execute(statement)
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc):
+                raise
+
+    def finalize_in_flight_journal_unknown(self) -> int:
+        """Mark every IN_FLIGHT exec-journal row UNKNOWN at crash recovery.
+
+        A committed IN_FLIGHT row means a side effect may have started before
+        the crash. Marking it EXPIRED-with-unknown-outcome prevents a same-key
+        retry from assuming the effect never happened. Returns the count swept.
+        """
+        with self._lock:
+            keys = [
+                row["idempotency_key"]
+                for row in self._conn.execute(
+                    "SELECT idempotency_key FROM exec_journal WHERE exec_state = ?",
+                    (ExecJournalStatus.IN_FLIGHT.value,),
+                )
+            ]
+            for key in keys:
+                self._conn.execute(
+                    "UPDATE exec_journal SET exec_state = ?, ended_ts_ms = ?, "
+                    "error_json = ? WHERE idempotency_key = ?",
+                    (
+                        ExecJournalStatus.EXPIRED.value,
+                        self._now_ms(),
+                        canonical_json({"reason": "runtime restarted while IN_FLIGHT; outcome unknown"}),
+                        key,
+                    ),
+                )
+            self._conn.commit()
+            return len(keys)
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
@@ -198,11 +284,16 @@ class RuntimeDB:
         return int(time.time() * 1000)
 
     def store_plan(self, record: PlanRecord) -> None:
-        """Persist a planner decision for audit and later replay."""
+        """Persist a planner decision for audit and later replay.
+
+        Plan ids are always freshly minted, so a collision means a bug, not an
+        intended overwrite. Plain INSERT (raising IntegrityError on a duplicate)
+        prevents an audit record from being silently replaced.
+        """
         with self._lock:
             self._conn.execute(
                 """
-                INSERT OR REPLACE INTO plans(
+                INSERT INTO plans(
                   plan_id, run_scope, goal, world_packet_json, world_compilation_json, plan_ir_json, created_ts_ms
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -536,9 +627,9 @@ class RuntimeDB:
                 """
                 INSERT INTO exec_journal(
                   idempotency_key, action_run_id, verb, args_hash, exec_state,
-                  started_mono_ms, ended_mono_ms, result_json, error_json
+                  started_mono_ms, started_ts_ms, ended_mono_ms, result_json, error_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
                 """,
                 (
                     idempotency_key,
@@ -547,6 +638,7 @@ class RuntimeDB:
                     args_hash,
                     ExecJournalStatus.IN_FLIGHT.value,
                     started_mono_ms,
+                    self._now_ms(),
                 ),
             )
             self._conn.commit()
@@ -566,12 +658,13 @@ class RuntimeDB:
             self._conn.execute(
                 """
                 UPDATE exec_journal
-                SET exec_state = ?, ended_mono_ms = ?, result_json = ?, error_json = ?
+                SET exec_state = ?, ended_mono_ms = ?, ended_ts_ms = ?, result_json = ?, error_json = ?
                 WHERE idempotency_key = ?
                 """,
                 (
                     new_status.value,
                     ended_mono_ms,
+                    self._now_ms(),
                     canonical_json(result) if result is not None else None,
                     canonical_json(error) if error is not None else None,
                     idempotency_key,

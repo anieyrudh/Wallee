@@ -266,16 +266,96 @@ def test_heartbeat_beaten_on_failure_paths(runtime, fake_mono, monkeypatch):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (watchdog process): the shipped safety unit is a sleep placeholder — {PLAN} §5",
-)
 def test_shipped_safety_service_is_not_a_placeholder():
     unit = (REPO_ROOT / "deploy" / "systemd" / "wallee-safety.service").read_text(encoding="utf-8")
     exec_lines = [line for line in unit.splitlines() if line.startswith("ExecStart=")]
     assert exec_lines, "unit must define ExecStart"
     for line in exec_lines:
         assert "sleep" not in line and "placeholder" not in line.lower(), line
+        assert "wallee_v6.safety_watchdog" in line, "unit must run the real watchdog"
+    # The main runtime must require the watchdog, not run it optionally.
+    main_unit = (REPO_ROOT / "deploy" / "systemd" / "wallee-main.service").read_text(encoding="utf-8")
+    assert "Requires=wallee-safety.service" in main_unit
+    # And the main unit must actually be bootable (required args present).
+    main_exec = next(line for line in main_unit.splitlines() if line.startswith("ExecStart="))
+    assert "--goal" in main_exec and ("--forever" in main_exec or "--once" in main_exec or "--cycles" in main_exec)
+
+
+def test_watchdog_stops_sim_machine_when_runtime_sigkilled(tmp_path):
+    """The end-to-end independence proof: SIGKILL the runtime mid-'print',
+    and the out-of-process watchdog stops the (sim) machine and latches.
+
+    Uses the file stop transport, so no hardware is needed.
+    """
+    import os
+    import signal
+    import subprocess
+    import sys
+    import time as _time
+
+    safety_dir = tmp_path / "safety"
+    safety_dir.mkdir(parents=True)
+    # A pack stop profile (file transport) and an active-job heartbeat, as the
+    # runtime would have written before dying.
+    (safety_dir / "profile.json").write_text(
+        json.dumps([{"transport": "file", "primary_request": {"method": "POST", "path": "/sim/stop"}}]),
+        encoding="utf-8",
+    )
+    beacon = safety_dir / "heartbeat.json"
+    beacon.write_text(json.dumps({"wall_ts": _time.time(), "job_active": True}), encoding="utf-8")
+
+    env = dict(os.environ)
+    env.update(
+        {
+            "WALLEE_DATA_DIR": str(tmp_path),
+            "WALLEE_SAFETY_HEARTBEAT_TIMEOUT_S": "1",
+            "WALLEE_SAFETY_CHECK_INTERVAL_S": "0.2",
+            "WALLEE_SAFETY_BOOT_GRACE_S": "0",
+        }
+    )
+    watchdog = subprocess.Popen(
+        [sys.executable, "-m", "wallee_v6.safety_watchdog"],
+        cwd=REPO_ROOT,
+        env=env,
+    )
+    # A stand-in "runtime" that keeps the heartbeat fresh, then is SIGKILLed.
+    beater = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import json,os,time,sys\n"
+                "p=sys.argv[1]\n"
+                "while True:\n"
+                " open(p,'w').write(json.dumps({'wall_ts':time.time(),'job_active':True}))\n"
+                " os.utime(p,None)\n"
+                " time.sleep(0.1)\n"
+            ),
+            str(beacon),
+        ],
+    )
+    try:
+        _time.sleep(1.0)  # let both settle; heartbeat stays fresh
+        os.kill(beater.pid, signal.SIGKILL)  # the runtime dies mid-job
+        beater.wait(timeout=5)
+
+        stop_log = safety_dir / "stop_commands.jsonl"
+        latch = safety_dir / "estop.latch.json"
+        deadline = _time.time() + 10
+        while _time.time() < deadline:
+            if stop_log.exists() and stop_log.read_text(encoding="utf-8").strip() and latch.exists():
+                break
+            _time.sleep(0.2)
+
+        assert latch.exists(), "watchdog did not latch after the runtime died"
+        assert stop_log.exists() and stop_log.read_text(encoding="utf-8").strip(), "watchdog issued no stop"
+        outbox = [p for p in (tmp_path / "outbox").glob("watchdog_*.json")]
+        assert outbox, "watchdog did not escalate to the operator"
+    finally:
+        for proc in (watchdog, beater):
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
 
 
 def test_interlock_trip_survives_restart(runtime):
@@ -407,16 +487,21 @@ def test_restart_with_dispatched_run_escalates_to_human(runtime):
     assert any(p["severity"] == "critical" and p["require_ack"] for p in payloads)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2/4 (DB hygiene): exec_journal needs wall-clock timestamps — {PLAN} §7",
-)
-def test_journal_records_wall_clock(runtime):
-    db = runtime["db"]
+def test_journal_records_wall_clock(unload_runtime):
+    runtime = unload_runtime
+    compiler, engine, db = runtime["compiler"], runtime["engine"], runtime["db"]
     columns = {row[1] for row in db._conn.execute("PRAGMA table_info(exec_journal)")}
     # Monotonic values are meaningless across restarts — exactly the case the
     # journal exists for.
-    assert "started_ts_ms" in columns
+    assert {"started_ts_ms", "ended_ts_ms"} <= columns
+
+    world = compiler.compile(GOAL)
+    action = next(a for a in world.frontier if a.owner_pack != "builtin")
+    engine.execute_plan(GOAL, world, PlanIR(decision="EXECUTE", sequence=[action.action_id], why="x"))
+    row = db._conn.execute(
+        "SELECT started_ts_ms, ended_ts_ms FROM exec_journal WHERE exec_state = 'SUCCESS'"
+    ).fetchone()
+    assert row is not None and row["started_ts_ms"] and row["ended_ts_ms"]
 
 
 def test_every_executed_action_has_full_lineage(unload_runtime):
@@ -441,10 +526,6 @@ def test_every_executed_action_has_full_lineage(unload_runtime):
         assert row["plan_exists"] is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 4 (DB hygiene): plans must be INSERT-only, never silently replaced — {PLAN} §7",
-)
 def test_plan_ids_are_never_silently_replaced(runtime):
     import time as _time
 

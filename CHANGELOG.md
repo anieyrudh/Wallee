@@ -10,6 +10,41 @@ history lives in the per-version changelogs under `docs/internal/`.
 
 ## [Unreleased]
 
+### Phase 2 — Prove (the v6 safety promises made true)
+
+The decorative safety kernel is now a working, independent safety layer. All
+Phase-2 contract invariants that were strict-xfails are green; the
+safety-invariants suite has zero xfails (only three Phase-3 core-genericity
+invariants remain xfailed).
+
+- **Interlock is a real gate.** `SafetyKernel` owns a durable ESTOP latch;
+  the engine checks it (and beats the heartbeat) at the top of every action
+  iteration, so a stop that lands mid-sequence halts the rest. A trip
+  survives restart and clears only by explicit operator action — never by
+  elapsed time.
+- **Physical stop transport.** A generic, stdlib-only stop transport is
+  driven by declarative pack `safety_profile` data (hosts/keys by env var,
+  no secrets inline); `build_runtime` registers it as the interlock trip
+  callback and persists the profiles for the watchdog. sim = file transport
+  (tests), Prusa = PrusaLink M25/DELETE http.
+- **Independent out-of-process watchdog** (`wallee_v6.safety_watchdog`)
+  replaces the `sleep(10**9)` placeholder: it consumes a file heartbeat
+  beacon (mtime = truth), stops + latches on a stale heartbeat during an
+  active job (escalate-only when idle), re-issues while latched, and honors
+  human ESTOP requests — proven by a SIGKILL-the-runtime end-to-end test.
+  Real, hardened systemd units (`Requires=` the watchdog, bootable
+  ExecStart, EnvironmentFile) replace the placeholder.
+- **Approvals resume.** A recorded approval is now consumed: parked
+  WAITING_APPROVAL runs resume through the shared gated dispatch path
+  (exactly once), unanswered approvals past the wait window abort with a
+  re-approval escalation, and a tripped ESTOP disposes of pending approvals.
+- **Crash recovery hardened.** exec_journal gains wall-clock timestamps
+  (monotonic is meaningless across restarts); boot reconcile finalizes
+  IN_FLIGHT journal rows to unknown-outcome; plans are INSERT-only
+  (IntegrityError on duplicate, never a silent replace). A tracked,
+  transactional `schema_migrations` framework replaces ad-hoc ALTERs and
+  adds status/scope/approval/journal/event indexes.
+
 ### Phase 1 — Pin (executable contracts on current behavior)
 
 - **Six-promise safety contract suite** (`wallee_v6/tests/contract/`, CI job
