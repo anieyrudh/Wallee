@@ -224,7 +224,7 @@ GPT 5.4 with `strict: true` JSON schema — model can only emit valid tokens. ma
 # Required
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=openai/gpt-5.4
-PRUSALINK_HOST=192.168.0.195
+PRUSALINK_HOST=<PRINTER_IP>
 PRUSALINK_API_KEY=
 REDIS_URL=redis://localhost:6379
 
@@ -268,10 +268,10 @@ pytest wallee/device_packs/prusa_link/tests/  # Specific pack
 # Deploy to Pi
 rsync -avz --exclude .venv --exclude __pycache__ --exclude .env \
   --exclude '*.pyc' --exclude '*.db' --exclude wallee-audit \
-  . b0@192.168.0.188:~/wallee/
+  . b0@<PI_WIFI_IP>:~/wallee/
 
 # Clean slate before test runs
-ssh b0@192.168.0.188 'redis-cli FLUSHALL && rm -f /var/lib/wallee/*.db'
+ssh <user>@<PI_WIFI_IP> 'redis-cli FLUSHALL && rm -f /var/lib/wallee/*.db'
 ```
 
-Pi: `b0@192.168.0.188` | Printer: `192.168.0.195` | Dashboard: `:8081`
+Pi: `b0@<PI_WIFI_IP>` | Printer: `<PRINTER_IP>` | Dashboard: `:8081`

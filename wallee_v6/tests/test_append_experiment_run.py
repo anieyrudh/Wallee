@@ -48,7 +48,7 @@ def test_append_experiment_run_extracts_and_appends(tmp_path: Path) -> None:
         {
             "decision_input": {
                 "facts": {
-                    "printer_1.vision_observation_ref": "/home/b0/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame-001.json"
+                    "printer_1.vision_observation_ref": "/home/pi/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame-001.json"
                 }
             },
             "planner_provider_metadata": {
@@ -65,7 +65,7 @@ def test_append_experiment_run_extracts_and_appends(tmp_path: Path) -> None:
         {
             "decision_input": {
                 "facts": {
-                    "printer_1.vision_observation_ref": "/home/b0/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame-002.json"
+                    "printer_1.vision_observation_ref": "/home/pi/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame-002.json"
                 }
             },
             "planner_provider_metadata": {
@@ -189,7 +189,7 @@ def test_append_experiment_run_reads_local_remote_bundle_replay(tmp_path: Path) 
     _write_json(
         run_dir / "runtime_cycles" / "cycle.json",
         {
-            "decision_input": {"facts": {"printer_1.vision_observation_ref": "/home/b0/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame.json"}},
+            "decision_input": {"facts": {"printer_1.vision_observation_ref": "/home/pi/wallee_v6_live/docs/evidence/prusa_core_one_plus/vision/observations/frame.json"}},
             "planner_provider_metadata": {"model": "openai/gpt-5.4", "latency_ms": 1000, "tokens_prompt": 10, "tokens_completion": 2},
         },
     )

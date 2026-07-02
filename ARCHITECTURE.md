@@ -1,6 +1,6 @@
 # Wallee Architecture Reference
 
-> Latest maintained implementation: see [`wallee_v6/README.md`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/README.md) and [`wallee_v6/docs/ARCHITECTURE.md`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/ARCHITECTURE.md). This root document describes the earlier generic Wallee architecture line.
+> Latest maintained implementation: see [`wallee_v6/README.md`](wallee_v6/README.md). (The v6 architecture document `wallee_v6/docs/ARCHITECTURE.md` has not yet been committed to this repository.) This root document describes the earlier generic Wallee architecture line.
 
 Date: 2026-03-21
 
@@ -139,7 +139,7 @@ Sensor publishers are:
 
 The LLM sees sensor output in its prompt. It proposes actuator tools in its response. Sensors run independently. The engine validates actuator proposals. That distinction is the core architecture.
 
-Current runtime registration totals: 20 actuator tools the LLM can propose, plus 19 background sensor publishers.
+Current runtime registration totals: 20 actuator tools the LLM can propose, plus 20 background sensor publishers.
 
 ## Sensor and Actuator Paths
 
@@ -594,10 +594,10 @@ The repository keeps two validation layers in one tree:
 
 | Check | Result |
 |---|---|
-| Python tests | `517 passed in 36.61s` |
-| Earlier architecture-verification run | `523 passed in 36.56s` |
-| Lint | `ruff check wallee/` clean |
-| Mermaid blocks in root docs | `6` |
+| Python tests (this tree: `tests/` + `wallee/device_packs/*/tests/`) | `536 passed` |
+| Python tests (`wallee_v6/tests/`, run separately) | `269 passed` |
+| Lint | `ruff check wallee scripts` and `ruff check wallee_v6` clean |
+| Mermaid blocks in root docs | `8` |
 
 ## Limitations
 

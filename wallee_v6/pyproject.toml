@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wallee-v6"
-version = "0.6.5"
+version = "6.5.0"
 description = "Lean context-compiled physical AI kernel for microfactory orchestration."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-  {name = "OpenAI generated scaffold for Wallee v6.5"}
+  {name = "Anieyrudh R."}
 ]
 dependencies = [
   "pydantic>=2.6,<3",

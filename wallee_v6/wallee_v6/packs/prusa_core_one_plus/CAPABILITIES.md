@@ -83,7 +83,7 @@ These planner proofs are still conservative:
 
 Limited live normal-runtime observations also now exist under:
 
-- [live_runtime/README.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md` (evidence artifact — not yet committed to this repository)
 
 Those runs use the actual runtime entrypoint, not the smoke harness:
 
@@ -344,10 +344,10 @@ direct-fact reason as a pipe-delimited string.
 
 Managed proof artifacts for the trim families live under:
 
-- [2026-04-12-speed-managed-proof.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-speed-managed-proof.md)
-- [2026-04-12-flow-managed-proof.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-flow-managed-proof.md)
-- [2026-04-12-nozzle-temp-managed-proof.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-nozzle-temp-managed-proof.md)
-- [2026-04-12-bed-temp-managed-proof.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-bed-temp-managed-proof.md)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-speed-managed-proof.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-flow-managed-proof.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-nozzle-temp-managed-proof.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/managed_smokes/2026-04-12-bed-temp-managed-proof.md` (evidence artifact — not yet committed to this repository)
 
 Phase 1 planner experiment artifacts live under:
 
@@ -356,16 +356,16 @@ Phase 1 planner experiment artifacts live under:
 
 Recent controlled mixed-family planner artifacts:
 
-- [2026-04-13T125852-phase1-speed-flow-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125852-phase1-speed-flow-session.json)
-- [2026-04-13T125957-phase1-speed-nozzle-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125957-phase1-speed-nozzle-session.json)
-- [2026-04-13T130055-phase1-speed-bed-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130055-phase1-speed-bed-session.json)
-- [2026-04-13T130243-phase1-all-families-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130243-phase1-all-families-session.json)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125852-phase1-speed-flow-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125957-phase1-speed-nozzle-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130055-phase1-speed-bed-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130243-phase1-all-families-session.json` (evidence artifact — not yet committed to this repository)
 
 Planner-hardening eval artifacts live under:
 
-- [planner-baseline.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/planner-baseline.json)
-- [comparison-report.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/comparison-report.md)
-- [planner_eval cases](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/cases)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/planner-baseline.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/comparison-report.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/cases` (evidence artifact — not yet committed to this repository)
 
 What these do and do not prove:
 

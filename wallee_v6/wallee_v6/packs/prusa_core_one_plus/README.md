@@ -123,8 +123,8 @@ operator restore actions remain available.
 
 Normal-runtime bounded observations now also exist for this pack under:
 
-- [live_runtime/README.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md)
-- [RUNBOOK.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/RUNBOOK.md)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/RUNBOOK.md` (evidence artifact — not yet committed to this repository)
 
 These are actual runtime runs through `python -m wallee_v6.main --once`,
 not smoke-harness sessions. The runtime boundary stayed the same:

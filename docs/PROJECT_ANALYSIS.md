@@ -76,9 +76,9 @@ The two trees share no code; both independently implement whiteboard, ledger, sa
 **Fix:** derive script paths from `Path(__file__)`; scope root pytest (`testpaths`/`norecursedirs`) and add a dedicated v6 CI job (`pip install -e "wallee_v6[dev]" && pytest wallee_v6/tests` + `ruff check wallee_v6`); fix the 36 links; make CI required on `main`.
 
 ### 3.7 Privacy/identifier leaks in public docs
-- `wallee/device_packs/prusa_link/CAPABILITIES.md:6-21` leaks the printer **serial number, UUID, MAC address**, home-LAN topology, and a **Tailscale IP** (not under `docs/internal/`, no historical banner); `:723` leaks `/home/b0/...` paths.
-- `docs/internal/CLAUDE.md:271-277` leaks operator infrastructure (`ssh b0@192.168.0.188`, printer IP, `redis-cli FLUSHALL` against that host).
-- Hardcoded `192.168.0.195` also appears in current v6 docs (`wallee_v6/README.md:110`, pack `SETUP.md:30`).
+- `wallee/device_packs/prusa_link/CAPABILITIES.md:6-21` leaks the printer **serial number, UUID, MAC address**, home-LAN topology, and a **Tailscale IP** (not under `docs/internal/`, no historical banner); `:723` leaks `/home/<user>/...` paths.
+- `docs/internal/CLAUDE.md:271-277` leaks operator infrastructure (`ssh <user>@<PI_WIFI_IP>`, printer IP, `redis-cli FLUSHALL` against that host).
+- Hardcoded `<PRINTER_IP>` also appears in current v6 docs (`wallee_v6/README.md:110`, pack `SETUP.md:30`).
 - No API keys are leaked (verified by grep). Redact the identifiers and parameterize the IPs.
 
 ### 3.8 The unauthenticated dashboard streams cameras to the LAN (legacy)

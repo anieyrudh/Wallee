@@ -27,7 +27,7 @@ family planner-enabled.
 export WALLEE_ENABLED_PACKS=prusa_core_one_plus
 export WALLEE_SIMULATION=0
 
-export PRUSA_CORE_ONE_HOST=http://192.168.0.195
+export PRUSA_CORE_ONE_HOST=http://<PRINTER_IP>
 export PRUSA_CORE_ONE_API_KEY=your_prusalink_api_key
 export PRUSA_CORE_ONE_NOZZLE_CAMERA_DEVICE_PATH=/dev/v4l/by-id/usb-3DO_3DO_NOZZLE_CAMERA_V2_3DO-video-index0
 ```

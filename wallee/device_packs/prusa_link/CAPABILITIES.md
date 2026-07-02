@@ -3,10 +3,10 @@
 **Generated:** 2026-03-15
 **Printer:** Prusa Core One+ (COREONE)
 **Firmware:** Prusa-Firmware-Buddy 6.4.0+1.LOCAL
-**Serial:** 15715-4842441653401628
-**UUID:** cede2a2f-41a2-4748-9b12-c55c62f367ff
-**MAC:** F0:24:F9:C6:EE:2D
-**Interfaces:** HTTP (192.168.0.195:80), USB Serial (/dev/ttyACM0 @ 115200), UDP Metrics (→Pi:8514), UDP Syslog (→Pi:13514)
+**Serial:** <REDACTED>
+**UUID:** <REDACTED>
+**MAC:** <PRINTER_MAC>
+**Interfaces:** HTTP (<PRINTER_IP>:80), USB Serial (/dev/ttyACM0 @ 115200), UDP Metrics (→Pi:8514), UDP Syslog (→Pi:13514)
 
 ---
 
@@ -14,10 +14,10 @@
 
 | Interface | Address | Notes |
 |-----------|---------|-------|
-| Printer HTTP | 192.168.0.195:80 | Only open TCP port |
-| Pi eth0 | 192.168.0.100 | Wired to printer |
-| Pi wlan0 | 192.168.0.188 | WiFi (SSH) |
-| Pi tailscale0 | 100.80.179.71 | VPN |
+| Printer HTTP | <PRINTER_IP>:80 | Only open TCP port |
+| Pi eth0 | <PI_ETH_IP> | Wired to printer |
+| Pi wlan0 | <PI_WIFI_IP> | WiFi (SSH) |
+| Pi tailscale0 | <VPN_IP> | VPN |
 | Printer USB | /dev/ttyACM0 | CDC ACM, 115200 baud, USB 2.0 Full-Speed (12 Mbps) |
 | Metrics stream | Printer → Pi:8514/UDP | InfluxDB line protocol, ~50 packets/sec, ~970 bytes each |
 | Syslog stream | Printer → Pi:13514/UDP | Serial output mirrored over network, ~1 packet/sec |
@@ -157,7 +157,7 @@ File names use 8.3 format internally (e.g., `BENCHY~2.BGC`). The `display_name` 
 | Field | Value |
 |-------|-------|
 | Port | `/dev/ttyACM0` |
-| Symlink | `/dev/serial/by-id/usb-Prusa_Research__prusa3d.com__Original_Prusa_COREONE_15715-4842441653401628-if00` |
+| Symlink | `/dev/serial/by-id/usb-Prusa_Research__prusa3d.com__Original_Prusa_COREONE_<REDACTED>-if00` |
 | Baud | 115200 |
 | Driver | cdc_acm |
 | Permissions | `crw-rw---- root:dialout` |
@@ -285,7 +285,7 @@ ok T:215.00/215.00 B:60.00/60.00 X:36.00/36.00 A:25.00/0.00 @:80 B@:50 C@:31 HBR
 
 ### 5.1 Protocol
 
-The printer pushes telemetry via UDP to `192.168.0.100:8514` (Pi eth0). Each UDP packet (~960-1000 bytes) contains one message block.
+The printer pushes telemetry via UDP to `<PI_ETH_IP>:8514` (Pi eth0). Each UDP packet (~960-1000 bytes) contains one message block.
 
 **Format:** Syslog RFC 5424 header wrapping InfluxDB line protocol metrics.
 
@@ -296,7 +296,7 @@ The printer pushes telemetry via UDP to `192.168.0.100:8514` (Pi eth0). Each UDP
 
 Fields:
 - `<14>` — Syslog priority (facility=user, severity=info)
-- `10:9c:70:29:4e:e0` — Printer MAC address (minus F0:24:F9)
+- `<PRINTER_MAC>` — Printer MAC address (minus F0:24:F9)
 - `buddy` — Application name (Prusa Buddy firmware)
 - `msg=53110` — Sequence number (monotonically increasing)
 - `tm=1309866606` — Firmware monotonic timestamp (microseconds)
@@ -473,12 +473,12 @@ These are NOT available via HTTP API or serial polling:
 
 ### 6.1 Protocol
 
-The printer mirrors its USB serial output over UDP to `192.168.0.100:13514`. Each UDP packet contains one syslog-wrapped serial line.
+The printer mirrors its USB serial output over UDP to `<PI_ETH_IP>:13514`. Each UDP packet contains one syslog-wrapped serial line.
 
 **Format:** Syslog RFC 5424, one message per packet.
 
 ```
-<14>1 - 10:9c:70:29:4e:e0 buddy Marlin - - SERIAL_LINE_CONTENT
+<14>1 - <PRINTER_MAC> buddy Marlin - - SERIAL_LINE_CONTENT
 ```
 
 The app-name is `Marlin` (vs `buddy` for metrics), identifying this as the Marlin serial output channel.
@@ -621,7 +621,7 @@ This works reliably but limits throughput to ~1 command per 3 seconds.
 
 | Pack | Interface | Purpose | Reliability |
 |------|-----------|---------|-------------|
-| `prusa_link` | HTTP (192.168.0.195:80) | Job control, file management, state | Stable (poll) |
+| `prusa_link` | HTTP (<PRINTER_IP>:80) | Job control, file management, state | Stable (poll) |
 | `prusa_metrics` | UDP listener (Pi:8514) | 62 telemetry metrics, safety signals | **Stable (push)** |
 | `prusa_serial` | USB Serial (/dev/ttyACM0) | G-code commands, endstops | Unstable (reconnect) |
 
@@ -720,7 +720,7 @@ Previous Wallee v2.1 processes were running on the Pi and holding the serial por
 | `wallee.daemons.host_pi` | 2191 | **Killed** — host daemon with service management |
 | `wallee.ui.dashboard` | 1361 | **Killed** — web dashboard on port 8106 |
 
-Config was at `/home/b0/.config/wallee/prusa_readonly.json`. Output was written to `/tmp/wallee/`.
+Config was at `/home/<user>/.config/wallee/prusa_readonly.json`. Output was written to `/tmp/wallee/`.
 
 **Serial port is now free** for the new Wallee system.
 

@@ -221,16 +221,16 @@ Pass criteria:
 
 Recent artifacts:
 
-- [2026-04-13T125852-phase1-speed-flow-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125852-phase1-speed-flow-session.json)
-- [2026-04-13T125957-phase1-speed-nozzle-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125957-phase1-speed-nozzle-session.json)
-- [2026-04-13T130055-phase1-speed-bed-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130055-phase1-speed-bed-session.json)
-- [2026-04-13T130243-phase1-all-families-session.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130243-phase1-all-families-session.json)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125852-phase1-speed-flow-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125957-phase1-speed-nozzle-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130055-phase1-speed-bed-session.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T130243-phase1-all-families-session.json` (evidence artifact — not yet committed to this repository)
 
 Planner-hardening eval artifacts:
 
-- [planner-baseline.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/planner-baseline.json)
-- [comparison-report.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/comparison-report.md)
-- [planner_eval cases](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/cases)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/planner-baseline.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/comparison-report.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/planner_eval/cases` (evidence artifact — not yet committed to this repository)
 
 ## 5. Limited live runtime observations
 
@@ -242,13 +242,13 @@ python -m wallee_v6.main --once --goal "Reduce print speed a little while keepin
 
 Current normal-runtime evidence:
 
-- [live_runtime/README.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md)
-- [RUNBOOK.md](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/RUNBOOK.md)
-- [2026-04-13T092859-runtime-weak-evidence-no-action.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T092859-runtime-weak-evidence-no-action.json)
-- [2026-04-13T093016-runtime-single-family-speed.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093016-runtime-single-family-speed.json)
-- [2026-04-13T093051-runtime-repeat-speed-after-effect.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093051-runtime-repeat-speed-after-effect.json)
-- [2026-04-13T093136-runtime-mixed-family-speed-flow.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093136-runtime-mixed-family-speed-flow.json)
-- [2026-04-13T093445-runtime-mixed-family-flow-nozzle.json](/Users/anieyrudh/Desktop/Wallee2/wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093445-runtime-mixed-family-flow-nozzle.json)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/README.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/RUNBOOK.md` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T092859-runtime-weak-evidence-no-action.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093016-runtime-single-family-speed.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093051-runtime-repeat-speed-after-effect.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093136-runtime-mixed-family-speed-flow.json` (evidence artifact — not yet committed to this repository)
+- `wallee_v6/docs/evidence/prusa_core_one_plus/live_runtime/runs/2026-04-13T093445-runtime-mixed-family-flow-nozzle.json` (evidence artifact — not yet committed to this repository)
 
 Observed behavior in the normal runtime path:
 

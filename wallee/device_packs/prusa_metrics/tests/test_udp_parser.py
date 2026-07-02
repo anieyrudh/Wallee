@@ -109,7 +109,7 @@ class TestParseInfluxLine:
 
 class TestParseSyslogHeader:
     def test_standard_header(self):
-        raw = "<14>1 - 10:9c:70:29:4e:e0 buddy - - - msg=53110,tm=1309866606,v=4 temp_mcu v=44i -834"
+        raw = "<14>1 - 02:00:00:00:00:13 buddy - - - msg=53110,tm=1309866606,v=4 temp_mcu v=44i -834"
         header, content = parse_syslog_header(raw)
         assert header["seq"] == 53110
         assert header["timestamp_us"] == 1309866606

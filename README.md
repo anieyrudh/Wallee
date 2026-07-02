@@ -10,21 +10,21 @@
 
 An architecture for safely letting LLMs operate physical hardware.
 
-## Latest version
+## Which tree do I want?
 
-The latest maintained implementation in this repository is **Wallee v6.5** in
-[`wallee_v6/`](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6).
+This repository currently carries two implementations:
 
-Start there if you want the current runtime, planner, schemas, tests, and Prusa
-CORE One/+ reference pack:
+| Tree | Status | Model | Start here |
+|---|---|---|---|
+| [`wallee_v6/`](wallee_v6/) | **Latest maintained (v6.5)** — active printer-control work | Compile → frontier → Plan IR planner pipeline, sim packs, Prusa CORE One/+ reference pack | [v6.5 README](wallee_v6/README.md) |
+| [`wallee/`](wallee/) | Earlier generic architecture line | One-action-per-cycle agent loop, Redis whiteboard, SQLite ledger, engine gates, Telegram/CLI | this README and [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 
-- [v6.5 README](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/README.md)
-- [v6.5 architecture notes](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/ARCHITECTURE.md)
-- [v6.5 experiment retrospective](/Users/anieyrudh/Desktop/Wallee2/.mergeclone/wallee_v6/docs/2026-05-04-v65-experiment-retrospective.md)
+Note: the v6 architecture document (`wallee_v6/docs/ARCHITECTURE.md`) and the
+v6.5 experiment retrospective have not yet been committed to this repository;
+[`wallee_v6/README.md`](wallee_v6/README.md) is the current v6 entry point.
 
-The root-level `wallee/` tree and root-level architecture documents are the
-earlier generic architecture line. The active printer-control work now lives in
-`wallee_v6/`.
+**Everything below this section describes the earlier `wallee/` line**, except
+where marked otherwise.
 
 ## The problem
 
@@ -149,7 +149,7 @@ and stateful machine telemetry.
 The LLM sees sensor data in its prompt. It proposes actuator tools in its response.
 The engine validates actuator proposals. Sensors run independently.
 
-Wallee currently exposes 20 actuator tools the LLM can propose, plus 19 background sensor publishers.
+Wallee currently exposes 20 actuator tools the LLM can propose, plus 20 background sensor publishers.
 
 Device packs are where the hardware-specific work lives: sensor publishers, actuator tools, callbacks, setup instructions, and machine-specific state conventions.
 
@@ -225,22 +225,25 @@ After those gates, the engine writes an in-flight diary record, marks the action
 1. Clone the repository and create a virtual environment.
 
    ```bash
-   git clone <repo-url>
-   cd Wallee2
+   git clone https://github.com/anieyrudh/wallee.git
+   cd wallee
    python3 -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-2. Create your local config from the template.
+2. Install and start a Redis server (the whiteboard and safety monitoring
+   depend on it), e.g. `sudo apt install redis-server` on a Pi.
+
+3. Create your local config from the template.
 
    ```bash
    cp .env.example .env
    ```
 
-3. Fill in the required values in `.env`, especially the OpenRouter key, Redis URL, the device pack list you want active, and any pack-specific connection settings.
-4. Configure your selected device pack so its telemetry sources, control interfaces, and optional cameras are reachable from the host running Wallee.
-5. Start Wallee.
+4. Fill in the required values in `.env`, especially the OpenRouter key, Redis URL, the device pack list you want active, and any pack-specific connection settings.
+5. Configure your selected device pack so its telemetry sources, control interfaces, and optional cameras are reachable from the host running Wallee.
+6. Start Wallee.
 
    ```bash
    python -m wallee.main
@@ -248,7 +251,7 @@ After those gates, the engine writes an in-flight diary record, marks the action
 
    `wallee.main` launches the safety kernel subprocess automatically, then starts the engine, sensors, agent, dashboard, and optional Telegram bot.
 
-6. Open the dashboard in a browser at `http://<host>:8081`.
+7. Open the dashboard in a browser at `http://127.0.0.1:8081` (loopback by default; set `DASHBOARD_HOST` and `DASHBOARD_TOKEN` to expose it).
 
 ## Validation
 
@@ -259,10 +262,10 @@ The current suite intentionally mixes two layers of coverage:
 
 | Run | Result |
 |---|---|
-| Architecture verification snapshot | `523 passed in 36.56s` |
-| Current repository state | `517 passed in 36.61s` |
-| Registered runtime actions | 20 actuator tools the LLM can propose, plus 19 background sensor publishers |
-| Replay harness corpus | `60` scenarios |
+| This tree (`pytest tests/ wallee/`) | `536 passed` |
+| `wallee_v6` tree (`pytest wallee_v6/tests/`, run separately) | `269 passed` |
+| Registered runtime actions | 20 actuator tools the LLM can propose, plus 20 background sensor publishers |
+| Replay harness corpus | `60` scenarios (offline replay score: 47/60 — see `wallee/testing/REPORT.md`) |
 
 ## Known limitations
 

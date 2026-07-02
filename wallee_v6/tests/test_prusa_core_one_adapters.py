@@ -63,7 +63,7 @@ def test_quote_printer_path_accepts_multiple_input_forms():
 
 
 def test_settings_from_env_support_current_keys(monkeypatch):
-    monkeypatch.setenv("PRUSA_CORE_ONE_HOST", "192.168.0.195")
+    monkeypatch.setenv("PRUSA_CORE_ONE_HOST", "192.0.2.10")
     monkeypatch.setenv("PRUSA_CORE_ONE_API_KEY", "token")
     monkeypatch.setenv("PRUSA_CORE_ONE_ENABLE_SERIAL", "1")
     monkeypatch.setenv("PRUSA_CORE_ONE_SERIAL_PORT", "/dev/ttyACM0")
@@ -84,7 +84,7 @@ def test_settings_from_env_support_current_keys(monkeypatch):
 
     settings = PrusaCoreOneSettings.from_env()
 
-    assert settings.host == "http://192.168.0.195"
+    assert settings.host == "http://192.0.2.10"
     assert settings.api_key == "token"
     assert settings.serial_enabled is True
     assert settings.serial_port == "/dev/ttyACM0"
