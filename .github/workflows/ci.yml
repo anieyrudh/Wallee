@@ -99,6 +99,23 @@ jobs:
         # in a separate [re-record] commit.
         run: pytest wallee_v6/tests/test_cassette_replay.py -q
 
+  schema-sync:
+    name: schema-sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee_v6 (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "wallee_v6[dev]"
+      - name: Schemas match their code sources; manifests validate
+        run: python scripts/gen_schemas.py
+
   docs-and-contracts:
     name: docs-contract
     runs-on: ubuntu-latest
