@@ -167,10 +167,6 @@ def test_interlock_has_no_time_based_unlatch(fake_mono):
     assert kernel.interlock.reason == "contract-test"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (interlock wiring): engine must refuse dispatch while tripped — {PLAN} §5",
-)
 def test_tripped_interlock_blocks_dispatch(runtime):
     compiler, engine, db, safety = (
         runtime["compiler"],
@@ -211,10 +207,6 @@ def test_interlock_trip_invokes_registered_stop_callback(tmp_path, monkeypatch):
         runtime_db.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (interlock wiring): stale heartbeat must block the next dispatch — {PLAN} §5",
-)
 def test_stale_heartbeat_blocks_next_dispatch(runtime, fake_mono):
     compiler, engine, db, safety = (
         runtime["compiler"],
@@ -238,10 +230,6 @@ def test_stale_heartbeat_blocks_next_dispatch(runtime, fake_mono):
     assert db._conn.execute("select count(*) from exec_journal").fetchone()[0] == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (heartbeat semantics): failure paths must still beat — {PLAN} §5",
-)
 def test_heartbeat_beaten_on_failure_paths(runtime, fake_mono, monkeypatch):
     compiler, engine, registry, safety = (
         runtime["compiler"],
@@ -285,18 +273,27 @@ def test_shipped_safety_service_is_not_a_placeholder():
         assert "sleep" not in line and "placeholder" not in line.lower(), line
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (durable latch): a trip must survive restart — {PLAN} §5",
-)
 def test_interlock_trip_survives_restart(runtime):
     config, safety = runtime["config"], runtime["safety"]
     safety.trip("contract-test")
 
-    reborn = SafetyKernel(heartbeat_timeout_s=safety.heartbeat_timeout_s)
-    # A restarted kernel must rediscover the latch from durable state under
-    # config.data_dir; today the trip lives only in process memory.
-    assert reborn.interlock.engaged is True, str(config.data_dir)
+    # A fresh kernel pointed at the same durable latch must rediscover the
+    # trip — the latch lives on disk, not only in process memory.
+    reborn = SafetyKernel(
+        heartbeat_timeout_s=safety.heartbeat_timeout_s,
+        latch_path=config.estop_latch_path,
+    )
+    assert reborn.engaged() is True
+    assert reborn.interlock.reason == "contract-test"
+
+    # And it clears only by explicit action, removing the durable latch.
+    reborn.clear()
+    assert not config.estop_latch_path.exists()
+    third = SafetyKernel(
+        heartbeat_timeout_s=safety.heartbeat_timeout_s,
+        latch_path=config.estop_latch_path,
+    )
+    assert third.engaged() is False
 
 
 # ---------------------------------------------------------------------------

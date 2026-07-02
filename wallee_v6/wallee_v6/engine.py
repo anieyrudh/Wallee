@@ -252,6 +252,29 @@ class Engine:
             )
             return report
         for action in actions:
+            # Prove liveness on every pass, before any work and regardless of
+            # how this iteration ends: a beat that only fires on success lets
+            # the watchdog mistake a failing loop for a wedged one.
+            self.safety.beat()
+
+            # Interlock gate — re-checked per action so a stop that lands
+            # mid-sequence (from the watchdog, a stale heartbeat, or an
+            # operator) halts the remaining actions, not just the first.
+            if self.safety.engaged():
+                report.replan_required = True
+                report.notes.append(f"blocked by safety interlock: {self.safety.interlock.reason}")
+                self.runtime_db.record_event(
+                    "engine",
+                    "CRITICAL",
+                    "dispatch_blocked_interlock",
+                    context={
+                        "plan_id": plan_id,
+                        "action_id": action.action_id,
+                        "reason": self.safety.interlock.reason,
+                    },
+                )
+                break
+
             if refresh_from_frontier:
                 current_world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
                 refreshed = {candidate.action_id: candidate for candidate in current_world.frontier}
@@ -327,6 +350,19 @@ class Engine:
                     break
 
                 self.safety.beat()
+            except Exception as exc:
+                # A dispatch that raises unexpectedly is a failed pass, not a
+                # dead loop: record it, prove liveness, and stop the sequence.
+                self.runtime_db.record_event(
+                    "engine",
+                    "ERROR",
+                    "dispatch_raised",
+                    context={"plan_id": plan_id, "action_id": action.action_id, "error": str(exc)},
+                )
+                report.failed_action_run_id = run.action_run_id
+                report.notes.append(f"dispatch raised for {action.action_id}: {exc}")
+                self.safety.beat()
+                break
             finally:
                 self.lock_manager.release(action.required_locks)
         return report

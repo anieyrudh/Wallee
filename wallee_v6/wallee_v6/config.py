@@ -78,6 +78,21 @@ class Config:
     safe_to_unload_temp_c: float
     control_lock_path: Path
 
+    @property
+    def safety_dir(self) -> Path:
+        """Directory shared by the in-process kernel and the out-of-process watchdog."""
+        return self.data_dir / "safety"
+
+    @property
+    def estop_latch_path(self) -> Path:
+        """Durable ESTOP latch: present == engaged, honored by both enforcers."""
+        return self.safety_dir / "estop.latch.json"
+
+    @property
+    def heartbeat_path(self) -> Path:
+        """Runtime liveness beacon consumed by the watchdog (mtime is the truth)."""
+        return self.safety_dir / "heartbeat.json"
+
     @classmethod
     def from_env(cls, repo_root: str | Path | None = None) -> "Config":
         """Build a :class:`Config` from environment variables.

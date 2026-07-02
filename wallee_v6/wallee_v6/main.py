@@ -224,7 +224,10 @@ def build_runtime(config: Config):
         predicate_evaluator=predicate_evaluator,
     )
     human_gateway = HumanGateway(config=config, runtime_db=runtime_db)
-    safety = SafetyKernel(heartbeat_timeout_s=config.heartbeat_timeout_seconds)
+    safety = SafetyKernel(
+        heartbeat_timeout_s=config.heartbeat_timeout_seconds,
+        latch_path=config.estop_latch_path,
+    )
     engine = Engine(
         config=config,
         runtime_db=runtime_db,
