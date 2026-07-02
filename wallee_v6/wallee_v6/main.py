@@ -15,7 +15,7 @@ import traceback
 from .config import Config
 from .engine import Engine
 from .human import HumanGateway
-from .models import PlanIR
+from .models import ActionRunStatus, PlanIR
 from .planner import HeuristicPlanner, OpenRouterPlanner, Planner
 from .planning_context import WorldCompiler
 from .predicates import PredicateEvaluator
@@ -255,6 +255,62 @@ def reset_runtime_start_state(config: Config) -> None:
             path.unlink()
     if config.control_lock_path.exists():
         config.control_lock_path.unlink()
+
+
+def reconcile_runtime_start_state(config: Config) -> dict[str, int]:
+    """Sweep crash residue from a previous run before the runtime starts.
+
+    A run that died mid-cycle can leave rows that silently poison the next
+    run: DISPATCHED rows hold their locks forever (the world compiler derives
+    held locks from durable DISPATCHED runs, so pause/cancel-class actions
+    vanish from every future frontier), and PROPOSED/AUTHORIZED rows describe
+    work nobody is doing. Dispatched work may or may not have reached
+    hardware, so it is marked UNKNOWN and escalated to a human rather than
+    guessed at.
+    """
+    swept = {"unknown": 0, "aborted": 0}
+    if not config.db_path.exists():
+        return swept
+    runtime_db = RuntimeDB(config.db_path)
+    try:
+        human_gateway = HumanGateway(config=config, runtime_db=runtime_db)
+        for run in runtime_db.list_action_runs_by_status(ActionRunStatus.DISPATCHED):
+            runtime_db.transition_action_run(
+                run.action_run_id,
+                ActionRunStatus.UNKNOWN,
+                error={"reason": "runtime restarted while this action was DISPATCHED; outcome unknown"},
+            )
+            runtime_db.record_event(
+                "runtime",
+                "CRITICAL",
+                "boot_reconcile_dispatched_outcome_unknown",
+                context={"action_run_id": run.action_run_id, "action_id": run.action_id, "verb": run.verb},
+            )
+            human_gateway.call_human(
+                title=f"Crash recovery: outcome of {run.action_id} is unknown",
+                body=(
+                    f"The runtime restarted while action run {run.action_run_id} ({run.verb} via "
+                    f"{run.action_id}) was DISPATCHED. The side effect may or may not have reached "
+                    "the machine. Verify machine state before resuming unattended operation."
+                ),
+                severity="critical",
+                require_ack=True,
+                context={"action_run_id": run.action_run_id, "action_id": run.action_id},
+            )
+            swept["unknown"] += 1
+        for stale_status in (ActionRunStatus.PROPOSED, ActionRunStatus.AUTHORIZED):
+            for run in runtime_db.list_action_runs_by_status(stale_status):
+                runtime_db.transition_action_run(
+                    run.action_run_id,
+                    ActionRunStatus.ABORTED,
+                    error={"reason": f"stale {stale_status.value} run from a previous runtime start"},
+                )
+                swept["aborted"] += 1
+        if swept["unknown"] or swept["aborted"]:
+            runtime_db.record_event("runtime", "WARN", "boot_reconcile_summary", context=dict(swept))
+    finally:
+        runtime_db.close()
+    return swept
 
 
 def build_planner(config: Config, repo_root: Path) -> Planner:
@@ -933,6 +989,7 @@ def main(argv: list[str] | None = None) -> int:
     archive = _RuntimeArchive(config, repo_root=repo_root)
     try:
         reset_runtime_start_state(config)
+        reconcile_runtime_start_state(config)
         log_path, log_handle, original_stdout, original_stderr = _install_run_log(archive)
         runtime_db, whiteboard, registry, world_compiler, human_gateway, safety, engine, planner = build_runtime(config)
         goal = args.goal

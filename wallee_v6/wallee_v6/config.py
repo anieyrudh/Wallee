@@ -137,7 +137,11 @@ class Config:
             approval_ttl_seconds=int(os.environ.get("WALLEE_APPROVAL_TTL_SECONDS", "120")),
             heartbeat_timeout_seconds=int(os.environ.get("WALLEE_HEARTBEAT_TIMEOUT_SECONDS", "3")),
             runtime_poll_interval_seconds=float(os.environ.get("WALLEE_RUNTIME_POLL_INTERVAL_S", "5.0")),
-            flush_state_on_start=os.environ.get("WALLEE_FLUSH_STATE_ON_START", "1").strip()
+            # Default OFF: the exec journal exists to answer "did a side effect
+            # start before the crash?" — wiping it on boot erases exactly the
+            # evidence crash recovery needs. Boot residue is swept by
+            # main.reconcile_runtime_start_state instead.
+            flush_state_on_start=os.environ.get("WALLEE_FLUSH_STATE_ON_START", "0").strip()
             not in {"0", "false", "False"},
             monitor_when_inactive=os.environ.get("WALLEE_MONITOR_WHEN_INACTIVE", "0").strip()
             not in {"0", "false", "False"},

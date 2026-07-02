@@ -13,9 +13,20 @@ from wallee_v6.main import (
     _artifact_planning_current,
     _world_artifact_payload,
     _write_cycle_artifact,
+    reconcile_runtime_start_state,
     reset_runtime_start_state,
 )
-from wallee_v6.models import ActionRunStatus, DeviceSummary, ExecutionResult, HazardClass, LegalAction, PlanIR, PlanRecord, WorldPacket
+from wallee_v6.models import (
+    ActionRun,
+    ActionRunStatus,
+    DeviceSummary,
+    ExecutionResult,
+    HazardClass,
+    LegalAction,
+    PlanIR,
+    PlanRecord,
+    WorldPacket,
+)
 from wallee_v6.predicates import PredicateEvaluator, atom
 from wallee_v6.runtime_db import RuntimeDB
 from wallee_v6.safety import SafetyKernel
@@ -663,6 +674,7 @@ def test_engine_control_lease_allows_only_one_live_writer(tmp_path, monkeypatch)
 def test_reset_runtime_start_state_clears_db_cycles_and_control_lock(tmp_path, monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
     monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WALLEE_FLUSH_STATE_ON_START", "1")
     config = Config.from_env(repo_root=repo_root)
 
     runtime_db = RuntimeDB(config.db_path)
@@ -1088,3 +1100,104 @@ def test_toctou_precondition_failure_parks_run_as_replan_required_without_raisin
     assert report.replan_required
     parked = db.list_action_runs_by_status(ActionRunStatus.REPLAN_REQUIRED)
     assert [run.action_id for run in parked] == [action.action_id]
+
+
+def _crash_residue_run(db, *, status: ActionRunStatus, required_locks: list[str], suffix: str) -> ActionRun:
+    now_ms = int(time.time() * 1000)
+    plan_id = f"plan_residue_{suffix}"
+    db.store_plan(
+        PlanRecord(
+            plan_id=plan_id,
+            goal="g",
+            world_packet={"goal": "g"},
+            plan_ir={"decision": "EXECUTE", "sequence": ["A_PRN_PAUSE"], "why": "residue"},
+            created_ts_ms=now_ms,
+        )
+    )
+    run = ActionRun(
+        action_run_id=f"run_residue_{suffix}",
+        plan_id=plan_id,
+        action_id="A_PRN_PAUSE",
+        verb="PAUSE_PROCESS",
+        owner_pack="sim_printer",
+        args={},
+        args_hash=action_args_hash("PAUSE_PROCESS", {}),
+        idempotency_key=f"idem_residue_{suffix}",
+        required_locks=required_locks,
+        status=ActionRunStatus.PROPOSED,
+        hazard_class=HazardClass.LOW,
+        created_ts_ms=now_ms,
+        updated_ts_ms=now_ms,
+    )
+    db.create_action_run(run)
+    if status is ActionRunStatus.DISPATCHED:
+        db.transition_action_run(run.action_run_id, ActionRunStatus.AUTHORIZED)
+        db.transition_action_run(run.action_run_id, ActionRunStatus.DISPATCHED)
+    elif status is ActionRunStatus.AUTHORIZED:
+        db.transition_action_run(run.action_run_id, ActionRunStatus.AUTHORIZED)
+    return run
+
+
+def test_flush_state_on_start_defaults_off(tmp_path, monkeypatch):
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("WALLEE_FLUSH_STATE_ON_START", raising=False)
+    config = Config.from_env(repo_root=repo_root)
+
+    assert config.flush_state_on_start is False
+
+    runtime_db = RuntimeDB(config.db_path)
+    runtime_db.record_event("test", "INFO", "survives_restart")
+    runtime_db.close()
+
+    reset_runtime_start_state(config)
+
+    runtime_db = RuntimeDB(config.db_path)
+    try:
+        count = runtime_db._conn.execute("select count(*) from events").fetchone()[0]
+        assert count == 1
+    finally:
+        runtime_db.close()
+
+
+def test_boot_reconcile_marks_dispatched_unknown_frees_locks_and_escalates(runtime):
+    db = runtime["db"]
+    config = runtime["config"]
+    compiler = runtime["compiler"]
+
+    residue = _crash_residue_run(
+        db, status=ActionRunStatus.DISPATCHED, required_locks=["printer_1.motion"], suffix="dispatched"
+    )
+    # Crash residue poisons every future frontier: the world compiler treats
+    # durable DISPATCHED rows as held locks.
+    assert compiler._active_locks() == {"printer_1.motion"}
+
+    swept = reconcile_runtime_start_state(config)
+
+    assert swept == {"unknown": 1, "aborted": 0}
+    assert db.list_action_runs_by_status(ActionRunStatus.DISPATCHED) == []
+    unknown_runs = db.list_action_runs_by_status(ActionRunStatus.UNKNOWN)
+    assert [run.action_run_id for run in unknown_runs] == [residue.action_run_id]
+    assert compiler._active_locks() == set()
+
+    outbox_payloads = [json.loads(p.read_text()) for p in config.outbox_dir.glob("human_*.json")]
+    crash_notices = [p for p in outbox_payloads if "Crash recovery" in p["title"]]
+    assert len(crash_notices) == 1
+    assert crash_notices[0]["severity"] == "critical"
+    assert crash_notices[0]["require_ack"] is True
+
+
+def test_boot_reconcile_aborts_stale_proposed_and_authorized_runs(runtime):
+    db = runtime["db"]
+    config = runtime["config"]
+
+    proposed = _crash_residue_run(db, status=ActionRunStatus.PROPOSED, required_locks=[], suffix="proposed")
+    authorized = _crash_residue_run(db, status=ActionRunStatus.AUTHORIZED, required_locks=[], suffix="authorized")
+
+    swept = reconcile_runtime_start_state(config)
+
+    assert swept == {"unknown": 0, "aborted": 2}
+    aborted_ids = {run.action_run_id for run in db.list_action_runs_by_status(ActionRunStatus.ABORTED)}
+    assert aborted_ids == {proposed.action_run_id, authorized.action_run_id}
+    assert db.list_action_runs_by_status(ActionRunStatus.PROPOSED) == []
+    assert db.list_action_runs_by_status(ActionRunStatus.AUTHORIZED) == []
