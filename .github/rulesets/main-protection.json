@@ -1,0 +1,38 @@
+{
+  "_comment": "Prepared branch-protection ruleset for `main`. NOT applied automatically — the maintainer applies it once CI is green on this branch. Apply with: gh api repos/{owner}/{repo}/rulesets -X POST --input .github/rulesets/main-protection.json. Update the required_status_checks list as new CI jobs are added in later phases (see docs/REFACTOR_EXECUTION_PLAN.md).",
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          { "context": "legacy-tests" },
+          { "context": "v6-tests (3.11)" },
+          { "context": "v6-tests (3.12)" },
+          { "context": "docs-contract" }
+        ]
+      }
+    }
+  ]
+}

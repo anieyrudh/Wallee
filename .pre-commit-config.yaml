@@ -1,0 +1,41 @@
+# Pre-commit runs the fast subset of the CI gates locally, so an agent or human
+# committing to this repo runs the same checks CI enforces. Install with:
+#   pip install pre-commit && pre-commit install
+# CI runs the identical hooks via `pre-commit run --all-files` is not required
+# here yet — the individual checks run as their own CI jobs (see ci.yml).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+
+  - repo: local
+    hooks:
+      - id: forbidden-patterns
+        name: forbidden patterns (paths / IPs / MACs / secrets)
+        entry: python scripts/check_forbidden_patterns.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: check-docs
+        name: check docs (links, fences)
+        entry: python scripts/check_docs.py
+        language: system
+        pass_filenames: false
+        files: \.md$
+      - id: check-repo-contract
+        name: check repo contract (device packs)
+        entry: python scripts/check_repo_contract.py
+        language: system
+        pass_filenames: false
+        always_run: true

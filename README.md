@@ -262,7 +262,7 @@ The current suite intentionally mixes two layers of coverage:
 
 | Run | Result |
 |---|---|
-| This tree (`pytest tests/ wallee/`) | `536 passed` |
+| This tree (`pytest tests/ wallee/`) | `549 passed` |
 | `wallee_v6` tree (`pytest wallee_v6/tests/`, run separately) | `269 passed` |
 | Registered runtime actions | 20 actuator tools the LLM can propose, plus 20 background sensor publishers |
 | Replay harness corpus | `60` scenarios (offline replay score: 47/60 — see `wallee/testing/REPORT.md`) |

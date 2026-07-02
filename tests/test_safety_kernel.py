@@ -261,7 +261,7 @@ class TestEstopPrinter:
     def test_estop_sends_primary_request(self, mock_request):
         """ESTOP sends M25 to printer via direct HTTP, bypassing engine."""
         mock_request.return_value = MagicMock(status_code=204)
-        result = estop_printer("192.168.1.50", "test-key")
+        result = estop_printer("192.0.2.10", "test-key")
         assert result is True
         mock_request.assert_called_once()
         call_args = mock_request.call_args
@@ -272,7 +272,7 @@ class TestEstopPrinter:
     def test_estop_falls_back_to_cancel(self, mock_request):
         """If M25 fails, ESTOP tries DELETE /api/v1/job."""
         mock_request.side_effect = [Exception("connection refused"), MagicMock(status_code=204)]
-        result = estop_printer("192.168.1.50", "test-key")
+        result = estop_printer("192.0.2.10", "test-key")
         assert result is True
         assert mock_request.call_count == 2
         assert "/api/v1/job" in mock_request.call_args_list[1][0][1]
@@ -281,7 +281,7 @@ class TestEstopPrinter:
     def test_estop_all_fail(self, mock_request):
         """If both M25 and cancel fail, returns False."""
         mock_request.side_effect = [Exception("post failed"), Exception("delete failed")]
-        result = estop_printer("192.168.1.50", "test-key")
+        result = estop_printer("192.0.2.10", "test-key")
         assert result is False
 
     def test_estop_no_host(self):

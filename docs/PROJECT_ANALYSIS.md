@@ -16,7 +16,7 @@ The problem is **implementation drift: several of the repo's central safety and 
 1. **The v6.5 safety kernel is decorative.** `register_interlock_callback` is never called anywhere, `safety.poll()`'s result is discarded (`wallee_v6/wallee_v6/main.py:1151`), nothing checks `interlock.engaged` before dispatch, there is no ESTOP transport at all in v6, and the shipped `wallee-safety.service` literally runs a placeholder `time.sleep(10**9)` one-liner.
 2. **Approvals are broken in both trees, in different ways.** In v6, `WAITING_APPROVAL` runs are never resumed — approval-gated actions (CANCEL, START) can never execute via the planner loop. In legacy, the deadline gate runs before the approval gate against the original proposal timestamp, so any approval arriving after `max_proposal_age_ms` (~30 s for `cancel_print`) is rejected as `expired` — the human approves and the action silently dies.
 3. **Legacy ESTOP auto-expires.** `safety.estop` is written with a 600 s TTL; an emergency stop that silently un-latches after 10 minutes is a safety-critical mis-design.
-4. **CI has been red on `main` since the v6.5 merge** — both jobs. Root `pytest -q` fails at collection on `wallee_v6/tests`, and the repo's own `scripts/check_docs.py` exits 1 with ~36 errors: README/ARCHITECTURE link to `/Users/anieyrudh/Desktop/Wallee2/...` — absolute paths on the author's laptop. The `wallee_v6` tree — "the latest maintained implementation" — has **never been covered by CI, lint, or type-checking**, and it shows: `ruff check wallee_v6` finds 27 errors including a real production `NameError` (`planner.py:385-387` calls three helpers that are never imported).
+4. **CI has been red on `main` since the v6.5 merge** — both jobs. Root `pytest -q` fails at collection on `wallee_v6/tests`, and the repo's own `scripts/check_docs.py` exits 1 with ~36 errors: README/ARCHITECTURE link to `<author-laptop-path>/...` — absolute paths on the author's laptop. The `wallee_v6` tree — "the latest maintained implementation" — has **never been covered by CI, lint, or type-checking**, and it shows: `ruff check wallee_v6` finds 27 errors including a real production `NameError` (`planner.py:385-387` calls three helpers that are never imported).
 5. **The v6 evidence base is missing.** `wallee_v6/docs/` (architecture doc, ADRs, the `docs/evidence/**` artifacts underwriting the pack's "proven" status matrix) does not exist in the repo; three v6 tests hardcode the author's laptop paths and fail on any other machine.
 
 None of this diminishes the design contribution — but for a repo that positions itself as a citable safety architecture, the gap between claim and code is the most important thing to close. The good news: nearly all P0 items are days, not months, of work.
@@ -70,8 +70,8 @@ The two trees share no code; both independently implement whiteboard, ledger, sa
 
 ### 3.6 CI is red on `main`; the flagship tree has never run in CI
 - Job 1: bare `pytest -q` from root fails at collection (`wallee_v6/tests/conftest.py:7` can't resolve `wallee_v6.config`; CI never installs the v6 package or its deps).
-- Job 2: `scripts/check_docs.py` exits 1 with ~36 `local absolute link: /Users/anieyrudh/...` errors (README.md:16-23, ARCHITECTURE.md:3, the prusa_core_one_plus pack docs).
-- Three v6 tests hardcode `/Users/anieyrudh/Desktop/Wallee2/...` (`wallee_v6/tests/test_append_experiment_run.py:116,208`, `test_append_stock_experiment_run.py:35`) and `scripts/append_experiment_run.py:600` defaults `--ssh-key` to a personal key path. These have plainly never run anywhere but one laptop.
+- Job 2: `scripts/check_docs.py` exits 1 with ~36 `local absolute link: <author-laptop-path>/...` errors (README.md:16-23, ARCHITECTURE.md:3, the prusa_core_one_plus pack docs).
+- Three v6 tests hardcode `<author-laptop-path>/...` (`wallee_v6/tests/test_append_experiment_run.py:116,208`, `test_append_stock_experiment_run.py:35`) and `scripts/append_experiment_run.py:600` defaults `--ssh-key` to a personal key path. These have plainly never run anywhere but one laptop.
 
 **Fix:** derive script paths from `Path(__file__)`; scope root pytest (`testpaths`/`norecursedirs`) and add a dedicated v6 CI job (`pip install -e "wallee_v6[dev]" && pytest wallee_v6/tests` + `ruff check wallee_v6`); fix the 36 links; make CI required on `main`.
 
@@ -175,7 +175,7 @@ The compile → frontier → Plan IR → validate → execute pipeline is a genu
 - **Coverage gaps that matter:** v6 has zero tests for `dashboard.py`, `operator_cli.py`, `runtime_control.py`, `openrouter_observability.py`; exactly one safety test — and nothing tests that a tripped interlock blocks execution (nothing implements it, §3.1); no test for approval resume (path doesn't exist) or for the journal-wipe behavior.
 
 ### 7.2 CI/tooling gaps
-- No v6 job (tests, lint, or contract checks), no Python version matrix (3.11 claimed, never tested), no coverage, no type checking, no security scanning (pip-audit/bandit/CodeQL), no dependabot/renovate, no pre-commit hooks (which would have stopped the `/Users/...` paths), no `concurrency`/`timeout-minutes`/`permissions` hardening in the workflow.
+- No v6 job (tests, lint, or contract checks), no Python version matrix (3.11 claimed, never tested), no coverage, no type checking, no security scanning (pip-audit/bandit/CodeQL), no dependabot/renovate, no pre-commit hooks (which would have stopped the `<author-laptop-path>/...` paths), no `concurrency`/`timeout-minutes`/`permissions` hardening in the workflow.
 - **No ruff config anywhere** — CI runs ruff's minimal defaults (E4/E7/E9/F only). Add a `[tool.ruff]` with a real ruleset (bugbear, isort, pyupgrade) + `ruff format`.
 - The custom checkers are genuinely good (`check_docs.py` link validation; `check_repo_contract.py` asserts every decorated tool is registered *and documented in the pack README*) — but they only cover the legacy tree, and `check_docs.py` only parses markdown links, so backtick references to the nonexistent `wallee_v6/docs/` escape it.
 
@@ -191,7 +191,7 @@ Zero git tags, zero GitHub releases; versions are *directories*; changelogs stop
 ## 8. Documentation quality
 
 ### 8.1 Broken and wrong (fix first)
-- ~36 absolute `/Users/anieyrudh/...` links across 6 files (README.md:16-23, ARCHITECTURE.md:3, `wallee_v6/README.md:114`, pack README/CAPABILITIES/TESTING) — the repo's own CI check enumerates every one.
+- ~36 absolute `<author-laptop-path>/...` links across 6 files (README.md:16-23, ARCHITECTURE.md:3, `wallee_v6/README.md:114`, pack README/CAPABILITIES/TESTING) — the repo's own CI check enumerates every one.
 - `wallee_v6/docs/` **does not exist**: the v6 architecture doc, ADRs (`AGENTS.md:50-52` tells contributors to update ADRs in a directory that isn't there), HUMAN_GUIDE, a PDF guide, and all `docs/evidence/**` artifacts underwriting the pack's "direct-hardware-proven / managed-wallee-proven" status matrix are referenced but absent. Commit them (redacted as needed) or strip every reference — as-is, the pack's central evidence-based claims are unverifiable.
 - Quick-start errors: `cd Wallee2` (README.md:230; the clone dir is `wallee`); the v6 quick start never says `cd wallee_v6` so `pip install -e ".[dev]"` fails from root; Redis is required but never listed as a prerequisite in the quick start.
 - Stale counts: "19 sensor publishers" is 20 (verified by loading the registry); "Mermaid blocks in root docs: 6" is 8; test counts are per-tree only and never mention v6's 262.

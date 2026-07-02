@@ -59,7 +59,7 @@ class TestCallHumanTool:
 
 
 class TestPlaceholders:
-    @patch("wallee.device_packs.pi_cameras.sensors.discover_buddy_cameras", return_value=["192.168.0.194"])
+    @patch("wallee.device_packs.pi_cameras.sensors.discover_buddy_cameras", return_value=["192.0.2.11"])
     @patch("wallee.device_packs.pi_cameras.sensors.discover_nozzle_camera_port", return_value="8083")
     @patch("wallee.device_packs.prusa_serial.actuators._find_prusa_port", return_value="/dev/ttyACM0")
     def test_discover_hardware(self, mock_serial, mock_nozzle, mock_buddies, wb, tmp_path, monkeypatch):
@@ -67,7 +67,7 @@ class TestPlaceholders:
         result = discover_hardware(whiteboard=wb)
         assert result["status"] == "success"
         assert result["findings"]["camera.nozzle_port"] == "8083"
-        assert result["findings"]["camera.buddy_ips"] == ["192.168.0.194"]
+        assert result["findings"]["camera.buddy_ips"] == ["192.0.2.11"]
         assert result["findings"]["printer.serial_port"] == "/dev/ttyACM0"
         assert wb.read("camera.nozzle_port") == "8083"
 

@@ -594,7 +594,7 @@ The repository keeps two validation layers in one tree:
 
 | Check | Result |
 |---|---|
-| Python tests (this tree: `tests/` + `wallee/device_packs/*/tests/`) | `536 passed` |
+| Python tests (this tree: `tests/` + `wallee/device_packs/*/tests/`) | `549 passed` |
 | Python tests (`wallee_v6/tests/`, run separately) | `269 passed` |
 | Lint | `ruff check wallee scripts` and `ruff check wallee_v6` clean |
 | Mermaid blocks in root docs | `8` |
