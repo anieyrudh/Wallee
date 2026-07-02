@@ -185,10 +185,6 @@ def test_tripped_interlock_blocks_dispatch(runtime):
     assert db._conn.execute("select count(*) from exec_journal").fetchone()[0] == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (stop transport): build_runtime must register a stop callback — {PLAN} §5",
-)
 def test_interlock_trip_invokes_registered_stop_callback(tmp_path, monkeypatch):
     monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("WALLEE_ENABLED_PACKS", "sim_printer,sim_arm")
@@ -201,6 +197,14 @@ def test_interlock_trip_invokes_registered_stop_callback(tmp_path, monkeypatch):
         assert safety._callbacks, (
             "the real composition must register at least one physical-stop "
             "callback; a trip with no callback stops nothing"
+        )
+        # Tripping the interlock must actually issue the stop. The sim pack's
+        # file transport records it to a JSONL log — proof the callback ran
+        # end to end, not merely that a callback was registered.
+        safety.trip("contract-test")
+        stop_log = config.data_dir / "safety" / "stop_commands.jsonl"
+        assert stop_log.exists() and stop_log.read_text(encoding="utf-8").strip(), (
+            "trip fired no stop command"
         )
     finally:
         engine.close()

@@ -21,6 +21,19 @@ resources:
     kind: bed
   - id: printer_1.usb_storage
     kind: storage
+safety_profile:
+  transport: http
+  host_env: PRUSA_CORE_ONE_HOST
+  api_key_env: PRUSA_CORE_ONE_API_KEY
+  api_key_header: X-Api-Key
+  primary_request:
+    method: POST
+    path: /api/v1/gcode
+    json:
+      command: M25
+  fallback_request:
+    method: DELETE
+    path: /api/v1/job
 notes: |
   Supported surfaces first.
   HTTP via PrusaLink is the authoritative read and lifecycle-control surface.

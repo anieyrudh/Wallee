@@ -1641,6 +1641,25 @@ class ApprovalRecord(BaseModel):
     expires_ts_ms: int
 
 
+class SafetyProfile(BaseModel):
+    """Declarative data a pack contributes so a generic, non-AI transport can
+    stop its machine.
+
+    The profile carries no code and no secrets: hosts and API keys are named
+    by environment variable, so the out-of-process watchdog can read the same
+    profile from disk and issue a stop even if the runtime never started.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    transport: Literal["http", "file", "none"] = "none"
+    host_env: str | None = None
+    api_key_env: str | None = None
+    api_key_header: str = "X-Api-Key"
+    primary_request: dict[str, Any] | None = None
+    fallback_request: dict[str, Any] | None = None
+
+
 class PackManifest(BaseModel):
     """Minimal manifest read from `manifest.yaml`.
 
@@ -1659,4 +1678,5 @@ class PackManifest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     detection: dict[str, Any] = Field(default_factory=dict)
     resources: list[dict[str, Any]] = Field(default_factory=list)
+    safety_profile: SafetyProfile | None = None
     notes: str | None = None

@@ -12,5 +12,14 @@ detection:
 resources:
   - id: printer_1.bed
     kind: bed
+safety_profile:
+  transport: file
+  primary_request:
+    method: POST
+    path: /sim/stop
+    json:
+      command: STOP
 notes: |
   Reference pack used for simulation and tests.
+  The file-transport safety profile records the stop to a JSONL log so the
+  interlock/SIGKILL tests exercise the real stop path with no hardware.

@@ -30,6 +30,7 @@ DEVICE_KNOWLEDGE = re.compile(r"printer_1|PRUSA|_TRIM_")
 NETWORK_ALLOWLIST = {
     "planner.py": "raises/handles urllib errors from the transport",
     "llm_transport.py": "the LLM HTTP transport itself (live/recording/replay seam)",
+    "stop_transport.py": "the generic machine-stop transport (safety arm; stdlib-only)",
     "registry.py": "pack presence detection probes (to become manifest-driven)",
     "dashboard.py": "read-only HTTP surface (currently not wired into main)",
 }

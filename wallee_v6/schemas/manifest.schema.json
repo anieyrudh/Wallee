@@ -1,4 +1,79 @@
 {
+  "$defs": {
+    "SafetyProfile": {
+      "additionalProperties": false,
+      "description": "Declarative data a pack contributes so a generic, non-AI transport can\nstop its machine.\n\nThe profile carries no code and no secrets: hosts and API keys are named\nby environment variable, so the out-of-process watchdog can read the same\nprofile from disk and issue a stop even if the runtime never started.",
+      "properties": {
+        "api_key_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Key Env"
+        },
+        "api_key_header": {
+          "default": "X-Api-Key",
+          "title": "Api Key Header",
+          "type": "string"
+        },
+        "fallback_request": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback Request"
+        },
+        "host_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Host Env"
+        },
+        "primary_request": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Primary Request"
+        },
+        "transport": {
+          "default": "none",
+          "enum": [
+            "http",
+            "file",
+            "none"
+          ],
+          "title": "Transport",
+          "type": "string"
+        }
+      },
+      "title": "SafetyProfile",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "description": "Minimal manifest read from `manifest.yaml`.\n\nThe manifest intentionally carries just enough information for discovery,\ndocumentation, and operator visibility.  Higher-order logic stays in code,\nbecause once behavior gets truly dynamic, deeply embedding it in YAML creates\nmore accidental complexity than it removes.",
   "properties": {
@@ -49,6 +124,17 @@
       },
       "title": "Resources",
       "type": "array"
+    },
+    "safety_profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SafetyProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
