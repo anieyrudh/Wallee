@@ -7,7 +7,6 @@ while all SQLite details, transition checks, and serialization stay hidden here.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import json
 from pathlib import Path
 import sqlite3
@@ -22,8 +21,6 @@ from .models import (
     ApprovalRecord,
     ExecJournalEntry,
     ExecJournalStatus,
-    LegalAction,
-    PlanIR,
     PlanRecord,
 )
 
@@ -33,6 +30,9 @@ _ALLOWED_TRANSITIONS: dict[ActionRunStatus, set[ActionRunStatus]] = {
         ActionRunStatus.WAITING_APPROVAL,
         ActionRunStatus.AUTHORIZED,
         ActionRunStatus.ABORTED,
+        # The engine parks a just-created run when its locks are already held
+        # (engine lock-conflict path); this must be a safe refusal, not a crash.
+        ActionRunStatus.REPLAN_REQUIRED,
     },
     ActionRunStatus.WAITING_APPROVAL: {
         ActionRunStatus.AUTHORIZED,
@@ -41,6 +41,9 @@ _ALLOWED_TRANSITIONS: dict[ActionRunStatus, set[ActionRunStatus]] = {
     ActionRunStatus.AUTHORIZED: {
         ActionRunStatus.DISPATCHED,
         ActionRunStatus.ABORTED,
+        # TOCTOU re-check failure after authorization (engine precondition
+        # re-validation path); same rationale as PROPOSED -> REPLAN_REQUIRED.
+        ActionRunStatus.REPLAN_REQUIRED,
     },
     ActionRunStatus.DISPATCHED: {
         ActionRunStatus.DONE,

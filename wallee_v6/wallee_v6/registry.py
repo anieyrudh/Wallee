@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 import socket
-from typing import Iterable
 
 import yaml
 

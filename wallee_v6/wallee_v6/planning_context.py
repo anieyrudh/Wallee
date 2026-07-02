@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 from .config import Config
-from .models import ActionRunStatus, Delta, LegalAction, NormalizedPackState, WorldCompilationContext, WorldPacket
+from .models import ActionRunStatus, Delta, LegalAction, WorldCompilationContext, WorldPacket
 from .predicates import PredicateEvaluator
 from .registry import PackRegistry
 from .runtime_db import RuntimeDB

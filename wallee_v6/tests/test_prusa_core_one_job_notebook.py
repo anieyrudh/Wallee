@@ -106,13 +106,9 @@ G1 X54 Y4 E0.5
 
 def _fixture_text(name: str) -> str:
     repo_root = Path(__file__).resolve().parents[1]
-    candidates = [
-        repo_root / "tests" / "fixtures" / name,
-        repo_root.parent / "wallee_v6_fff_prusa_addon" / "tests" / "fixtures" / name,
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.read_text(encoding="utf-8", errors="replace")
+    candidate = repo_root / "tests" / "fixtures" / name
+    if candidate.exists():
+        return candidate.read_text(encoding="utf-8", errors="replace")
     raise FileNotFoundError(f"fixture not found: {name}")
 
 

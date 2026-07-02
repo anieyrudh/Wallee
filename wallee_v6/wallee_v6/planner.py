@@ -14,7 +14,13 @@ from urllib import error, request
 from jsonschema import Draft202012Validator
 
 from .config import Config
-from .models import PlanIR, WorldPacket
+from .models import (
+    PlanIR,
+    WorldPacket,
+    _action_direction_from_id,
+    _action_family_from_id,
+    _action_magnitude_from_id,
+)
 from .openrouter_observability import normalize_openrouter_metadata, utc_now_iso
 
 

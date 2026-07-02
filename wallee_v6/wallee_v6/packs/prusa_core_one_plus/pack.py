@@ -960,8 +960,6 @@ class Pack(BasePack):
         job_layer_height = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_layer_height_mm"))
         job_nozzle_target_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_nozzle_target_c_default"))
         job_bed_target_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_bed_target_c_default"))
-        job_pressure_advance_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_pressure_advance_default"))
-        job_print_accel_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_print_accel_mm_s2_default"))
         active_pressure_advance_baseline = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.active_pressure_advance_baseline"))
         active_print_accel_baseline_mm_s2 = _float_or_none(
             snapshot.get(f"{self.DEVICE_ID}.raw.active_print_accel_baseline_mm_s2")

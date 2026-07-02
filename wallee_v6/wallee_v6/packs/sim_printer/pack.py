@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...models import DeviceSummary, HazardClass, LegalAction, NormalizedPackState, ResourceState, WorldPacket
+from ...models import DeviceSummary, LegalAction, NormalizedPackState, ResourceState, WorldPacket
 from ...predicates import atom
 from ...whiteboard import BaseWhiteboard
 from ..base import BasePack

@@ -1035,3 +1035,56 @@ def test_world_artifact_payload_hides_accel_from_visible_allowed_frontier_ids():
     }
     assert json.loads(payload["facts"]["printer_1.allowed_frontier_ids_json"]) == payload["allowed_frontier_ids"]
     assert json.loads(payload["facts"]["printer_1.tuning_frontier_ids_json"]) == payload["tuning_frontier_ids"]
+
+
+def test_lock_conflict_parks_run_as_replan_required_without_raising(runtime, monkeypatch):
+    compiler = runtime["compiler"]
+    engine = runtime["engine"]
+    db = runtime["db"]
+
+    world = compiler.compile("Unload cooled part from printer_1 into tray_A")
+    action = world.frontier[0]
+
+    # Another holder owns this action's locks. Before the Phase-0 hotfix the
+    # PROPOSED -> REPLAN_REQUIRED transition was illegal and this path crashed
+    # with ValueError instead of refusing safely.
+    monkeypatch.setattr(engine.lock_manager, "acquire", lambda keys: False)
+
+    plan = PlanIR(decision="EXECUTE", sequence=[action.action_id], why="pin lock-conflict transition")
+    report = engine.execute_plan("Unload cooled part from printer_1 into tray_A", world, plan)
+
+    assert report.replan_required
+    parked = db.list_action_runs_by_status(ActionRunStatus.REPLAN_REQUIRED)
+    assert [run.action_id for run in parked] == [action.action_id]
+
+
+def test_toctou_precondition_failure_parks_run_as_replan_required_without_raising(runtime, monkeypatch):
+    compiler = runtime["compiler"]
+    engine = runtime["engine"]
+    db = runtime["db"]
+
+    world = compiler.compile("Unload cooled part from printer_1 into tray_A")
+    action = next(a for a in world.frontier if a.preconditions is not None)
+
+    # The world changes inside the TOCTOU window: the frontier refresh still
+    # offers the action, but the precondition fact flips before the post-
+    # authorization re-check. Before the Phase-0 hotfix the
+    # AUTHORIZED -> REPLAN_REQUIRED transition was illegal and crashed.
+    real_compile = engine.world_compiler.compile
+    calls = {"n": 0}
+
+    def compile_with_toctou_flip(goal, pending_human=None):
+        calls["n"] += 1
+        recompiled = real_compile(goal, pending_human) if pending_human is not None else real_compile(goal)
+        if calls["n"] >= 2:
+            recompiled.facts["printer_1.part_present"] = False
+        return recompiled
+
+    monkeypatch.setattr(engine.world_compiler, "compile", compile_with_toctou_flip)
+
+    plan = PlanIR(decision="EXECUTE", sequence=[action.action_id], why="pin TOCTOU transition")
+    report = engine.execute_plan("Unload cooled part from printer_1 into tray_A", world, plan)
+
+    assert report.replan_required
+    parked = db.list_action_runs_by_status(ActionRunStatus.REPLAN_REQUIRED)
+    assert [run.action_id for run in parked] == [action.action_id]

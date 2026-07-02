@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from wallee_v6.config import Config
-from wallee_v6.models import DeviceSummary, HazardClass, LegalAction, PlanIR, WorldPacket, world_packet_prompt_schema
+from wallee_v6.models import DeviceSummary, HazardClass, LegalAction, PlanIR, TuningChoice, WorldPacket, world_packet_prompt_schema
 from wallee_v6.planner import OpenRouterPlanner, PromptPackage
 
 
@@ -632,3 +632,85 @@ def test_openrouter_planner_keeps_call_human_for_real_fault_even_when_tuning_exi
     )
 
     assert normalized.decision == "CALL_HUMAN"
+
+
+def _tuning_world(frontier: list[LegalAction]) -> WorldPacket:
+    return WorldPacket(
+        goal="Improve the active print conservatively.",
+        device_summaries=[],
+        facts={},
+        resources=[],
+        blockers=[],
+        deltas=[],
+        frontier=frontier,
+        last_result={},
+        pending_human=[],
+    )
+
+
+def _trim_action(action_id: str, verb: str, description: str) -> LegalAction:
+    return LegalAction(
+        action_id=action_id,
+        verb=verb,
+        description=description,
+        owner_pack="prusa_core_one_plus",
+        execute_ref=action_id.lower(),
+        hazard_class=HazardClass.LOW,
+    )
+
+
+def test_malformed_execute_plan_with_clean_tuning_choice_collapses_to_tuning_only(monkeypatch, tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    config = Config.from_env(repo_root=repo_root)
+    planner = OpenRouterPlanner(
+        config,
+        repo_root / "schemas" / "plan_ir.schema.json",
+        prompt_package=PromptPackage(contract_text="contract", rubric_text="rubric", examples_text="examples"),
+    )
+    world = _tuning_world(
+        [
+            _trim_action("A_PRUSA_TRIM_SPEED_DOWN_SMALL", "TUNE_SPEED", "Reduce print speed a little."),
+            _trim_action("A_PRUSA_TRIM_FLOW_UP_SMALL", "TUNE_FLOW", "Raise flow a little."),
+        ]
+    )
+    plan = PlanIR(
+        decision="EXECUTE",
+        sequence=["A_PRUSA_TRIM_SPEED_DOWN_SMALL"],
+        tuning_choice=TuningChoice(family="speed", direction="down", magnitude="small"),
+        why="malformed: both explicit sequence and tuning choice",
+    )
+
+    # Regression: this path crashed with NameError (planner.py used three
+    # models helpers without importing them) before the Phase-0 hotfix.
+    normalized = planner._normalize_malformed_execute_plan(plan, world)
+
+    assert normalized.decision == "EXECUTE"
+    assert normalized.sequence == []
+    assert normalized.tuning_choice == plan.tuning_choice
+
+
+def test_malformed_execute_plan_with_unresolvable_tuning_choice_becomes_no_action(monkeypatch, tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    config = Config.from_env(repo_root=repo_root)
+    planner = OpenRouterPlanner(
+        config,
+        repo_root / "schemas" / "plan_ir.schema.json",
+        prompt_package=PromptPackage(contract_text="contract", rubric_text="rubric", examples_text="examples"),
+    )
+    world = _tuning_world(
+        [_trim_action("A_PRUSA_TRIM_FLOW_UP_SMALL", "TUNE_FLOW", "Raise flow a little.")]
+    )
+    plan = PlanIR(
+        decision="EXECUTE",
+        sequence=["A_PRUSA_TRIM_FLOW_UP_SMALL"],
+        tuning_choice=TuningChoice(family="speed", direction="down", magnitude="small"),
+        why="malformed: tuning choice matches nothing in the frontier",
+    )
+
+    normalized = planner._normalize_malformed_execute_plan(plan, world)
+
+    assert normalized.decision == "NO_ACTION"
+    assert normalized.sequence == []
+    assert normalized.tuning_choice is None

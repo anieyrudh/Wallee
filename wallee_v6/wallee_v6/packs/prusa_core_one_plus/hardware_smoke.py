@@ -3075,7 +3075,7 @@ def _render_full_system_audit_report(run_dir: Path, payload: dict[str, Any]) -> 
         f"- Repo commit: `{baseline.get('repo_commit')}`",
         f"- Planner backend/provider/model: `{baseline.get('planner_backend')}` / `{baseline.get('planner_provider')}` / `{baseline.get('planner_model')}`",
         f"- Vision model/provider: `{baseline.get('vision_model')}` / `{baseline.get('vision_provider')}`",
-        f"- Runtime guardrails: frontier-only planner, one bounded action at a time, verify-after-each-action, hard stop on first ambiguity, notebook advisory only, vision advisory only when camera usable.",
+        "- Runtime guardrails: frontier-only planner, one bounded action at a time, verify-after-each-action, hard stop on first ambiguity, notebook advisory only, vision advisory only when camera usable.",
         f"- Planner-enabled families: {', '.join(baseline.get('planner_enabled_families') or [])}",
         f"- Notebook enabled: `{baseline.get('notebook_enabled')}`",
         f"- Vision advisory enabled: `{baseline.get('vision_advisory_enabled')}`",
@@ -3774,7 +3774,6 @@ def _run_full_system_benchy_audit(
     run_dir = _full_system_audit_root() / f"{_artifact_timestamp()}-benchy-full-system-audit"
     run_dir.mkdir(parents=True, exist_ok=True)
     driver = _build_driver(settings)
-    started_print = False
     first_failed_gate: str | None = None
     timeline: list[dict[str, Any]] = []
     boundaries: list[dict[str, Any]] = []
@@ -3983,7 +3982,6 @@ def _run_full_system_benchy_audit(
             "start print request",
             lambda: driver.start_print(benchy_file),
         )
-        started_print = True
         event("print_start_request", result=payload["start_result"])
 
         last_lifecycle = None

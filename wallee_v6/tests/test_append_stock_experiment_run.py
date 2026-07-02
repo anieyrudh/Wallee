@@ -32,7 +32,7 @@ def test_append_stock_experiment_run_appends_row(tmp_path: Path) -> None:
         )
     )
 
-    script_path = Path("/Users/anieyrudh/Desktop/Wallee2/wallee_v6/scripts/append_stock_experiment_run.py")
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "append_stock_experiment_run.py"
     subprocess.run(
         [
             sys.executable,

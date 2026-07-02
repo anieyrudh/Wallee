@@ -14,7 +14,6 @@ from .models import (
     ActionRun,
     ActionRunStatus,
     ExecutionResult,
-    HazardClass,
     LegalAction,
     PlanIR,
     PlanRecord,
@@ -24,7 +23,7 @@ from .models import (
     _action_magnitude_from_id,
 )
 from .planning_context import WorldCompiler
-from .predicates import PredicateEvaluator, all_of
+from .predicates import PredicateEvaluator
 from .registry import PackRegistry
 from .runtime_db import RuntimeDB
 from .runtime_control import ControlLease

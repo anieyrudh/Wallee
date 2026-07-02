@@ -113,7 +113,7 @@ def test_append_experiment_run_extracts_and_appends(tmp_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    script_path = Path("/Users/anieyrudh/Desktop/Wallee2/wallee_v6/scripts/append_experiment_run.py")
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "append_experiment_run.py"
     result = subprocess.run(
         [
             sys.executable,
@@ -205,7 +205,7 @@ def test_append_experiment_run_reads_local_remote_bundle_replay(tmp_path: Path) 
     conn.commit()
     conn.close()
 
-    script_path = Path("/Users/anieyrudh/Desktop/Wallee2/wallee_v6/scripts/append_experiment_run.py")
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "append_experiment_run.py"
     subprocess.run(
         [sys.executable, str(script_path), "--run-dir", str(run_dir), "--ledger", str(ledger), "--experiment-root", str(experiment_root), "--vision-root", str(vision_root)],
         check=True,

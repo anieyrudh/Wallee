@@ -597,7 +597,7 @@ def main() -> int:
     parser.add_argument("--notes")
     parser.add_argument("--sync-vision", action="store_true")
     parser.add_argument("--ssh-target", default="b0@192.168.0.188")
-    parser.add_argument("--ssh-key", type=Path, default=Path("/Users/anieyrudh/.ssh/wallee_pi"))
+    parser.add_argument("--ssh-key", type=Path, default=None, help="SSH private key for remote harvest (required for remote runs)")
     parser.add_argument("--replace", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
