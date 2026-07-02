@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import errno
-import io
-import json
-import os
 import sys
 import types
 from urllib import request

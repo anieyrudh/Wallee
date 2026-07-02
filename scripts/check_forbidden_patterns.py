@@ -33,8 +33,12 @@ SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".pack", ".idx
                  ".rev", ".bgcode", ".gcode", ".woff", ".woff2"}
 SKIP_PATH_SUBSTRINGS = ("egg-info/",)
 
-# This checker documents the very patterns it bans, so it must exempt itself.
-SELF = "scripts/check_forbidden_patterns.py"
+# This checker and its test intentionally contain the very patterns they ban
+# (as documentation and as fixtures), so they are exempt from scanning.
+SELF_EXEMPT = {
+    "scripts/check_forbidden_patterns.py",
+    "tests/test_forbidden_patterns.py",
+}
 
 # Allowlisted placeholder values that would otherwise trip a rule.
 _ALLOWED_LITERALS = re.compile(
@@ -80,7 +84,7 @@ def _rel(path: Path) -> str:
 
 def _should_scan(path: Path) -> bool:
     rel = _rel(path)
-    if rel == SELF:
+    if rel in SELF_EXEMPT:
         return False
     if any(part in SKIP_DIRS for part in path.parts):
         return False
