@@ -23,9 +23,18 @@ class SafetyKernel:
     stops responding.
     """
 
-    def __init__(self, heartbeat_timeout_s: float = 3.0) -> None:
+    def __init__(
+        self,
+        heartbeat_timeout_s: float = 3.0,
+        *,
+        mono_fn: Callable[[], float] | None = None,
+    ) -> None:
+        # Injectable clock: safety timing must be testable with a fake clock,
+        # otherwise TTL/expiry bugs (the legacy ESTOP auto-un-latch class)
+        # cannot be ruled out by tests that run in wall-clock milliseconds.
+        self._mono = mono_fn or time.monotonic
         self.heartbeat_timeout_s = heartbeat_timeout_s
-        self._last_heartbeat_mono = time.monotonic()
+        self._last_heartbeat_mono = self._mono()
         self.interlock = InterlockState()
         self._callbacks: list[Callable[[str], None]] = []
 
@@ -35,7 +44,7 @@ class SafetyKernel:
 
     def beat(self) -> None:
         """Record a control-plane heartbeat."""
-        self._last_heartbeat_mono = time.monotonic()
+        self._last_heartbeat_mono = self._mono()
 
     def trip(self, reason: str) -> None:
         """Engage the interlock if it is not already engaged."""
@@ -50,7 +59,7 @@ class SafetyKernel:
         """Clear the interlock for tests or controlled reset flows."""
         self.interlock.engaged = False
         self.interlock.reason = None
-        self._last_heartbeat_mono = time.monotonic()
+        self._last_heartbeat_mono = self._mono()
 
     def poll(self) -> bool:
         """Check heartbeat age and trip the interlock if stale.
@@ -60,7 +69,7 @@ class SafetyKernel:
         bool
             ``True`` if the interlock is now engaged.
         """
-        age = time.monotonic() - self._last_heartbeat_mono
+        age = self._mono() - self._last_heartbeat_mono
         if age > self.heartbeat_timeout_s:
             self.trip(f"heartbeat stale ({age:.2f}s)")
         return self.interlock.engaged
