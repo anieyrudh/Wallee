@@ -68,6 +68,7 @@ class Config:
     frontier_limit: int
     delta_limit_per_device: int
     approval_ttl_seconds: int
+    approval_wait_window_seconds: int
     heartbeat_timeout_seconds: int
     runtime_poll_interval_seconds: float
     flush_state_on_start: bool
@@ -150,6 +151,7 @@ class Config:
             frontier_limit=int(os.environ.get("WALLEE_FRONTIER_LIMIT", "8")),
             delta_limit_per_device=int(os.environ.get("WALLEE_DELTA_LIMIT_PER_DEVICE", "3")),
             approval_ttl_seconds=int(os.environ.get("WALLEE_APPROVAL_TTL_SECONDS", "120")),
+            approval_wait_window_seconds=int(os.environ.get("WALLEE_APPROVAL_WAIT_WINDOW_SECONDS", "900")),
             heartbeat_timeout_seconds=int(os.environ.get("WALLEE_HEARTBEAT_TIMEOUT_SECONDS", "3")),
             runtime_poll_interval_seconds=float(os.environ.get("WALLEE_RUNTIME_POLL_INTERVAL_S", "5.0")),
             # Default OFF: the exec journal exists to answer "did a side effect

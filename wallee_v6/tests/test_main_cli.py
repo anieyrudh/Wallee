@@ -128,6 +128,7 @@ def _make_config(tmp_path: Path) -> Config:
         frontier_limit=8,
         delta_limit_per_device=3,
         approval_ttl_seconds=120,
+        approval_wait_window_seconds=900,
         heartbeat_timeout_seconds=3,
         runtime_poll_interval_seconds=0.0,
         flush_state_on_start=True,

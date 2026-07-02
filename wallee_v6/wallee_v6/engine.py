@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 from .config import Config
 from .human import HumanGateway
@@ -107,6 +107,7 @@ class Engine:
         safety: SafetyKernel,
         predicate_evaluator: PredicateEvaluator | None = None,
         control_lease: ControlLease | None = None,
+        now_ms_fn: Callable[[], int] | None = None,
     ) -> None:
         self.config = config
         self.runtime_db = runtime_db
@@ -118,6 +119,9 @@ class Engine:
         self.predicate_evaluator = predicate_evaluator or PredicateEvaluator()
         self.lock_manager = LockManager()
         self.control_lease = control_lease or ControlLease(config.control_lock_path)
+        # Injectable wall clock: approval-wait expiry must be testable without
+        # real elapsed time.
+        self._now_ms = now_ms_fn or (lambda: int(time.time() * 1000))
 
     def validate_plan(self, world: WorldPacket, plan: PlanIR) -> list[LegalAction]:
         """Validate that *plan* only references current frontier actions."""
@@ -179,6 +183,11 @@ class Engine:
         later refusal or approval block still leaves a durable record of what the
         planner wanted.
         """
+        # Resolve any runs parked awaiting approval from a previous cycle
+        # before considering fresh work — a recorded approval must actually
+        # be consumed, and an ESTOP must dispose of stale pending approvals.
+        self.resume_pending_approvals(goal)
+
         plan = self.materialize_plan(world, plan)
         plan_id = new_id("plan")
         run_scope = _run_scope_from_world(world)
@@ -312,41 +321,8 @@ class Engine:
                         report.notes.append(f"waiting for approval for {run.action_run_id}")
                         break
 
-                self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.AUTHORIZED)
-
-                latest_world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
-                if not self.predicate_evaluator.evaluate(action.preconditions, latest_world.facts):
-                    self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.REPLAN_REQUIRED)
-                    report.replan_required = True
-                    report.notes.append(f"TOCTOU predicate failed for {action.action_id}")
-                    break
-
-                self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.DISPATCHED)
-
-                if action.owner_pack == "builtin":
-                    result = self._execute_builtin(action, goal)
-                else:
-                    pack = self.registry.get(action.owner_pack)
-                    result = pack.execute(
-                        action=action,
-                        action_run_id=run.action_run_id,
-                        idempotency_key=run.idempotency_key,
-                        args_hash=run.args_hash,
-                        db=self.runtime_db,
-                        whiteboard=self.whiteboard,
-                    )
-
-                outcome = self._finalize_action(run.action_run_id, action, goal, result)
-                report.executed_action_ids.append(action.action_id)
-                report.notes.extend(outcome.notes)
-                report.human_request_ids.extend(outcome.human_request_ids)
-                if outcome.post_execution_world is not None:
-                    report.post_execution_world = outcome.post_execution_world
-                if outcome.replan_required:
-                    report.replan_required = True
-                    break
-                if outcome.failed_action_run_id:
-                    report.failed_action_run_id = outcome.failed_action_run_id
+                self._authorize_toctou_and_dispatch(run, action, goal, plan_id, report)
+                if report.replan_required or report.failed_action_run_id:
                     break
 
                 self.safety.beat()
@@ -366,6 +342,131 @@ class Engine:
             finally:
                 self.lock_manager.release(action.required_locks)
         return report
+
+    def _authorize_toctou_and_dispatch(
+        self, run: ActionRun, action: LegalAction, goal: str, plan_id: str, report: ExecutionReport
+    ) -> None:
+        """Advance an authorized-or-approved run to DISPATCHED and execute it.
+
+        The single shared dispatch tail used by both the normal path and the
+        approval-resume path, so a resumed run passes through exactly the same
+        TOCTOU re-check, journal barrier, and finalization as a fresh one.
+        The caller must already hold the action's locks and have cleared the
+        interlock gate.
+        """
+        self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.AUTHORIZED)
+
+        latest_world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
+        if not self.predicate_evaluator.evaluate(action.preconditions, latest_world.facts):
+            self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.REPLAN_REQUIRED)
+            report.replan_required = True
+            report.notes.append(f"TOCTOU predicate failed for {action.action_id}")
+            return
+
+        self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.DISPATCHED)
+
+        if action.owner_pack == "builtin":
+            result = self._execute_builtin(action, goal)
+        else:
+            pack = self.registry.get(action.owner_pack)
+            result = pack.execute(
+                action=action,
+                action_run_id=run.action_run_id,
+                idempotency_key=run.idempotency_key,
+                args_hash=run.args_hash,
+                db=self.runtime_db,
+                whiteboard=self.whiteboard,
+            )
+
+        outcome = self._finalize_action(run.action_run_id, action, goal, result)
+        report.executed_action_ids.append(action.action_id)
+        report.notes.extend(outcome.notes)
+        report.human_request_ids.extend(outcome.human_request_ids)
+        if outcome.post_execution_world is not None:
+            report.post_execution_world = outcome.post_execution_world
+        if outcome.replan_required:
+            report.replan_required = True
+        if outcome.failed_action_run_id:
+            report.failed_action_run_id = outcome.failed_action_run_id
+
+    def _resolve_action_for_run(self, run: ActionRun, goal: str) -> LegalAction | None:
+        """Find the current frontier action a WAITING_APPROVAL run refers to.
+
+        Recompiling the world gives the full action (execute_ref, preconditions)
+        the durable run row does not store, and confirms the approved action is
+        still legal before it is resumed.
+        """
+        world = self.world_compiler.compile(goal, self.human_gateway.pending_messages())
+        for candidate in world.frontier:
+            if candidate.action_id == run.action_id and action_args_hash(candidate.verb, candidate.args) == run.args_hash:
+                return candidate
+        return None
+
+    def resume_pending_approvals(self, goal: str) -> ExecutionReport:
+        """Resolve runs parked in WAITING_APPROVAL from a previous cycle.
+
+        For each parked run, in priority order:
+          1. ESTOP dominates — a tripped interlock aborts the run, approved or not.
+          2. A valid, matching approval resumes it through the shared gated
+             dispatch path (exactly once).
+          3. An unanswered approval past the wait window is aborted and the
+             operator is asked to re-approve rather than leaving it forever.
+        """
+        report = ExecutionReport(plan_id="approval-resume")
+        pending = self.runtime_db.list_action_runs_by_status(ActionRunStatus.WAITING_APPROVAL)
+        if not pending:
+            return report
+        if not self.control_lease.acquire():
+            report.notes.append("control lease unavailable for approval resume")
+            return report
+        try:
+            for run in pending:
+                if self.safety.engaged():
+                    self._abort_run(run, "interlock engaged while awaiting approval", report, event="approval_aborted_interlock")
+                    continue
+
+                if self.runtime_db.has_valid_approval(run.action_run_id, run.args_hash):
+                    action = self._resolve_action_for_run(run, goal)
+                    if action is None:
+                        self._abort_run(run, "approved action no longer in frontier", report, event="approval_aborted_stale_frontier")
+                        continue
+                    if not self.lock_manager.acquire(action.required_locks):
+                        report.notes.append(f"lock conflict resuming {run.action_run_id}; will retry")
+                        continue
+                    try:
+                        self._authorize_toctou_and_dispatch(run, action, goal, run.plan_id, report)
+                        self.safety.beat()
+                    finally:
+                        self.lock_manager.release(action.required_locks)
+                    continue
+
+                age_ms = self._now_ms() - run.updated_ts_ms
+                if age_ms > self.config.approval_wait_window_seconds * 1000:
+                    self._abort_run(run, "approval expired unanswered", report, event="approval_expired")
+                    self.human_gateway.call_human(
+                        title="Approval expired — re-approval needed",
+                        body=(
+                            f"Action {run.action_id} ({run.verb}) waited past the approval window "
+                            f"({self.config.approval_wait_window_seconds}s) with no operator decision and was aborted. "
+                            "Re-propose and approve if the intervention is still wanted."
+                        ),
+                        severity="warn",
+                        require_ack=True,
+                        context={"action_run_id": run.action_run_id, "action_id": run.action_id},
+                    )
+        finally:
+            self.control_lease.release()
+        return report
+
+    def _abort_run(self, run: ActionRun, reason: str, report: ExecutionReport, *, event: str) -> None:
+        self.runtime_db.transition_action_run(run.action_run_id, ActionRunStatus.ABORTED, error={"reason": reason})
+        self.runtime_db.record_event(
+            "engine",
+            "CRITICAL" if "interlock" in event else "WARN",
+            event,
+            context={"action_run_id": run.action_run_id, "action_id": run.action_id, "reason": reason},
+        )
+        report.notes.append(f"aborted {run.action_run_id}: {reason}")
 
     def close(self) -> None:
         self.control_lease.release()

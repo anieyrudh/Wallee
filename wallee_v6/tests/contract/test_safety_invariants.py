@@ -242,6 +242,7 @@ def test_heartbeat_beaten_on_failure_paths(runtime, fake_mono, monkeypatch):
         runtime["safety"],
     )
     safety._mono = fake_mono
+    safety.beat()  # rebase the heartbeat into fake-clock time
     world = compiler.compile(GOAL)
     action = world.frontier[0]
 
@@ -254,8 +255,8 @@ def test_heartbeat_beaten_on_failure_paths(runtime, fake_mono, monkeypatch):
     else:
         monkeypatch.setattr(engine, "_execute_builtin", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
 
-    fake_mono.advance(1.0)
     before = safety._last_heartbeat_mono
+    fake_mono.advance(1.0)
     plan = PlanIR(decision="EXECUTE", sequence=[action.action_id], why="failing pass")
     engine.execute_plan(GOAL, world, plan)
 
@@ -496,70 +497,83 @@ def test_auto_approve_never_applies_above_low_hazard(runtime, monkeypatch):
     assert db._conn.execute("select count(*) from exec_journal").fetchone()[0] == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (approval resume): approved runs must execute exactly once — {PLAN} §5",
-)
-def test_approved_hazardous_action_executes_end_to_end(runtime, monkeypatch):
+def test_approved_hazardous_action_executes_end_to_end(unload_runtime, monkeypatch):
     """The full operator loop: block -> approve -> execute (exactly once).
 
-    Today the engine parks a run as WAITING_APPROVAL and no code path ever
-    revisits it; a recorded approval is consumed by nothing.
+    Uses a pack-owned action so the resume drives the real dispatch/journal
+    path. Before Phase 2 the engine parked a run as WAITING_APPROVAL and no
+    code path ever revisited it; a recorded approval was consumed by nothing.
     """
-    compiler, engine, db, human = (
+    runtime = unload_runtime
+    compiler, engine, db, human, registry = (
         runtime["compiler"],
         runtime["engine"],
         runtime["db"],
         runtime["human"],
+        runtime["registry"],
     )
+    # Mark the pack-owned unload action approval-gated at the pack boundary so
+    # every fresh compile re-marks it AND post-execution verification still
+    # sees real post-state (pinning the world would break verification).
+    arm = registry.get("sim_arm")
+    original_candidates = arm.candidate_actions
+
+    def hazardous_candidates(w):
+        actions = original_candidates(w)
+        for a in actions:
+            if a.action_id == "A_ARM_UNLOAD":
+                make_hazardous(a, HazardClass.MEDIUM)
+        return actions
+
+    monkeypatch.setattr(arm, "candidate_actions", hazardous_candidates)
+
     world = compiler.compile(GOAL)
-    action = make_hazardous(world.frontier[0], HazardClass.MEDIUM)
-    pin_world(monkeypatch, engine, world)
-    plan = PlanIR(decision="EXECUTE", sequence=[action.action_id], why="operator loop")
+    pack_action = next(a for a in world.frontier if a.action_id == "A_ARM_UNLOAD")
+    plan = PlanIR(decision="EXECUTE", sequence=[pack_action.action_id], why="operator loop")
 
     report = engine.execute_plan(GOAL, world, plan)
-    blocked_id = report.blocked_action_run_id
-    assert blocked_id is not None
+    assert report.blocked_action_run_id is not None
 
     blocked = next(r for r in db.list_action_runs_by_status(ActionRunStatus.WAITING_APPROVAL))
     human.approve(action_run_id=blocked.action_run_id, args_hash=blocked.args_hash, approved_by="operator")
 
-    # A subsequent engine pass must resume the approved run.
-    engine.execute_plan(GOAL, world, plan)
+    # A subsequent engine pass resumes the approved run through the shared
+    # gated dispatch path — exactly once.
+    engine.execute_plan(GOAL, world, PlanIR(decision="NO_ACTION", sequence=[], why="tick"))
 
     done = db.list_action_runs_by_status(ActionRunStatus.DONE)
     assert [r.action_run_id for r in done] == [blocked.action_run_id]
     assert db._conn.execute("select count(*) from exec_journal").fetchone()[0] == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (approval resume): unanswered approvals must expire to ABORTED with escalation — {PLAN} §5",
-)
-def test_unanswered_approval_expires_to_aborted_with_escalation(runtime, fake_mono, monkeypatch):
-    compiler, engine, db = runtime["compiler"], runtime["engine"], runtime["db"]
+def test_unanswered_approval_expires_to_aborted_with_escalation(runtime, monkeypatch):
+    compiler, engine, db, config = (
+        runtime["compiler"],
+        runtime["engine"],
+        runtime["db"],
+        runtime["config"],
+    )
     world = compiler.compile(GOAL)
     action = make_hazardous(world.frontier[0], HazardClass.MEDIUM)
     pin_world(monkeypatch, engine, world)
 
     engine.execute_plan(GOAL, world, PlanIR(decision="EXECUTE", sequence=[action.action_id], why="x"))
-    assert db.list_action_runs_by_status(ActionRunStatus.WAITING_APPROVAL)
+    parked = next(iter(db.list_action_runs_by_status(ActionRunStatus.WAITING_APPROVAL)))
+    outbox_before = len(list(config.outbox_dir.glob("human_*.json")))
 
-    # Far beyond any approval TTL, a maintenance pass must abort the run
-    # rather than leaving it waiting forever.
-    ttl = runtime["config"].approval_ttl_seconds
-    fake_mono.advance(ttl * 10)
+    # Far beyond the approval wait window, a maintenance pass must abort the
+    # run rather than leave it waiting forever. Drive the engine's wall clock.
+    future = parked.updated_ts_ms + (config.approval_wait_window_seconds + 1) * 1000
+    monkeypatch.setattr(engine, "_now_ms", lambda: future)
     engine.execute_plan(GOAL, world, PlanIR(decision="NO_ACTION", sequence=[], why="tick"))
 
     assert db.list_action_runs_by_status(ActionRunStatus.WAITING_APPROVAL) == []
     aborted = db.list_action_runs_by_status(ActionRunStatus.ABORTED)
-    assert len(aborted) == 1
+    assert [r.action_run_id for r in aborted] == [parked.action_run_id]
+    # The operator is asked to re-approve rather than silently dropped.
+    assert len(list(config.outbox_dir.glob("human_*.json"))) > outbox_before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 2 (interlock wiring + approval resume): ESTOP must dominate a pending approval — {PLAN} §5",
-)
 def test_human_estop_available_while_waiting_approval(runtime, monkeypatch):
     compiler, engine, db, human, safety = (
         runtime["compiler"],
