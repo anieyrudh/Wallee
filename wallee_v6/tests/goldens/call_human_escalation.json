@@ -1,0 +1,28 @@
+{
+  "action_runs": [],
+  "events": [
+    {
+      "component": "human_gateway",
+      "level": "WARN",
+      "message": "Planner escalation"
+    }
+  ],
+  "exec_journal": [],
+  "plans": [
+    {
+      "goal": "Unload cooled part from printer_1 into tray_A",
+      "plan_id": "PLAN_1",
+      "plan_ir_json": "{\"call_human_message\":\"golden escalation message\",\"decision\":\"CALL_HUMAN\",\"sequence\":[],\"tuning_choice\":null,\"why\":\"golden: escalation\"}"
+    }
+  ],
+  "report": {
+    "blocked_action_run_id": null,
+    "executed_action_ids": [],
+    "failed_action_run_id": null,
+    "human_request_ids": [
+      "HUMAN_2"
+    ],
+    "notes": [],
+    "replan_required": false
+  }
+}

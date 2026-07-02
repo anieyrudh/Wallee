@@ -1,0 +1,33 @@
+{
+  "action_runs": [
+    {
+      "action_id": "A_PRN_WAIT_COOL",
+      "action_run_id": "RUN_1",
+      "args_hash": "8b94618452e901cfaca26ac540ea30865cb88151f21b2bc4a47df4789443b7c5",
+      "hazard_class": "low",
+      "owner_pack": "builtin",
+      "plan_id": "PLAN_2",
+      "status": "REPLAN_REQUIRED",
+      "verb": "WAIT_UNTIL"
+    }
+  ],
+  "events": [],
+  "exec_journal": [],
+  "plans": [
+    {
+      "goal": "Unload cooled part from printer_1 into tray_A",
+      "plan_id": "PLAN_2",
+      "plan_ir_json": "{\"call_human_message\":null,\"decision\":\"EXECUTE\",\"sequence\":[\"A_PRN_WAIT_COOL\"],\"tuning_choice\":null,\"why\":\"golden: lock conflict\"}"
+    }
+  ],
+  "report": {
+    "blocked_action_run_id": null,
+    "executed_action_ids": [],
+    "failed_action_run_id": null,
+    "human_request_ids": [],
+    "notes": [
+      "lock conflict on []"
+    ],
+    "replan_required": true
+  }
+}

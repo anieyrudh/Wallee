@@ -10,6 +10,39 @@ history lives in the per-version changelogs under `docs/internal/`.
 
 ## [Unreleased]
 
+### Phase 1 — Pin (executable contracts on current behavior)
+
+- **Six-promise safety contract suite** (`wallee_v6/tests/contract/`, CI job
+  `safety-invariants`): the README's safety claims are now executable tests.
+  23 invariants hold; 14 are strict xfails, each naming the execution-plan
+  item that closes it. A MANIFEST plus `scripts/check_contract_manifest.py`
+  makes deleting, renaming, skipping, or weakening an invariant a red build,
+  and zero-collection cannot green the job.
+- **Adversarial gate corpus**: hostile PlanIRs (G-code injection in action
+  ids, path traversal, hallucinated/duplicate ids, oversized sequences)
+  all die at the deterministic gates with zero journal rows.
+- **Injectable clock** on `SafetyKernel` (`mono_fn`) so TTL/latch properties
+  are provable with a fake clock (the legacy ESTOP auto-un-latch class).
+- **Planner transport seam + cassette replay** (CI job `cassette-replay`):
+  the HTTP exchange is injectable; recorded traffic replays offline through
+  the production planner including schema validation and suppression
+  policies. Request fingerprints turn any prompt/payload drift into a red
+  check until the corpus is deliberately re-recorded.
+- **Header allowlist** in `normalize_openrouter_metadata`: no persistence
+  path (artifacts, replay bundles, cassettes) can store provider auth
+  echoes or cookies.
+- **Schema-sync gate** (`scripts/gen_schemas.py`, CI job `schema-sync`):
+  all three JSON schemas are pinned to their code sources; every pack
+  manifest validates against the manifest schema; the pydantic-side plan
+  bounds (3-action horizon, duplicate rejection) are asserted to exist.
+- **Characterization goldens**: exact plan→gate→dispatch→journal traces
+  over the sim packs, normalized deterministically; re-blessing is a
+  deliberate separate `[re-bless]` commit.
+- **Entrypoint e2e tests**: `python -m wallee_v6.main` runs as a subprocess
+  and must demonstrate boot reconcile, durable-state survival, and cycle
+  wiring — the structural defense against "component exists but main never
+  calls it", the original v6 failure mode.
+
 ### Phase 0 — Stop the bleeding (safety hotfixes, truth-green CI, redactions)
 
 Safety correctness (legacy `wallee/`):

@@ -1,0 +1,41 @@
+{
+  "action_runs": [
+    {
+      "action_id": "A_ARM_UNLOAD",
+      "action_run_id": "RUN_1",
+      "args_hash": "d163293e1f9eb3997342a5cce87312f1b2792c7783f08371de3847e62357dfce",
+      "hazard_class": "low",
+      "owner_pack": "sim_arm",
+      "plan_id": "PLAN_2",
+      "status": "DONE",
+      "verb": "UNLOAD_PART"
+    }
+  ],
+  "events": [],
+  "exec_journal": [
+    {
+      "action_run_id": "RUN_1",
+      "args_hash": "d163293e1f9eb3997342a5cce87312f1b2792c7783f08371de3847e62357dfce",
+      "exec_state": "SUCCESS",
+      "idempotency_key": "IDEM_3",
+      "verb": "UNLOAD_PART"
+    }
+  ],
+  "plans": [
+    {
+      "goal": "Unload cooled part from printer_1 into tray_A",
+      "plan_id": "PLAN_2",
+      "plan_ir_json": "{\"call_human_message\":null,\"decision\":\"EXECUTE\",\"sequence\":[\"A_ARM_UNLOAD\"],\"tuning_choice\":null,\"why\":\"golden: pack-owned unload\"}"
+    }
+  ],
+  "report": {
+    "blocked_action_run_id": null,
+    "executed_action_ids": [
+      "A_ARM_UNLOAD"
+    ],
+    "failed_action_run_id": null,
+    "human_request_ids": [],
+    "notes": [],
+    "replan_required": false
+  }
+}
