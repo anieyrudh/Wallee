@@ -14,26 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  legacy-tests:
-    name: legacy-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run legacy tree tests (framework + device packs)
-        # Scoped to the legacy tree; wallee_v6 has its own job with its own deps.
-        run: pytest tests wallee -q
-      - name: Lint legacy tree
-        run: ruff check wallee scripts
-
   v6-tests:
     name: v6-tests (${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -54,8 +34,8 @@ jobs:
           pip install -e "wallee_v6[dev]" ruff
       - name: Run v6 tests
         run: pytest wallee_v6/tests -q
-      - name: Lint v6 tree
-        run: ruff check wallee_v6
+      - name: Lint
+        run: ruff check wallee_v6 scripts
 
   safety-invariants:
     name: safety-invariants
@@ -126,10 +106,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install dependencies
+      - name: Install wallee_v6 (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e "wallee_v6[dev]" ruff
       - name: Check docs
         run: python scripts/check_docs.py
       - name: Check repo contracts

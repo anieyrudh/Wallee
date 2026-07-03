@@ -16,8 +16,8 @@ This repository currently carries two implementations:
 
 | Tree | Status | Model | Start here |
 |---|---|---|---|
-| [`wallee_v6/`](wallee_v6/) | **Latest maintained (v6.5)** — active printer-control work | Compile → frontier → Plan IR planner pipeline, sim packs, Prusa CORE One/+ reference pack | [v6.5 README](wallee_v6/README.md) |
-| [`wallee/`](wallee/) | Earlier generic architecture line | One-action-per-cycle agent loop, Redis whiteboard, SQLite ledger, engine gates, Telegram/CLI | this README and [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| [`wallee_v6/`](wallee_v6/) | **Latest maintained** — active printer-control work | Compile → frontier → Plan IR planner pipeline, sim packs, Prusa CORE One/+ reference pack | [v6 README](wallee_v6/README.md) |
+| `wallee/` (legacy v5) | **Retired** — archived on the `legacy/v5` branch | One-action-per-cycle agent loop, Redis whiteboard, SQLite ledger, engine gates, Telegram/CLI | [`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md) |
 
 Note: the v6 architecture document (`wallee_v6/docs/ARCHITECTURE.md`) and the
 v6.5 experiment retrospective have not yet been committed to this repository;
@@ -183,9 +183,9 @@ Device packs are where the hardware-specific work lives: sensor publishers, actu
 - [`SECURITY.md`](SECURITY.md): threat model (prompt injection, LAN exposure, ESTOP rules) and disclosure policy.
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): Raspberry Pi cutover runbook for the v6 runtime.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md): deliberately deferred work (single-tree promotion, Prusa eviction, deferred research).
-- [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md): how to build a new hardware integration.
-- [`wallee/device_packs/AGENT_PROMPT.md`](wallee/device_packs/AGENT_PROMPT.md): prompt scaffold for AI agents creating a new device pack.
-- [`wallee/device_packs/prusa_link/README.md`](wallee/device_packs/prusa_link/README.md): example device-pack documentation for the shipped reference implementation.
+- `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`): how to build a new hardware integration.
+- `docs/internal/RETIRED_FINDINGS.md` (legacy agent-prompt scaffold, retired): prompt scaffold for AI agents creating a new device pack.
+- [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md): example device-pack documentation for the shipped reference implementation.
 
 ## The agent cycle
 
@@ -313,6 +313,6 @@ the architecture, not the architecture itself.
 
 Hardware-specific detail for the example lives in the device-pack docs:
 
-- Setup guide: [`wallee/device_packs/prusa_link/SETUP.md`](wallee/device_packs/prusa_link/SETUP.md)
-- Capability map: [`wallee/device_packs/prusa_link/CAPABILITIES.md`](wallee/device_packs/prusa_link/CAPABILITIES.md)
-- Device-pack guide: [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md)
+- Setup guide: [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/SETUP.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/SETUP.md)
+- Capability map: [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/CAPABILITIES.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/CAPABILITIES.md)
+- Device-pack guide: `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)

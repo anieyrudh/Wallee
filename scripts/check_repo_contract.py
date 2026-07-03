@@ -1,78 +1,134 @@
 #!/usr/bin/env python3
-"""Validate basic repository contracts for device packs and registry discovery."""
+"""Validate repository contracts for v6 device packs.
+
+Pack conformance (P4: packs own hardware, the core stays generic):
+
+- every pack directory ships a ``manifest.yaml`` that parses and validates
+  against ``schemas/manifest.schema.json`` (a typo'd key must fail loudly,
+  never silently disable a pack),
+- ``python_entrypoint`` points at a module file that exists in-tree,
+- every pack declares exactly one ``DEVICE_ID``,
+- non-simulated packs document themselves (``README.md``),
+- destructive actions carry the approval floor: any ``LegalAction`` whose
+  action id contains ``CANCEL`` must set ``approval_required=True`` in
+  source. (Runtime hazard behavior is separately pinned by the contract
+  suite — ``test_auto_approve_never_applies_above_low_hazard``.)
+
+Run from the repo root:  python scripts/check_repo_contract.py
+"""
 
 from __future__ import annotations
 
-import importlib
+import json
+import re
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+V6_ROOT = REPO_ROOT / "wallee_v6" if (REPO_ROOT / "wallee_v6").is_dir() else REPO_ROOT
+_PACKAGE_NAME = "wallee_v6" if (V6_ROOT / "wallee_v6" / "packs").is_dir() else "wallee"
+PACKS_ROOT = V6_ROOT / _PACKAGE_NAME / "packs"
+SCHEMA_PATH = V6_ROOT / "schemas" / "manifest.schema.json"
 
 
 def pack_dirs() -> list[Path]:
-    base = REPO_ROOT / "wallee" / "device_packs"
     return sorted(
         path
-        for path in base.iterdir()
+        for path in PACKS_ROOT.iterdir()
         if path.is_dir() and (path / "__init__.py").exists()
     )
 
 
-def decorated_names(module_name: str) -> list[str]:
-    try:
-        module = importlib.import_module(module_name)
-    except ImportError:
-        return []
-    names = []
-    for attr_name in dir(module):
-        obj = getattr(module, attr_name)
-        if callable(obj) and hasattr(obj, "_tool_meta"):
-            names.append(obj._tool_meta["name"])
-    return sorted(set(names))
+def _load_manifest(path: Path):
+    import yaml
+
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _entrypoint_module_file(entrypoint: str) -> Path | None:
+    module_path = entrypoint.split(":", 1)[0]
+    candidate = V6_ROOT / Path(*module_path.split(".")).with_suffix(".py")
+    return candidate if candidate.exists() else None
+
+
+def _cancel_actions_missing_approval(source: str) -> list[str]:
+    """Return CANCEL action ids whose LegalAction block lacks approval_required=True."""
+    offenders: list[str] = []
+    for match in re.finditer(r"LegalAction\(", source):
+        depth, index = 1, match.end()
+        while index < len(source) and depth:
+            if source[index] == "(":
+                depth += 1
+            elif source[index] == ")":
+                depth -= 1
+            index += 1
+        block = source[match.start() : index]
+        id_match = re.search(r"action_id=\"([^\"]+)\"", block)
+        if id_match and "CANCEL" in id_match.group(1) and "approval_required=True" not in block:
+            offenders.append(id_match.group(1))
+    return offenders
 
 
 def main() -> int:
-    from wallee.tools.registry import ToolRegistry
+    import jsonschema
 
-    registry = ToolRegistry()
-    registry.load_builtins()
     errors: list[str] = []
-
-    for pack_dir in pack_dirs():
-        pack_name = pack_dir.name
-        readme_path = pack_dir / "README.md"
-        if not readme_path.exists():
-            errors.append(f"{pack_name}: missing README.md")
-            continue
-
-        registry.load_pack(f"wallee.device_packs.{pack_name}")
-        registered_names = {tool.name for tool in registry.list_all() if tool.pack_name == pack_name}
-        expected_names = []
-        expected_names.extend(decorated_names(f"wallee.device_packs.{pack_name}.sensors"))
-        expected_names.extend(decorated_names(f"wallee.device_packs.{pack_name}.actuators"))
-        expected_names = sorted(set(expected_names))
-
-        missing = [name for name in expected_names if name not in registered_names]
-        if missing:
-            errors.append(f"{pack_name}: registry missing decorated tools: {', '.join(missing)}")
-
-        readme_text = readme_path.read_text(encoding="utf-8")
-        undocumented = [name for name in expected_names if name not in readme_text]
-        if undocumented:
-            errors.append(f"{pack_name}: README missing tool mentions: {', '.join(undocumented)}")
-
-    if errors:
-        print("Repository contract checks failed:")
-        for error in errors:
-            print(f"- {error}")
+    if not PACKS_ROOT.is_dir():
+        print(f"Pack root not found: {PACKS_ROOT}")
         return 1
 
-    print(f"Repository contract checks passed for {len(pack_dirs())} device packs.")
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+
+    packs = pack_dirs()
+    if not packs:
+        errors.append(f"no pack directories under {PACKS_ROOT}")
+
+    for pack_dir in packs:
+        name = pack_dir.name
+        manifest_path = pack_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            errors.append(f"{name}: missing manifest.yaml")
+            continue
+        try:
+            manifest = _load_manifest(manifest_path)
+        except Exception as exc:
+            errors.append(f"{name}: manifest.yaml failed to parse: {exc}")
+            continue
+        for issue in validator.iter_errors(manifest):
+            errors.append(f"{name}: manifest schema violation: {issue.message}")
+
+        entrypoint = str(manifest.get("python_entrypoint") or "")
+        if ":" not in entrypoint:
+            errors.append(f"{name}: python_entrypoint must be 'module.path:ClassName'")
+        elif _entrypoint_module_file(entrypoint) is None:
+            errors.append(f"{name}: python_entrypoint module not found in tree: {entrypoint}")
+
+        simulated = bool((manifest.get("detection") or {}).get("simulate"))
+        if not simulated and not (pack_dir / "README.md").exists():
+            errors.append(f"{name}: hardware pack must ship a README.md")
+
+        device_ids: set[str] = set()
+        for source_path in sorted(pack_dir.glob("*.py")):
+            source = source_path.read_text(encoding="utf-8")
+            device_ids.update(re.findall(r"^\s*DEVICE_ID\s*=\s*\"([^\"]+)\"", source, re.MULTILINE))
+            for offender in _cancel_actions_missing_approval(source):
+                errors.append(
+                    f"{name}: {source_path.name}: {offender} is a CANCEL-class action "
+                    "without approval_required=True (destructive-action floor)"
+                )
+        if len(device_ids) != 1:
+            errors.append(f"{name}: expected exactly one DEVICE_ID declaration, found {sorted(device_ids)}")
+
+    if errors:
+        print("Repository contract violations:")
+        for err in errors:
+            print(f"- {err}")
+        return 1
+
+    print(f"Repository contract checks passed for {len(packs)} device packs.")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

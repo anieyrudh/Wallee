@@ -1,3 +1,0 @@
-pytest>=8.0
-fakeredis>=2.21
-ruff>=0.6

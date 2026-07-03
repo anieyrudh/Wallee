@@ -621,6 +621,6 @@ If you are adapting Wallee to a different machine, the device-pack layer is wher
 
 Reference docs:
 
-- [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md)
-- [`wallee/device_packs/AGENT_PROMPT.md`](wallee/device_packs/AGENT_PROMPT.md)
-- [`wallee/device_packs/prusa_link/README.md`](wallee/device_packs/prusa_link/README.md)
+- `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)
+- `docs/internal/RETIRED_FINDINGS.md` (legacy agent-prompt scaffold, retired)
+- [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md)
