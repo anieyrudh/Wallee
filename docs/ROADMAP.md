@@ -38,6 +38,21 @@ it is its own behavior-preserving PR. The end state empties the allowlist and
 `test_no_core_module_references_device_ids` flips from xfail to a passing
 absolute check.
 
+## Remaining Prune backlog (Phase 4 items behind the ratchets)
+
+`main.py` was split (cli / composition / loop / artifacts / archive behind the
+entrypoint e2e suite); seven files remain over the 800-line cap, enforced
+shrink-only by `scripts/check_file_sizes.py` until each lands its planned
+split: `hardware_smoke.py` (→ `smoke/` package via the `_ManagedFamilySpec`
+table), `pack.py` (→ state_normalizer / frontier / realize / tuning_policy),
+`job_notebook.py`, `models.py` (contracts vs prompt-view compilation),
+`vision.py`, `planner_eval.py`, and `driver.py` (whose six `_set_*` clones
+also await the per-family spec-table dedupe, Prune item 5). Each split must
+show byte-identical goldens; the cap flips to absolute when the allowlist
+empties. Also pending from the Prune list: module loggers + print-to-handler
+(item 7), generated typed prompt-view models (item 4), and the typed FactKey
+registry (item 14).
+
 ## Vision vocabulary — structural catastrophic findings (extends I-14)
 
 The deterministic active-print gates now read the closed vision `finding_type`

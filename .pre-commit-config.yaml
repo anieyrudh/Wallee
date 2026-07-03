@@ -45,3 +45,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: check-file-sizes
+        name: check file sizes (800-line cap ratchet)
+        entry: python scripts/check_file_sizes.py
+        language: system
+        pass_filenames: false
+        always_run: true

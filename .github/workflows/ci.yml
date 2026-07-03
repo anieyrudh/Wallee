@@ -118,3 +118,5 @@ jobs:
         run: python scripts/check_forbidden_patterns.py
       - name: Check core purity (device knowledge stays in packs)
         run: python scripts/check_core_purity.py
+      - name: Check file sizes (800-line cap, shrink-only ratchet)
+        run: python scripts/check_file_sizes.py

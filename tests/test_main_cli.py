@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from wallee import cli as runtime_cli
+from wallee import loop as runtime_loop
 from wallee import main as runtime_main
 from wallee.config import Config
 from wallee.models import PlanIR
@@ -219,9 +221,9 @@ def test_main_rotates_to_fresh_per_run_log(tmp_path, monkeypatch):
     runtime_db = _StubRuntimeDB()
     engine = _StubEngine(runtime_db)
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -235,7 +237,7 @@ def test_main_rotates_to_fresh_per_run_log(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        runtime_main,
+        runtime_loop,
         "plan_with_retry",
         lambda planner, engine, world, goal, max_attempts=runtime_main.PLANNER_RETRY_ATTEMPTS: PlanIR(
             decision="NO_ACTION",
@@ -263,9 +265,9 @@ def test_main_degrades_to_no_action_after_three_consecutive_planner_failures(tmp
     runtime_db = _StubRuntimeDB()
     engine = _StubEngine(runtime_db)
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -282,8 +284,8 @@ def test_main_degrades_to_no_action_after_three_consecutive_planner_failures(tmp
     def _raise_planner_failure(planner, engine, world, goal, max_attempts=runtime_main.PLANNER_RETRY_ATTEMPTS):
         raise json.JSONDecodeError("Expecting value", "", 0)
 
-    monkeypatch.setattr(runtime_main, "plan_with_retry", _raise_planner_failure)
-    monkeypatch.setattr(runtime_main.time, "sleep", lambda _: None)
+    monkeypatch.setattr(runtime_loop, "plan_with_retry", _raise_planner_failure)
+    monkeypatch.setattr(runtime_loop.time, "sleep", lambda _: None)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--cycles", "3"]) == 0
 
@@ -310,9 +312,9 @@ def test_main_continues_after_runtime_cycle_exception(tmp_path, monkeypatch):
 
     registry = _FlakyRegistry()
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -326,7 +328,7 @@ def test_main_continues_after_runtime_cycle_exception(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        runtime_main,
+        runtime_loop,
         "plan_with_retry",
         lambda planner, engine, world, goal, max_attempts=runtime_main.PLANNER_RETRY_ATTEMPTS: PlanIR(
             decision="NO_ACTION",
@@ -334,7 +336,7 @@ def test_main_continues_after_runtime_cycle_exception(tmp_path, monkeypatch):
             why="test no action",
         ),
     )
-    monkeypatch.setattr(runtime_main.time, "sleep", lambda _: None)
+    monkeypatch.setattr(runtime_loop.time, "sleep", lambda _: None)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--cycles", "2"]) == 0
 
@@ -352,9 +354,9 @@ def test_main_archives_legacy_runtime_cycles_instead_of_deleting_them(tmp_path, 
     legacy_artifact = legacy_cycles / "old-cycle.json"
     legacy_artifact.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -368,7 +370,7 @@ def test_main_archives_legacy_runtime_cycles_instead_of_deleting_them(tmp_path, 
         ),
     )
     monkeypatch.setattr(
-        runtime_main,
+        runtime_loop,
         "plan_with_retry",
         lambda planner, engine, world, goal, max_attempts=runtime_main.PLANNER_RETRY_ATTEMPTS: PlanIR(
             decision="NO_ACTION",
@@ -391,9 +393,9 @@ def test_main_stops_when_no_active_print_and_monitoring_not_requested(tmp_path, 
     runtime_db = _StubRuntimeDB()
     engine = _StubEngine(runtime_db)
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -410,7 +412,7 @@ def test_main_stops_when_no_active_print_and_monitoring_not_requested(tmp_path, 
     def _unexpected_plan(*args, **kwargs):
         raise AssertionError("planner should not be called when no active print is running")
 
-    monkeypatch.setattr(runtime_main, "plan_with_retry", _unexpected_plan)
+    monkeypatch.setattr(runtime_loop, "plan_with_retry", _unexpected_plan)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--forever"]) == 0
     assert len(engine.executed_plans) == 1
@@ -424,9 +426,9 @@ def test_main_bypasses_planner_when_print_not_actionable(tmp_path, monkeypatch):
     runtime_db = _StubRuntimeDB()
     engine = _StubEngine(runtime_db)
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -443,7 +445,7 @@ def test_main_bypasses_planner_when_print_not_actionable(tmp_path, monkeypatch):
     def _unexpected_plan(*args, **kwargs):
         raise AssertionError("planner should not be called when print is not actionable")
 
-    monkeypatch.setattr(runtime_main, "plan_with_retry", _unexpected_plan)
+    monkeypatch.setattr(runtime_loop, "plan_with_retry", _unexpected_plan)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--once"]) == 0
     assert len(engine.executed_plans) == 1
@@ -456,9 +458,9 @@ def test_main_bypasses_planner_when_allowed_frontier_is_empty(tmp_path, monkeypa
     runtime_db = _StubRuntimeDB()
     engine = _StubEngine(runtime_db)
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -475,7 +477,7 @@ def test_main_bypasses_planner_when_allowed_frontier_is_empty(tmp_path, monkeypa
     def _unexpected_plan(*args, **kwargs):
         raise AssertionError("planner should not be called when allowed frontier is empty")
 
-    monkeypatch.setattr(runtime_main, "plan_with_retry", _unexpected_plan)
+    monkeypatch.setattr(runtime_loop, "plan_with_retry", _unexpected_plan)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--once"]) == 0
     assert len(engine.executed_plans) == 1
@@ -489,9 +491,9 @@ def test_bypassed_cycle_does_not_carry_stale_planner_provider_metadata(tmp_path,
     engine = _StubEngine(runtime_db)
     planner = SimpleNamespace(last_provider_metadata={"model": "stale-model", "latency_ms": 1234.5})
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -508,7 +510,7 @@ def test_bypassed_cycle_does_not_carry_stale_planner_provider_metadata(tmp_path,
     def _unexpected_plan(*args, **kwargs):
         raise AssertionError("planner should not be called when allowed frontier is empty")
 
-    monkeypatch.setattr(runtime_main, "plan_with_retry", _unexpected_plan)
+    monkeypatch.setattr(runtime_loop, "plan_with_retry", _unexpected_plan)
 
     assert runtime_main.main(["--goal", "Reduce stringing.", "--once"]) == 0
 
@@ -529,9 +531,9 @@ def test_main_pre_execution_terminal_guard_skips_late_tuning_action(tmp_path, mo
     registry = _CountingRegistry()
     compiler = _PreExecutionTerminalCompiler()
 
-    monkeypatch.setattr(runtime_main.Config, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(Config, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
-        runtime_main,
+        runtime_cli,
         "build_runtime",
         lambda config: (
             runtime_db,
@@ -545,7 +547,7 @@ def test_main_pre_execution_terminal_guard_skips_late_tuning_action(tmp_path, mo
         ),
     )
     monkeypatch.setattr(
-        runtime_main,
+        runtime_loop,
         "plan_with_retry",
         lambda planner, engine, world, goal, max_attempts=runtime_main.PLANNER_RETRY_ATTEMPTS: PlanIR(
             decision="EXECUTE",
