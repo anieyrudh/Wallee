@@ -1,9 +1,0 @@
-{
-  "wallee_v6/wallee_v6/config.py": 5,
-  "wallee_v6/wallee_v6/engine.py": 16,
-  "wallee_v6/wallee_v6/main.py": 49,
-  "wallee_v6/wallee_v6/models.py": 78,
-  "wallee_v6/wallee_v6/planner.py": 17,
-  "wallee_v6/wallee_v6/planner_eval.py": 172,
-  "wallee_v6/wallee_v6/planning_context.py": 5
-}

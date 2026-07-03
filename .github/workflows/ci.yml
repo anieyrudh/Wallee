@@ -28,14 +28,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
-      - name: Install wallee_v6 (with dev extras)
+      - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e "wallee_v6[dev]" ruff
+          pip install -e ".[dev]" ruff
       - name: Run v6 tests
-        run: pytest wallee_v6/tests -q
+        run: pytest tests -q
       - name: Lint
-        run: ruff check wallee_v6 scripts
+        run: ruff check .
 
   safety-invariants:
     name: safety-invariants
@@ -47,15 +47,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install wallee_v6 (with dev extras)
+      - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e "wallee_v6[dev]"
+          pip install -e ".[dev]"
       - name: Run the six-promise contract suite
         # --strict-markers + the manifest check make this job impossible to
         # green vacuously: zero collection, silent skips, weakened xfails,
         # and deleted invariants all fail here.
-        run: pytest wallee_v6/tests/contract -q --strict-markers
+        run: pytest tests/contract -q --strict-markers
       - name: Check contract manifest and xfail hygiene
         run: python scripts/check_contract_manifest.py
 
@@ -69,15 +69,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install wallee_v6 (with dev extras)
+      - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e "wallee_v6[dev]"
+          pip install -e ".[dev]"
       - name: Replay recorded planner traffic through the production planner
         # Offline and deterministic. A red here means the outbound prompt or
-        # payload changed: regenerate with wallee_v6/scripts/record_cassettes.py
+        # payload changed: regenerate with scripts/record_cassettes.py
         # in a separate [re-record] commit.
-        run: pytest wallee_v6/tests/test_cassette_replay.py -q
+        run: pytest tests/test_cassette_replay.py -q
 
   schema-sync:
     name: schema-sync
@@ -89,10 +89,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install wallee_v6 (with dev extras)
+      - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e "wallee_v6[dev]"
+          pip install -e ".[dev]"
       - name: Schemas match their code sources; manifests validate
         run: python scripts/gen_schemas.py
 
@@ -106,10 +106,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install wallee_v6 (with dev extras)
+      - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e "wallee_v6[dev]" ruff
+          pip install -e ".[dev]" ruff
       - name: Check docs
         run: python scripts/check_docs.py
       - name: Check repo contracts

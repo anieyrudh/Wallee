@@ -2,7 +2,7 @@
 """Guard the guards: the safety-contract suite may not shrink silently.
 
 Rules enforced:
-  1. The collected test ids in wallee_v6/tests/contract/ must match
+  1. The collected test ids in tests/contract/ must match
      tests/contract/MANIFEST exactly (parametrized variants collapse to their
      base id). Deleting, renaming, or adding an invariant without updating
      MANIFEST in the same commit is a red build — additions are deliberate,
@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-V6_ROOT = REPO_ROOT / "wallee_v6"
+V6_ROOT = REPO_ROOT
 CONTRACT_DIR = V6_ROOT / "tests" / "contract"
 MANIFEST = CONTRACT_DIR / "MANIFEST"
 

@@ -1,6 +1,6 @@
 # Wallee Architecture Reference
 
-> Latest maintained implementation: see [`wallee_v6/README.md`](wallee_v6/README.md). (The v6 architecture document `wallee_v6/docs/ARCHITECTURE.md` has not yet been committed to this repository.) This root document describes the earlier generic Wallee architecture line.
+> **Retired document.** This describes the v5 architecture line, now archived on the `legacy/v5` branch (see [`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md)). The current v6 architecture entry points are [`AGENTS.md`](AGENTS.md) and [`docs/internal/V6_TREE_README.md`](docs/internal/V6_TREE_README.md); a consolidated v6 architecture document is being written.
 
 Date: 2026-03-21
 
@@ -595,8 +595,8 @@ The repository keeps two validation layers in one tree:
 | Check | Result |
 |---|---|
 | Python tests (this tree: `tests/` + `wallee/device_packs/*/tests/`) | `549 passed` |
-| Python tests (`wallee_v6/tests/`, run separately) | `269 passed` |
-| Lint | `ruff check wallee scripts` and `ruff check wallee_v6` clean |
+| Python tests (`tests/`, run separately) | `269 passed` |
+| Lint | `ruff check wallee scripts` and `ruff check wallee` clean |
 | Mermaid blocks in root docs | `8` |
 
 ## Limitations
@@ -621,6 +621,6 @@ If you are adapting Wallee to a different machine, the device-pack layer is wher
 
 Reference docs:
 
-- `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)
+- `wallee/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)
 - `docs/internal/RETIRED_FINDINGS.md` (legacy agent-prompt scaffold, retired)
-- [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md)
+- [`wallee/packs/prusa_core_one_plus/README.md`](wallee/packs/prusa_core_one_plus/README.md)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep wallee_v6/schemas/*.json in lockstep with their code sources.
+"""Keep schemas/*.json in lockstep with their code sources.
 
 Source of truth is CODE, generated outward:
 
@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-V6_ROOT = REPO_ROOT / "wallee_v6"
+V6_ROOT = REPO_ROOT
 SCHEMA_DIR = V6_ROOT / "schemas"
 
 sys.path.insert(0, str(V6_ROOT))
@@ -43,7 +43,7 @@ import jsonschema  # noqa: E402
 import pydantic  # noqa: E402
 import yaml  # noqa: E402
 
-from wallee_v6.models import PackManifest, PlanIR, world_packet_prompt_schema  # noqa: E402
+from wallee.models import PackManifest, PlanIR, world_packet_prompt_schema  # noqa: E402
 
 
 def generated_schemas() -> dict[str, dict]:
@@ -77,7 +77,7 @@ def check_manifests() -> list[str]:
     errors: list[str] = []
     manifest_schema = PackManifest.model_json_schema()
     validator = jsonschema.Draft202012Validator(manifest_schema)
-    manifests = sorted((V6_ROOT / "wallee_v6" / "packs").glob("*/manifest.yaml"))
+    manifests = sorted((V6_ROOT / "wallee" / "packs").glob("*/manifest.yaml"))
     if not manifests:
         errors.append("no pack manifests found — packs/*/manifest.yaml expected")
     for manifest_path in manifests:

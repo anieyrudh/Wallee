@@ -10,9 +10,9 @@ updates:
       python-deps:
         patterns: ["*"]
 
-  # Current wallee_v6 tree (pyproject)
+  # Current wallee tree (pyproject)
   - package-ecosystem: "pip"
-    directory: "/wallee_v6"
+    directory: "/wallee"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

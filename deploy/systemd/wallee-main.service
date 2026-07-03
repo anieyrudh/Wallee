@@ -1,0 +1,26 @@
+[Unit]
+Description=Wallee main runtime
+After=network-online.target wallee-safety.service
+Wants=network-online.target
+# The safety watchdog must be running: if it stops, stop the runtime too.
+Requires=wallee-safety.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wallee
+# Goal and run-mode are required arguments; keep them in the env file so the
+# unit is bootable as shipped. --forever runs the continuous control loop.
+EnvironmentFile=/etc/wallee/main.env
+ExecStart=/opt/wallee/venv/bin/python -m wallee.main --forever --goal ${WALLEE_GOAL}
+Restart=on-failure
+User=wallee
+Group=wallee
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/wallee
+
+[Install]
+WantedBy=multi-user.target

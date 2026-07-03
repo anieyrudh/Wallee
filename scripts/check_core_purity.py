@@ -22,8 +22,8 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CORE_ROOT = REPO_ROOT / "wallee_v6" / "wallee_v6"
-ALLOWLIST_PATH = REPO_ROOT / "wallee_v6" / ".core-purity-allowlist.json"
+CORE_ROOT = REPO_ROOT / "wallee"
+ALLOWLIST_PATH = REPO_ROOT / ".core-purity-allowlist.json"
 
 DEVICE_KNOWLEDGE = re.compile(r"printer_1|PRUSA|_TRIM_")
 

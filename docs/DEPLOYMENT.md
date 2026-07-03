@@ -25,7 +25,7 @@ sudo mkdir -p /opt/wallee
 sudo chown "$USER" /opt/wallee
 git clone <your-fork-url> /opt/wallee/src
 python3 -m venv /opt/wallee/venv
-/opt/wallee/venv/bin/pip install -e "/opt/wallee/src/wallee_v6"
+/opt/wallee/venv/bin/pip install -e "/opt/wallee/src"
 ```
 
 ## 2. Provision service users and data dir
@@ -44,8 +44,8 @@ sudo usermod -aG wallee wallee-safety
 
 ```bash
 sudo mkdir -p /etc/wallee
-sudo cp /opt/wallee/src/wallee_v6/deploy/systemd/main.env.example /etc/wallee/main.env
-sudo cp /opt/wallee/src/wallee_v6/deploy/systemd/safety.env.example /etc/wallee/safety.env
+sudo cp /opt/wallee/src/deploy/systemd/main.env.example /etc/wallee/main.env
+sudo cp /opt/wallee/src/deploy/systemd/safety.env.example /etc/wallee/safety.env
 sudo chmod 640 /etc/wallee/main.env /etc/wallee/safety.env
 sudo chown root:wallee /etc/wallee/main.env
 sudo chown root:wallee-safety /etc/wallee/safety.env
@@ -76,7 +76,7 @@ control loop). Only proceed once the machine is idle and unmanaged.
 ```bash
 sudo -u wallee env WALLEE_DATA_DIR=/var/lib/wallee WALLEE_SIMULATION=1 \
   WALLEE_ENABLED_PACKS=sim_printer,sim_arm \
-  /opt/wallee/venv/bin/python -m wallee_v6.main --once --goal "smoke test"
+  /opt/wallee/venv/bin/python -m wallee.main --once --goal "smoke test"
 ```
 
 Expect a clean cycle and artifacts under `/var/lib/wallee/current_run`.
@@ -84,8 +84,8 @@ Expect a clean cycle and artifacts under `/var/lib/wallee/current_run`.
 ## 6. Install and start the v6 services
 
 ```bash
-sudo cp /opt/wallee/src/wallee_v6/deploy/systemd/wallee-safety.service /etc/systemd/system/
-sudo cp /opt/wallee/src/wallee_v6/deploy/systemd/wallee-main.service   /etc/systemd/system/
+sudo cp /opt/wallee/src/deploy/systemd/wallee-safety.service /etc/systemd/system/
+sudo cp /opt/wallee/src/deploy/systemd/wallee-main.service   /etc/systemd/system/
 sudo systemctl daemon-reload
 # Start the watchdog first; the main unit Requires= it and starts After= it.
 sudo systemctl enable --now wallee-safety.service

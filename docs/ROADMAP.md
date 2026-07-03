@@ -7,24 +7,25 @@ parked the rest" is auditable. Items are grouped by why they were deferred.
 Context: [REFACTOR_EXECUTION_PLAN.md](REFACTOR_EXECUTION_PLAN.md) and
 [PROJECT_ANALYSIS.md](PROJECT_ANALYSIS.md).
 
-## Structural — one tree, one package
+## Structural — one tree, one package (DONE in Phase 4)
 
-The repository still carries two trees (`wallee/` legacy v5 and `wallee_v6/`).
-The promotion to a single root package is deferred as its own set of CI-green
-PRs (Integration Decision I-13) because a whole-tree move is destructive and
-must not be mixed with behavior changes:
+The legacy tree was deleted and the v6 subtree promoted to the root `wallee/`
+package (Integration Decision I-13), with the retired-findings disposition
+register recorded in
+[`internal/RETIRED_FINDINGS.md`](internal/RETIRED_FINDINGS.md) and the replay
+corpus translated first. Remaining follow-ups:
 
-- **Delete the legacy tree** after the hardware sign-off, once `legacy/v5-final`
-  is tagged and a `legacy/v5` archive branch with a tombstone README is cut. The
-  archive PR carries the retired-findings disposition register (every
-  legacy-only finding, listed as "known, retired with the tree").
-- **Promote `wallee_v6/` to the root** with a pure `git mv` plus a blanket
-  `wallee_v6 -> wallee` rename across py/yaml/toml/service files, gated by
-  `rg wallee_v6` returning zero hits (string-form module refs included). No
-  behavior change in the same PR.
-- **Packaging/CI/config** follow-up: entry points, workflow paths, and required
-  check names (renamed via temporary alias jobs so `main` never goes
-  unmergeable).
+- **Cut the archive refs at merge time**: `legacy/v5` branch + `legacy/v5-final`
+  tag from the last pre-deletion `main` commit, with a tombstone README on the
+  branch.
+- **Hardware sign-off** gates the release: the deletion is on a feature branch;
+  the signed Pi session from [`DEPLOYMENT.md`](DEPLOYMENT.md) §7 must happen
+  before `v6.6.0` is tagged on `main`.
+- **Required-check rename** on `main` (legacy-tests drops out of the required
+  set) is a repo-settings change the maintainer applies at merge.
+- **Build backend**: the plan's I-1 called for hatchling + a uv lockfile; the
+  promotion kept setuptools to avoid coupling the tree move to a packaging
+  swap. Migrate deliberately later.
 
 ## Device-genericity — finish the Prusa eviction
 
@@ -63,7 +64,7 @@ From the analysis, parked until the core is stable on hardware:
 - **Full notification port and event-driven wake.** The operator/approval
   channel (e.g. Telegram) hardening rules are documented, but the full port and
   an event-driven (rather than polled) control-loop wake are not done.
-- **Authenticated dashboard.** `wallee_v6/dashboard.py` is unauthenticated and
+- **Authenticated dashboard.** `wallee/dashboard.py` is unauthenticated and
   not wired into the runtime; a designed, authenticated read surface is future
   work (and `fastapi`/`uvicorn` drop out of the deps until then).
 

@@ -1,0 +1,25 @@
+pack_id: sim_printer
+display_name: Simulated Printer
+category: additive
+python_entrypoint: wallee.packs.sim_printer.pack:Pack
+capabilities:
+  - pause_process
+  - resume_process
+  - start_process
+  - publish_part_temperature
+detection:
+  simulate: true
+resources:
+  - id: printer_1.bed
+    kind: bed
+safety_profile:
+  transport: file
+  primary_request:
+    method: POST
+    path: /sim/stop
+    json:
+      command: STOP
+notes: |
+  Reference pack used for simulation and tests.
+  The file-transport safety profile records the stop to a JSONL log so the
+  interlock/SIGKILL tests exercise the real stop path with no hardware.

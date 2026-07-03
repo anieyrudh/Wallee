@@ -10,21 +10,16 @@
 
 An architecture for safely letting LLMs operate physical hardware.
 
-## Which tree do I want?
+> **Single tree.** The repository now carries one implementation: the v6
+> runtime, promoted to the root `wallee/` package. The earlier v5 line is
+> retired — archived on the `legacy/v5` branch with its disposition recorded
+> in [`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md).
+> The previous v6 subtree README is preserved at
+> [`docs/internal/V6_TREE_README.md`](docs/internal/V6_TREE_README.md).
 
-This repository currently carries two implementations:
-
-| Tree | Status | Model | Start here |
-|---|---|---|---|
-| [`wallee_v6/`](wallee_v6/) | **Latest maintained** — active printer-control work | Compile → frontier → Plan IR planner pipeline, sim packs, Prusa CORE One/+ reference pack | [v6 README](wallee_v6/README.md) |
-| `wallee/` (legacy v5) | **Retired** — archived on the `legacy/v5` branch | One-action-per-cycle agent loop, Redis whiteboard, SQLite ledger, engine gates, Telegram/CLI | [`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md) |
-
-Note: the v6 architecture document (`wallee_v6/docs/ARCHITECTURE.md`) and the
-v6.5 experiment retrospective have not yet been committed to this repository;
-[`wallee_v6/README.md`](wallee_v6/README.md) is the current v6 entry point.
-
-**Everything below this section describes the earlier `wallee/` line**, except
-where marked otherwise.
+**Everything below this section describes the retired v5 line and is being
+rewritten for v6** — for current truth, start at
+[`AGENTS.md`](AGENTS.md) and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## The problem
 
@@ -174,7 +169,7 @@ Device packs are where the hardware-specific work lives: sensor publishers, actu
 
 ## Repository layout
 
-- `wallee_v6/` - latest maintained implementation, currently v6.5
+- `wallee/` - latest maintained implementation, currently v6.5
 - `wallee/` - earlier generic architecture/runtime line
 - `ARCHITECTURE.md` - legacy root architecture reference
 
@@ -183,9 +178,9 @@ Device packs are where the hardware-specific work lives: sensor publishers, actu
 - [`SECURITY.md`](SECURITY.md): threat model (prompt injection, LAN exposure, ESTOP rules) and disclosure policy.
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): Raspberry Pi cutover runbook for the v6 runtime.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md): deliberately deferred work (single-tree promotion, Prusa eviction, deferred research).
-- `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`): how to build a new hardware integration.
+- `wallee/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`): how to build a new hardware integration.
 - `docs/internal/RETIRED_FINDINGS.md` (legacy agent-prompt scaffold, retired): prompt scaffold for AI agents creating a new device pack.
-- [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/README.md): example device-pack documentation for the shipped reference implementation.
+- [`wallee/packs/prusa_core_one_plus/README.md`](wallee/packs/prusa_core_one_plus/README.md): example device-pack documentation for the shipped reference implementation.
 
 ## The agent cycle
 
@@ -266,7 +261,7 @@ The current suite intentionally mixes two layers of coverage:
 | Run | Result |
 |---|---|
 | This tree (`pytest tests/ wallee/`) | `549 passed` |
-| `wallee_v6` tree (`pytest wallee_v6/tests/`, run separately) | `269 passed` |
+| `wallee` tree (`pytest tests/`, run separately) | `269 passed` |
 | Registered runtime actions | 20 actuator tools the LLM can propose, plus 20 background sensor publishers |
 | Replay harness corpus | `60` scenarios (offline replay score: 47/60 — see `wallee/testing/REPORT.md`) |
 
@@ -313,6 +308,6 @@ the architecture, not the architecture itself.
 
 Hardware-specific detail for the example lives in the device-pack docs:
 
-- Setup guide: [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/SETUP.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/SETUP.md)
-- Capability map: [`wallee_v6/wallee_v6/packs/prusa_core_one_plus/CAPABILITIES.md`](wallee_v6/wallee_v6/packs/prusa_core_one_plus/CAPABILITIES.md)
-- Device-pack guide: `wallee_v6/wallee_v6/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)
+- Setup guide: [`wallee/packs/prusa_core_one_plus/SETUP.md`](wallee/packs/prusa_core_one_plus/SETUP.md)
+- Capability map: [`wallee/packs/prusa_core_one_plus/CAPABILITIES.md`](wallee/packs/prusa_core_one_plus/CAPABILITIES.md)
+- Device-pack guide: `wallee/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)

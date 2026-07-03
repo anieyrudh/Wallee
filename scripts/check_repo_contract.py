@@ -25,10 +25,8 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-V6_ROOT = REPO_ROOT / "wallee_v6" if (REPO_ROOT / "wallee_v6").is_dir() else REPO_ROOT
-_PACKAGE_NAME = "wallee_v6" if (V6_ROOT / "wallee_v6" / "packs").is_dir() else "wallee"
-PACKS_ROOT = V6_ROOT / _PACKAGE_NAME / "packs"
-SCHEMA_PATH = V6_ROOT / "schemas" / "manifest.schema.json"
+PACKS_ROOT = REPO_ROOT / "wallee" / "packs"
+SCHEMA_PATH = REPO_ROOT / "schemas" / "manifest.schema.json"
 
 
 def pack_dirs() -> list[Path]:
@@ -47,7 +45,7 @@ def _load_manifest(path: Path):
 
 def _entrypoint_module_file(entrypoint: str) -> Path | None:
     module_path = entrypoint.split(":", 1)[0]
-    candidate = V6_ROOT / Path(*module_path.split(".")).with_suffix(".py")
+    candidate = REPO_ROOT / Path(*module_path.split(".")).with_suffix(".py")
     return candidate if candidate.exists() else None
 
 

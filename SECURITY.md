@@ -28,7 +28,7 @@ Wallee drives physical hardware from a large language model. The design assumes
 the model output is **untrusted** and that anything the model reads may be
 attacker-influenced. The controls below are what keep an untrusted planner (or a
 poisoned observation) from producing unsafe motion. They are enforced by tests
-in `wallee_v6/tests/contract/` — a regression there is a security regression.
+in `tests/contract/` — a regression there is a security regression.
 
 ### 1. Prompt injection through observations
 
