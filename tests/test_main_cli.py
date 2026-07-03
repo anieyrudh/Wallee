@@ -570,3 +570,49 @@ def test_main_pre_execution_terminal_guard_skips_late_tuning_action(tmp_path, mo
     payload = json.loads(artifacts[0].read_text(encoding="utf-8"))
     assert payload["cycle_timing"]["pre_execution_terminal_guard_triggered"] is True
     assert payload["planner_output"]["decision"] == "NO_ACTION"
+
+
+def test_persistent_cycle_failure_trips_once_and_rearms_after_clear():
+    from wallee.main import _handle_persistent_cycle_failure
+
+    class FakeSafety:
+        def __init__(self):
+            self.trips = []
+
+        def trip(self, reason):
+            self.trips.append(reason)
+
+    class FakeHuman:
+        def __init__(self):
+            self.calls = []
+
+        def call_human(self, **kwargs):
+            self.calls.append(kwargs)
+
+    safety, human = FakeSafety(), FakeHuman()
+    exc = RuntimeError("boom")
+
+    # Below the threshold: nothing fires.
+    fired = _handle_persistent_cycle_failure(
+        safety=safety, human_gateway=human, consecutive_failures=2, already_tripped=False, exc=exc
+    )
+    assert fired is False and safety.trips == [] and human.calls == []
+
+    # At the threshold: exactly one trip + one require-ack escalation.
+    fired = _handle_persistent_cycle_failure(
+        safety=safety, human_gateway=human, consecutive_failures=3, already_tripped=False, exc=exc
+    )
+    assert fired is True and len(safety.trips) == 1 and len(human.calls) == 1
+    assert human.calls[0]["require_ack"] is True
+
+    # Still failing while already tripped: no re-fire spam.
+    fired = _handle_persistent_cycle_failure(
+        safety=safety, human_gateway=human, consecutive_failures=9, already_tripped=True, exc=exc
+    )
+    assert fired is True and len(safety.trips) == 1
+
+    # After the operator clears (caller re-arms the flag), a new incident fires again.
+    fired = _handle_persistent_cycle_failure(
+        safety=safety, human_gateway=human, consecutive_failures=3, already_tripped=False, exc=exc
+    )
+    assert fired is True and len(safety.trips) == 2

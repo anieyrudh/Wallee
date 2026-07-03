@@ -13,6 +13,7 @@ from urllib import error
 
 from jsonschema import Draft202012Validator
 
+from .coerce import float_or_none as _float_or_none
 from .config import Config
 from .llm_transport import LiveOpenRouterTransport, PlannerTransport
 from .models import (
@@ -524,10 +525,3 @@ def _has_real_fault_or_operator_condition(world: WorldPacket) -> bool:
     return bool(findings & _REAL_FAULT_VISION_FINDINGS)
 
 
-def _float_or_none(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None

@@ -631,13 +631,7 @@ def _family_blockers_from_world(world_view: dict[str, Any]) -> dict[str, list[st
     }
 
 
-def _split_blockers(value: Any) -> list[str]:
-    if value is None:
-        return []
-    text = str(value).strip()
-    if not text:
-        return []
-    return [part for part in text.split("|") if part]
+from .coerce import split_pipe as _split_blockers  # noqa: E402
 
 
 def _timestamp_from_artifact_name(name: str) -> str:

@@ -6,12 +6,33 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+from .coerce import string_or_none as _string_or_none
 from .config import Config
 from .models import ActionRunStatus, Delta, LegalAction, WorldCompilationContext, WorldPacket
 from .predicates import PredicateEvaluator
 from .registry import PackRegistry
 from .runtime_db import RuntimeDB
 from .whiteboard import BaseWhiteboard
+
+
+def run_scope_from_facts(facts: dict[str, Any]) -> str | None:
+    """The one run-scope builder (previously duplicated verbatim here and in
+    the engine)."""
+    job_scope_token = _string_or_none(facts.get("printer_1.job_scope_token"))
+    if not job_scope_token:
+        job_scope_token = _string_or_none(facts.get("printer_1.current_file")) or _string_or_none(
+            facts.get("printer_1.requested_file")
+        )
+    if not job_scope_token:
+        return None
+    job_id = facts.get("printer_1.job_id")
+    lifecycle = _string_or_none(facts.get("printer_1.lifecycle")) or "unknown"
+    if job_id is not None:
+        return f"job:{job_id}:{job_scope_token}"
+    return f"state:{lifecycle}:{job_scope_token}"
+
+
+_run_scope_from_facts = run_scope_from_facts
 
 
 def _utc_now_context() -> tuple[int, str]:
@@ -47,21 +68,6 @@ def _build_live_state_summary(raw_snapshot: dict[str, Any]) -> dict[str, Any]:
         elif remainder == "nozzle_cam_frame_age_s":
             device_summary["camera_frame_age_s"] = raw_snapshot.get(key)
     return {device_id: data for device_id, data in summary.items() if data}
-
-
-def _run_scope_from_facts(facts: dict[str, Any]) -> str | None:
-    job_scope_token = str(facts.get("printer_1.job_scope_token") or "").strip() or None
-    if not job_scope_token:
-        current_file = str(facts.get("printer_1.current_file") or "").strip() or None
-        requested_file = str(facts.get("printer_1.requested_file") or "").strip() or None
-        job_scope_token = current_file or requested_file
-    if not job_scope_token:
-        return None
-    job_id = facts.get("printer_1.job_id")
-    lifecycle = str(facts.get("printer_1.lifecycle") or "").strip() or "unknown"
-    if job_id is not None:
-        return f"job:{job_id}:{job_scope_token}"
-    return f"state:{lifecycle}:{job_scope_token}"
 
 
 def _is_tuning_action(action: LegalAction) -> bool:

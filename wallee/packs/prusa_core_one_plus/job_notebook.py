@@ -21,6 +21,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from ...coerce import float_or_none as _float_or_none, int_or_none as _int_or_none, string_or_none as _string_or_none
 from .types import (
     Confidence,
     Family,
@@ -1395,11 +1396,6 @@ def _parse_print_time_s(value: str | None) -> float | None:
     return total if total > 0 else None
 
 
-def _string_or_none(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
 
 
 def _utc_now_iso() -> str:
@@ -1471,24 +1467,6 @@ def _float_quad_or_none(value: Any) -> tuple[float, float, float, float] | None:
     if any(item is None for item in parsed):
         return None
     return (float(parsed[0]), float(parsed[1]), float(parsed[2]), float(parsed[3]))
-
-
-def _int_or_none(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _float_or_none(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _section_to_jsonable(section: JobSection) -> dict[str, Any]:

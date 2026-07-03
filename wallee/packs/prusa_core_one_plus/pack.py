@@ -23,6 +23,11 @@ import threading
 import time
 from typing import Any
 
+from ...coerce import (
+    float_or_none as _float_or_none,
+    int_or_none as _int_or_none,
+    string_or_none as _string_or_none,
+)
 from ...models import DeviceSummary, HazardClass, LegalAction, NormalizedPackState, ResourceState, WorldPacket
 from ...predicates import all_of, any_of, atom
 from ...whiteboard import BaseWhiteboard
@@ -1514,187 +1519,69 @@ class Pack(BasePack):
             self._part_present_inference = True
             whiteboard.publish(f"{self.DEVICE_ID}.part_present", True)
             return result
-        if action.execute_ref == "trim_speed_down_small":
-            target_speed_pct = _float_or_none(action.args.get("target_speed_pct"))
-            if target_speed_pct is None:
-                raise ValueError("trim_speed_down_small requires target_speed_pct")
-            return self.driver.trim_speed_down_small(target_speed_pct=target_speed_pct)
-        if action.execute_ref == "trim_speed_down_big":
-            target_speed_pct = _float_or_none(action.args.get("target_speed_pct"))
-            if target_speed_pct is None:
-                raise ValueError("trim_speed_down_big requires target_speed_pct")
-            result = self.driver.trim_speed_down_big(target_speed_pct=target_speed_pct)
+        return self._realize_tuning(action)
+
+    # execute_ref -> (driver method, required arg, extra-kwargs builder, big-step
+    # cooldown). One row per bounded tuning move; this table replaced a ~200-line
+    # if-chain whose branches differed only in these four columns.
+    _TUNING_REALIZE_SPECS: dict[str, tuple[str, str | None, str | None, bool]] = {
+        "trim_speed_down_small": ("trim_speed_down_small", "target_speed_pct", None, False),
+        "trim_speed_down_big": ("trim_speed_down_big", "target_speed_pct", None, True),
+        "trim_speed_up_small": ("trim_speed_up_small", "target_speed_pct", None, False),
+        "trim_speed_up_big": ("trim_speed_up_big", "target_speed_pct", None, True),
+        "restore_speed_default": ("restore_speed_default", None, None, False),
+        "trim_flow_down_small": ("trim_flow_down_small", "target_flow_pct", None, False),
+        "trim_flow_down_big": ("trim_flow_down_big", "target_flow_pct", None, True),
+        "trim_flow_up_small": ("trim_flow_up_small", "target_flow_pct", None, False),
+        "trim_flow_up_big": ("trim_flow_up_big", "target_flow_pct", None, True),
+        "restore_flow_default": ("restore_flow_default", None, None, False),
+        "trim_nozzle_down_small": ("trim_nozzle_down_small", "target_nozzle_c", "_nozzle_floor_kwargs", False),
+        "trim_nozzle_down_big": ("trim_nozzle_down_big", "target_nozzle_c", "_nozzle_floor_kwargs", True),
+        "trim_nozzle_up_small": ("trim_nozzle_up_small", "target_nozzle_c", "_nozzle_ceiling_kwargs", False),
+        "trim_nozzle_up_big": ("trim_nozzle_up_big", "target_nozzle_c", "_nozzle_ceiling_kwargs", True),
+        "trim_bed_down_small": ("trim_bed_down_small", "target_bed_c", None, False),
+        "trim_bed_down_big": ("trim_bed_down_big", "target_bed_c", None, True),
+        "trim_bed_up_small": ("trim_bed_up_small", "target_bed_c", "_bed_ceiling_kwargs", False),
+        "trim_bed_up_big": ("trim_bed_up_big", "target_bed_c", "_bed_ceiling_kwargs", True),
+        "trim_pressure_advance_down_small": ("trim_pressure_advance_down_small", "target_pressure_advance", None, False),
+        "trim_pressure_advance_down_big": ("trim_pressure_advance_down_big", "target_pressure_advance", None, True),
+        "trim_pressure_advance_up_small": ("trim_pressure_advance_up_small", "target_pressure_advance", None, False),
+        "trim_pressure_advance_up_big": ("trim_pressure_advance_up_big", "target_pressure_advance", None, True),
+        "restore_pressure_advance_default": ("restore_pressure_advance_default", "target_pressure_advance", None, False),
+        "trim_accel_down_small": ("trim_print_accel_down_small", "target_print_accel_mm_s2", None, False),
+        "trim_accel_down_big": ("trim_print_accel_down_big", "target_print_accel_mm_s2", None, True),
+        "trim_accel_up_small": ("trim_print_accel_up_small", "target_print_accel_mm_s2", None, False),
+        "trim_accel_up_big": ("trim_print_accel_up_big", "target_print_accel_mm_s2", None, True),
+        "restore_accel_default": ("restore_print_accel_default", "target_print_accel_mm_s2", None, False),
+    }
+
+    def _nozzle_floor_kwargs(self) -> dict[str, Any]:
+        info = self._get_info_cached() or {}
+        return {"min_nozzle_target_c": _float_or_none(info.get("min_extrusion_temp")) or 170.0}
+
+    def _nozzle_ceiling_kwargs(self) -> dict[str, Any]:
+        return {"max_nozzle_target_c": self.settings.max_nozzle_target_c}
+
+    def _bed_ceiling_kwargs(self) -> dict[str, Any]:
+        return {"max_bed_target_c": self.settings.max_bed_target_c}
+
+    def _realize_tuning(self, action: LegalAction) -> dict[str, Any]:
+        spec = self._TUNING_REALIZE_SPECS.get(action.execute_ref)
+        if spec is None:
+            raise ValueError(f"unsupported Prusa execute_ref {action.execute_ref}")
+        method_name, arg_name, extra_builder, big_cooldown = spec
+        kwargs: dict[str, Any] = {}
+        if arg_name is not None:
+            value = _float_or_none(action.args.get(arg_name))
+            if value is None:
+                raise ValueError(f"{action.execute_ref} requires {arg_name}")
+            kwargs[arg_name] = value
+        if extra_builder is not None:
+            kwargs.update(getattr(self, extra_builder)())
+        result = getattr(self.driver, method_name)(**kwargs)
+        if big_cooldown:
             self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_speed_up_small":
-            target_speed_pct = _float_or_none(action.args.get("target_speed_pct"))
-            if target_speed_pct is None:
-                raise ValueError("trim_speed_up_small requires target_speed_pct")
-            return self.driver.trim_speed_up_small(target_speed_pct=target_speed_pct)
-        if action.execute_ref == "trim_speed_up_big":
-            target_speed_pct = _float_or_none(action.args.get("target_speed_pct"))
-            if target_speed_pct is None:
-                raise ValueError("trim_speed_up_big requires target_speed_pct")
-            result = self.driver.trim_speed_up_big(target_speed_pct=target_speed_pct)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "restore_speed_default":
-            return self.driver.restore_speed_default()
-        if action.execute_ref == "trim_flow_down_small":
-            target_flow_pct = _float_or_none(action.args.get("target_flow_pct"))
-            if target_flow_pct is None:
-                raise ValueError("trim_flow_down_small requires target_flow_pct")
-            return self.driver.trim_flow_down_small(target_flow_pct=target_flow_pct)
-        if action.execute_ref == "trim_flow_down_big":
-            target_flow_pct = _float_or_none(action.args.get("target_flow_pct"))
-            if target_flow_pct is None:
-                raise ValueError("trim_flow_down_big requires target_flow_pct")
-            result = self.driver.trim_flow_down_big(target_flow_pct=target_flow_pct)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_flow_up_small":
-            target_flow_pct = _float_or_none(action.args.get("target_flow_pct"))
-            if target_flow_pct is None:
-                raise ValueError("trim_flow_up_small requires target_flow_pct")
-            return self.driver.trim_flow_up_small(target_flow_pct=target_flow_pct)
-        if action.execute_ref == "trim_flow_up_big":
-            target_flow_pct = _float_or_none(action.args.get("target_flow_pct"))
-            if target_flow_pct is None:
-                raise ValueError("trim_flow_up_big requires target_flow_pct")
-            result = self.driver.trim_flow_up_big(target_flow_pct=target_flow_pct)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "restore_flow_default":
-            return self.driver.restore_flow_default()
-        if action.execute_ref == "trim_nozzle_down_small":
-            info = self._get_info_cached() or {}
-            min_nozzle_target_c = _float_or_none(info.get("min_extrusion_temp")) or 170.0
-            target_nozzle_c = _float_or_none(action.args.get("target_nozzle_c"))
-            if target_nozzle_c is None:
-                raise ValueError("trim_nozzle_down_small requires target_nozzle_c")
-            return self.driver.trim_nozzle_down_small(
-                target_nozzle_c=target_nozzle_c,
-                min_nozzle_target_c=min_nozzle_target_c,
-            )
-        if action.execute_ref == "trim_nozzle_down_big":
-            info = self._get_info_cached() or {}
-            min_nozzle_target_c = _float_or_none(info.get("min_extrusion_temp")) or 170.0
-            target_nozzle_c = _float_or_none(action.args.get("target_nozzle_c"))
-            if target_nozzle_c is None:
-                raise ValueError("trim_nozzle_down_big requires target_nozzle_c")
-            result = self.driver.trim_nozzle_down_big(
-                target_nozzle_c=target_nozzle_c,
-                min_nozzle_target_c=min_nozzle_target_c,
-            )
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_nozzle_up_small":
-            target_nozzle_c = _float_or_none(action.args.get("target_nozzle_c"))
-            if target_nozzle_c is None:
-                raise ValueError("trim_nozzle_up_small requires target_nozzle_c")
-            return self.driver.trim_nozzle_up_small(
-                target_nozzle_c=target_nozzle_c,
-                max_nozzle_target_c=self.settings.max_nozzle_target_c,
-            )
-        if action.execute_ref == "trim_nozzle_up_big":
-            target_nozzle_c = _float_or_none(action.args.get("target_nozzle_c"))
-            if target_nozzle_c is None:
-                raise ValueError("trim_nozzle_up_big requires target_nozzle_c")
-            result = self.driver.trim_nozzle_up_big(
-                target_nozzle_c=target_nozzle_c,
-                max_nozzle_target_c=self.settings.max_nozzle_target_c,
-            )
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_bed_down_small":
-            target_bed_c = _float_or_none(action.args.get("target_bed_c"))
-            if target_bed_c is None:
-                raise ValueError("trim_bed_down_small requires target_bed_c")
-            return self.driver.trim_bed_down_small(target_bed_c=target_bed_c)
-        if action.execute_ref == "trim_bed_down_big":
-            target_bed_c = _float_or_none(action.args.get("target_bed_c"))
-            if target_bed_c is None:
-                raise ValueError("trim_bed_down_big requires target_bed_c")
-            result = self.driver.trim_bed_down_big(target_bed_c=target_bed_c)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_bed_up_small":
-            target_bed_c = _float_or_none(action.args.get("target_bed_c"))
-            if target_bed_c is None:
-                raise ValueError("trim_bed_up_small requires target_bed_c")
-            return self.driver.trim_bed_up_small(
-                target_bed_c=target_bed_c,
-                max_bed_target_c=self.settings.max_bed_target_c,
-            )
-        if action.execute_ref == "trim_bed_up_big":
-            target_bed_c = _float_or_none(action.args.get("target_bed_c"))
-            if target_bed_c is None:
-                raise ValueError("trim_bed_up_big requires target_bed_c")
-            result = self.driver.trim_bed_up_big(
-                target_bed_c=target_bed_c,
-                max_bed_target_c=self.settings.max_bed_target_c,
-            )
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_pressure_advance_down_small":
-            target_pressure_advance = _float_or_none(action.args.get("target_pressure_advance"))
-            if target_pressure_advance is None:
-                raise ValueError("trim_pressure_advance_down_small requires target_pressure_advance")
-            return self.driver.trim_pressure_advance_down_small(target_pressure_advance=target_pressure_advance)
-        if action.execute_ref == "trim_pressure_advance_down_big":
-            target_pressure_advance = _float_or_none(action.args.get("target_pressure_advance"))
-            if target_pressure_advance is None:
-                raise ValueError("trim_pressure_advance_down_big requires target_pressure_advance")
-            result = self.driver.trim_pressure_advance_down_big(target_pressure_advance=target_pressure_advance)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_pressure_advance_up_small":
-            target_pressure_advance = _float_or_none(action.args.get("target_pressure_advance"))
-            if target_pressure_advance is None:
-                raise ValueError("trim_pressure_advance_up_small requires target_pressure_advance")
-            return self.driver.trim_pressure_advance_up_small(target_pressure_advance=target_pressure_advance)
-        if action.execute_ref == "trim_pressure_advance_up_big":
-            target_pressure_advance = _float_or_none(action.args.get("target_pressure_advance"))
-            if target_pressure_advance is None:
-                raise ValueError("trim_pressure_advance_up_big requires target_pressure_advance")
-            result = self.driver.trim_pressure_advance_up_big(target_pressure_advance=target_pressure_advance)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "restore_pressure_advance_default":
-            target_pressure_advance = _float_or_none(action.args.get("target_pressure_advance"))
-            if target_pressure_advance is None:
-                raise ValueError("restore_pressure_advance_default requires target_pressure_advance")
-            return self.driver.restore_pressure_advance_default(target_pressure_advance=target_pressure_advance)
-        if action.execute_ref == "trim_accel_down_small":
-            target_print_accel_mm_s2 = _float_or_none(action.args.get("target_print_accel_mm_s2"))
-            if target_print_accel_mm_s2 is None:
-                raise ValueError("trim_accel_down_small requires target_print_accel_mm_s2")
-            return self.driver.trim_print_accel_down_small(target_print_accel_mm_s2=target_print_accel_mm_s2)
-        if action.execute_ref == "trim_accel_down_big":
-            target_print_accel_mm_s2 = _float_or_none(action.args.get("target_print_accel_mm_s2"))
-            if target_print_accel_mm_s2 is None:
-                raise ValueError("trim_accel_down_big requires target_print_accel_mm_s2")
-            result = self.driver.trim_print_accel_down_big(target_print_accel_mm_s2=target_print_accel_mm_s2)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "trim_accel_up_small":
-            target_print_accel_mm_s2 = _float_or_none(action.args.get("target_print_accel_mm_s2"))
-            if target_print_accel_mm_s2 is None:
-                raise ValueError("trim_accel_up_small requires target_print_accel_mm_s2")
-            return self.driver.trim_print_accel_up_small(target_print_accel_mm_s2=target_print_accel_mm_s2)
-        if action.execute_ref == "trim_accel_up_big":
-            target_print_accel_mm_s2 = _float_or_none(action.args.get("target_print_accel_mm_s2"))
-            if target_print_accel_mm_s2 is None:
-                raise ValueError("trim_accel_up_big requires target_print_accel_mm_s2")
-            result = self.driver.trim_print_accel_up_big(target_print_accel_mm_s2=target_print_accel_mm_s2)
-            self._activate_big_family_cooldown(action.action_id)
-            return result
-        if action.execute_ref == "restore_accel_default":
-            target_print_accel_mm_s2 = _float_or_none(action.args.get("target_print_accel_mm_s2"))
-            if target_print_accel_mm_s2 is None:
-                raise ValueError("restore_accel_default requires target_print_accel_mm_s2")
-            return self.driver.restore_print_accel_default(target_print_accel_mm_s2=target_print_accel_mm_s2)
-        raise ValueError(f"unsupported Prusa execute_ref {action.execute_ref}")
+        return result
 
     def _live_tuning_actions(
         self,
@@ -3212,31 +3099,6 @@ def _strength_rank(value: str | None) -> int:
         "moderate": 1,
         "strong": 2,
     }.get(value, -1)
-
-
-def _float_or_none(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _int_or_none(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _string_or_none(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
 
 
 def _sanitize_prompt_text(value: Any, *, max_len: int = 240) -> str | None:

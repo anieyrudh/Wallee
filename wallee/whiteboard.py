@@ -7,6 +7,7 @@ later without changing the world compiler or packs.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 import threading
 import time
@@ -42,11 +43,16 @@ class BaseWhiteboard:
 class InMemoryWhiteboard(BaseWhiteboard):
     """Thread-safe whiteboard for local simulation and tests."""
 
+    # Change history is a bounded ring: the runtime publishes every cycle, so
+    # an unbounded list is a slow leak over a multi-day print. Consumers of
+    # changes_since() only ever want the recent tail.
+    CHANGE_RING_SIZE = 4096
+
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._values: dict[str, Any] = {}
         self._seq = 0
-        self._changes: list[tuple[int, str, Any, Any, int]] = []
+        self._changes: deque[tuple[int, str, Any, Any, int]] = deque(maxlen=self.CHANGE_RING_SIZE)
 
     def publish(self, key: str, value: Any) -> int:
         """Publish one value and return the new sequence number."""

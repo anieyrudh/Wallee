@@ -7,6 +7,11 @@ import threading
 import time
 from typing import Any, Callable
 
+from .coerce import (
+    normalize_issue_level as _normalize_issue_level,
+    normalize_strength as _normalize_strength,
+    split_pipe as _split_fact_text,
+)
 from .config import Config
 from .human import HumanGateway
 from .ids import action_args_hash, idempotency_key, new_id
@@ -22,7 +27,7 @@ from .models import (
     _action_family_from_id,
     _action_magnitude_from_id,
 )
-from .planning_context import WorldCompiler
+from .planning_context import WorldCompiler, run_scope_from_facts as _run_scope_from_facts
 from .predicates import PredicateEvaluator
 from .registry import PackRegistry
 from .runtime_db import RuntimeDB
@@ -32,19 +37,7 @@ from .whiteboard import BaseWhiteboard
 
 
 def _run_scope_from_world(world: WorldPacket) -> str | None:
-    facts = world.facts
-    job_scope_token = str(facts.get("printer_1.job_scope_token") or "").strip() or None
-    if not job_scope_token:
-        current_file = str(facts.get("printer_1.current_file") or "").strip() or None
-        requested_file = str(facts.get("printer_1.requested_file") or "").strip() or None
-        job_scope_token = current_file or requested_file
-    if not job_scope_token:
-        return None
-    job_id = facts.get("printer_1.job_id")
-    lifecycle = str(facts.get("printer_1.lifecycle") or "").strip() or "unknown"
-    if job_id is not None:
-        return f"job:{job_id}:{job_scope_token}"
-    return f"state:{lifecycle}:{job_scope_token}"
+    return _run_scope_from_facts(world.facts)
 
 
 @dataclass
@@ -671,18 +664,3 @@ def _world_vision_signal(world: WorldPacket) -> dict[str, Any]:
     }
 
 
-def _split_fact_text(value: Any) -> list[str]:
-    text = str(value or "").strip()
-    if not text:
-        return []
-    return [item for item in text.split("|") if item]
-
-
-def _normalize_strength(value: Any) -> str | None:
-    text = str(value or "").strip()
-    return text if text in {"weak", "moderate", "strong"} else None
-
-
-def _normalize_issue_level(value: Any) -> str | None:
-    text = str(value or "").strip()
-    return text if text in {"low", "medium", "high"} else None

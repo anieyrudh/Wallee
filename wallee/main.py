@@ -12,6 +12,7 @@ import sys
 import time
 import traceback
 
+from .coerce import float_or_none as _float_or_none
 from .config import Config
 from .engine import Engine
 from .human import HumanGateway
@@ -571,6 +572,42 @@ def _apply_remote_estop_requests(config: Config, safety, runtime_db) -> None:
         )
 
 
+def _handle_persistent_cycle_failure(
+    *,
+    safety,
+    human_gateway,
+    consecutive_failures: int,
+    already_tripped: bool,
+    exc: Exception,
+) -> bool:
+    """Trip the interlock once when cycle failures persist; return the fired flag.
+
+    The count was previously recorded but never acted on: a runtime failing
+    every cycle would spin forever with a live machine and nobody told. The
+    flag fires the trip exactly once per incident and is re-armed only after
+    the operator clears the interlock (checked by the caller each cycle).
+    """
+    if consecutive_failures < RUNTIME_CYCLE_FAILURES_BEFORE_PERSISTENT or already_tripped:
+        return already_tripped
+    reason = (
+        f"runtime cycle failed {consecutive_failures} consecutive times "
+        f"({type(exc).__name__}: {exc})"
+    )
+    safety.trip(reason)
+    human_gateway.call_human(
+        title="Persistent runtime failure — interlock engaged",
+        body=(
+            f"The control loop has failed {consecutive_failures} cycles in a row; the machine has "
+            f"been stopped and the interlock latched.\nLast error: {type(exc).__name__}: {exc}\n"
+            "Investigate, make the machine safe, then clear-estop to resume."
+        ),
+        severity="critical",
+        require_ack=True,
+        context={"consecutive_failures": consecutive_failures, "exception_type": type(exc).__name__},
+    )
+    return True
+
+
 def _world_is_actionable_print(world) -> bool:
     if not _world_has_active_print(world):
         return False
@@ -621,13 +658,6 @@ def _world_pre_execution_terminal_guard_reason(world) -> str | None:
     return None
 
 
-def _float_or_none(value: object) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _should_stop(args, cycle_index: int) -> bool:
@@ -1117,11 +1147,16 @@ def main(argv: list[str] | None = None) -> int:
         cycle_index = 0
         consecutive_planner_failures = 0
         consecutive_cycle_failures = 0
+        persistent_failure_tripped = False
         last_planner_attempt_monotonic: float | None = None
         while True:
             try:
                 cycle_timing: dict[str, object] = {"cycle_started_at": _utc_now_iso()}
                 _apply_remote_estop_requests(config, safety, runtime_db)
+                if persistent_failure_tripped and not safety.engaged():
+                    # Operator cleared the interlock after a persistent-failure
+                    # trip: re-arm so a NEW incident can trip again.
+                    persistent_failure_tripped = False
                 step_started = _begin_timed_step(cycle_timing, "raw_publish")
                 registry.publish_all_raw_state(whiteboard, mode="full")
                 _end_timed_step(cycle_timing, "raw_publish", step_started)
@@ -1386,6 +1421,13 @@ def main(argv: list[str] | None = None) -> int:
                     "traceback": traceback.format_exc(),
                 }
                 runtime_db.record_event("runtime", "ERROR", "runtime_cycle_failed", context=failure_context)
+                persistent_failure_tripped = _handle_persistent_cycle_failure(
+                    safety=safety,
+                    human_gateway=human_gateway,
+                    consecutive_failures=consecutive_cycle_failures,
+                    already_tripped=persistent_failure_tripped,
+                    exc=exc,
+                )
                 print(
                     "Cycle "
                     f"{cycle_index + 1}: runtime cycle failed "

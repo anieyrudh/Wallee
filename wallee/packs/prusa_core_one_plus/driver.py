@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from ...coerce import float_or_none as _float_or_none, string_or_none as _string_or_none
 from .adapters import PrusaCoreOneSettings, SupportsPrusaHttp, SupportsPrusaSerialWriter
 from .types import PrusaLifecycle, PrusaStatusSnapshot
 
@@ -820,22 +821,6 @@ def _session_key_for_status(status: PrusaStatusSnapshot) -> str:
     if status.current_file:
         return f"file:{Path(status.current_file).name}"
     return f"lifecycle:{status.lifecycle.value}"
-
-
-def _float_or_none(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _string_or_none(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
 
 
 def _is_recoverable_start_timeout(exc: Exception) -> bool:

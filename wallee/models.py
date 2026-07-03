@@ -15,6 +15,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .coerce import (
+    float_or_none as _float_or_none,
+    normalize_comparison_delta as _normalize_comparison_delta,
+    normalize_issue_level as _normalize_issue_level,
+    normalize_strength as _normalize_strength,
+    split_pipe as _split_blockers,
+    string_or_none as _string_or_none,
+)
+
 
 Scalar = str | int | float | bool | None
 JsonDict = dict[str, Any]
@@ -1400,27 +1409,6 @@ def _result_vision_signal(result: JsonDict) -> JsonDict:
     }
 
 
-def _normalize_comparison_delta(value: Any) -> str | None:
-    text = _string_or_none(value)
-    if text in {"better", "same", "worse", "unknown"}:
-        return text
-    return None
-
-
-def _normalize_strength(value: Any) -> str | None:
-    text = _string_or_none(value)
-    if text in {"weak", "moderate", "strong"}:
-        return text
-    return None
-
-
-def _normalize_issue_level(value: Any) -> str | None:
-    text = _string_or_none(value)
-    if text in {"low", "medium", "high"}:
-        return text
-    return None
-
-
 def _vision_issue_level(finding_types: list[str], strength: str | None) -> str | None:
     if not finding_types:
         return None
@@ -1512,31 +1500,6 @@ def _planner_tuning_action_space(frontier: list[LegalAction]) -> JsonDict:
         if magnitude not in family_entry["allowed_magnitudes"]:
             family_entry["allowed_magnitudes"].append(magnitude)
     return space
-
-
-def _split_blockers(value: Scalar) -> list[str]:
-    if value is None:
-        return []
-    text = str(value).strip()
-    if not text:
-        return []
-    return [item for item in text.split("|") if item]
-
-
-def _string_or_none(value: Scalar) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _float_or_none(value: Scalar) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _json_from_fact(value: Scalar) -> Any:

@@ -27,6 +27,7 @@ from ...main import build_runtime, plan_with_retry
 from ...models import LegalAction, PackManifest, WorldPacket
 from ...predicates import atom
 from ...whiteboard import InMemoryWhiteboard
+from ...coerce import float_or_none as _float_or_none
 from .adapters import NoopSerialWriter, PrusaCoreOneSettings, PrusaLinkHttpClient, PrusaSerialWriter
 from .bgcode_decode import normalize_prusa_print_text
 from .driver import PrusaDriver, status_to_snapshot
@@ -561,11 +562,6 @@ def _emit(payload: dict[str, Any]) -> int:
     return 0
 
 
-def _float_or_none(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _bounded_relative_target(current: float, *, delta: float, lower: float, upper: float) -> float:
