@@ -1,5 +1,10 @@
 # Roadmap
 
+> **v7 direction is now planned**: see [V7_EXECUTION_PLAN.md](V7_EXECUTION_PLAN.md)
+> (executable milestones) and [V7_DESIGN_SKETCH.md](V7_DESIGN_SKETCH.md)
+> (rationale). Items below that the v7 plan absorbs are marked there;
+> this file remains the ledger for anything not yet scheduled.
+
 Deferral is a recorded decision, not silence. This file lists work that is
 deliberately **not** done yet, so "we shipped the safety-critical core and
 parked the rest" is auditable. Items are grouped by why they were deferred.
