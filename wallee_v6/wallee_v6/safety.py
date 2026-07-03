@@ -37,6 +37,66 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
             os.unlink(tmp)
 
 
+def write_estop_signal(
+    path: Path | str,
+    *,
+    reason: str,
+    requested_by: str,
+    wall_fn: Callable[[], float] = time.time,
+) -> None:
+    """Atomically write an operator ESTOP request/clear signal file.
+
+    The signal is a request, not the latch itself: the running control loop
+    consumes it and calls ``trip()``/``clear()`` so the physical stop transport
+    fires and the durable latch stays owned by the kernel. Writing the latch
+    directly from a second process would engage the block but never fire the
+    stop callbacks.
+    """
+
+    _atomic_write_json(
+        Path(path),
+        {"reason": reason, "requested_by": requested_by, "wall_ts": wall_fn(), "source": "operator_cli"},
+    )
+
+
+def consume_estop_signal(path: Path | str) -> dict | None:
+    """Read and remove a pending ESTOP signal; return its payload or None.
+
+    Consuming (delete-on-read) makes each request act exactly once: a trip or
+    clear is applied on the next cycle and does not replay on every later cycle.
+    """
+
+    signal_path = Path(path)
+    if not signal_path.exists():
+        return None
+    try:
+        payload = json.loads(signal_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        payload = {}
+    try:
+        signal_path.unlink()
+    except OSError:
+        pass
+    return payload if isinstance(payload, dict) else {}
+
+
+def remove_estop_latch(path: Path | str) -> bool:
+    """Delete the durable latch file if present; return whether it existed.
+
+    Used by the attended ``clear-estop`` path so a latched machine boots clean
+    even when no runtime is live to consume a clear signal.
+    """
+
+    latch_path = Path(path)
+    if not latch_path.exists():
+        return False
+    try:
+        latch_path.unlink()
+        return True
+    except OSError:
+        return False
+
+
 class SafetyKernel:
     """Heartbeat watchdog and interlock owner.
 

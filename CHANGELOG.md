@@ -10,6 +10,37 @@ history lives in the per-version changelogs under `docs/internal/`.
 
 ## [Unreleased]
 
+### Phase 3 — Promote (device-boundary, injection hardening, remote stop, docs)
+
+- **Duplicate device-id claims are rejected.** The registry refuses to load two
+  packs that both claim the same device id instead of silently merging them.
+- **Prompt frontier == executable frontier.** The engine refuses any planned
+  action that was never offered to the planner (truncated frontier included),
+  so the prompt view and the executable set cannot diverge.
+- **Core/pack device-knowledge boundary is machine-enforced.**
+  `scripts/check_core_purity.py` is a shrink-only ratchet (backed by
+  `wallee_v6/.core-purity-allowlist.json`) that blocks new device references
+  from leaking into the generic core and can only tighten. Wired into CI and
+  pre-commit. The full Prusa eviction is tracked in
+  [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- **Injection hardening (I-14).** The deterministic active-print gates consume
+  the closed vision `finding_type` enum only; all substring-matching on the
+  model's free-text summary is deleted, so a poisoned or hallucinated sentence
+  cannot steer a gate. Proven by activated adversarial regressions in
+  `test_gate_adversarial.py`.
+- **Input sanitization at ingestion.** Print filenames, notebook notes, and
+  vision summaries are charset/length-clamped in the pack `normalize()` step
+  (and vision free text is stripped of control characters at generation) before
+  they can reach the planner prompt.
+- **Remote ESTOP.** `wallee-operator estop` requests a soft stop the control
+  loop honors at the next cycle boundary (fires the physical stop transport and
+  latches durably); `wallee-operator clear-estop` is the attended-only release.
+  Covered by a P6 contract invariant.
+- **Docs.** [`SECURITY.md`](SECURITY.md) gains a threat model (prompt injection,
+  LAN exposure, notification hardening, ESTOP rules); new
+  [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) Pi cutover runbook and
+  [`docs/ROADMAP.md`](docs/ROADMAP.md) recording deferred work.
+
 ### Phase 2 — Prove (the v6 safety promises made true)
 
 The decorative safety kernel is now a working, independent safety layer. All

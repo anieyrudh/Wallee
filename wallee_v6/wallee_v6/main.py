@@ -22,7 +22,7 @@ from .predicates import PredicateEvaluator
 from .stop_transport import execute_stop
 from .registry import PackRegistry
 from .runtime_db import RuntimeDB
-from .safety import SafetyKernel
+from .safety import SafetyKernel, consume_estop_signal
 from .whiteboard import InMemoryWhiteboard
 
 
@@ -536,6 +536,39 @@ def _write_heartbeat_beacon(config: Config, *, cycle_index: int, job_active: boo
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _apply_remote_estop_requests(config: Config, safety, runtime_db) -> None:
+    """Honor operator-written remote ESTOP / clear signals at the cycle boundary.
+
+    A remote ESTOP is a control-plane soft stop: it fires the stop transport and
+    latches at the next cycle top. It does NOT interrupt an in-flight side effect
+    mid-call — the physical ESTOP button and the independent watchdog cover that
+    (P6). Clearing is a deliberate, attended operator action.
+    """
+    estop = consume_estop_signal(config.estop_request_path)
+    if estop is not None:
+        requested_by = str(estop.get("requested_by") or "operator")
+        reason = str(estop.get("reason") or "operator remote ESTOP")
+        safety.trip(f"remote ESTOP requested by {requested_by}: {reason}")
+        runtime_db.record_event(
+            "runtime",
+            "CRITICAL",
+            "remote_estop_requested",
+            context={"requested_by": requested_by, "reason": reason},
+        )
+
+    clear = consume_estop_signal(config.estop_clear_request_path)
+    if clear is not None:
+        cleared_by = str(clear.get("requested_by") or "operator")
+        was_engaged = safety.engaged()
+        safety.clear()
+        runtime_db.record_event(
+            "runtime",
+            "WARN",
+            "remote_estop_cleared",
+            context={"cleared_by": cleared_by, "was_engaged": was_engaged},
+        )
 
 
 def _world_is_actionable_print(world) -> bool:
@@ -1088,6 +1121,7 @@ def main(argv: list[str] | None = None) -> int:
         while True:
             try:
                 cycle_timing: dict[str, object] = {"cycle_started_at": _utc_now_iso()}
+                _apply_remote_estop_requests(config, safety, runtime_db)
                 step_started = _begin_timed_step(cycle_timing, "raw_publish")
                 registry.publish_all_raw_state(whiteboard, mode="full")
                 _end_timed_step(cycle_timing, "raw_publish", step_started)

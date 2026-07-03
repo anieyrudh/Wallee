@@ -180,6 +180,9 @@ Device packs are where the hardware-specific work lives: sensor publishers, actu
 
 - [`README.md`](README.md): public overview, quick start, validation summary, and example deployment pointer.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): deeper data flow, trust boundaries, runtime contracts, and validation notes.
+- [`SECURITY.md`](SECURITY.md): threat model (prompt injection, LAN exposure, ESTOP rules) and disclosure policy.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): Raspberry Pi cutover runbook for the v6 runtime.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): deliberately deferred work (single-tree promotion, Prusa eviction, deferred research).
 - [`wallee/device_packs/DEVICE_PACK_GUIDE.md`](wallee/device_packs/DEVICE_PACK_GUIDE.md): how to build a new hardware integration.
 - [`wallee/device_packs/AGENT_PROMPT.md`](wallee/device_packs/AGENT_PROMPT.md): prompt scaffold for AI agents creating a new device pack.
 - [`wallee/device_packs/prusa_link/README.md`](wallee/device_packs/prusa_link/README.md): example device-pack documentation for the shipped reference implementation.

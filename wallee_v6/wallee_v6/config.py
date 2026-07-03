@@ -94,6 +94,16 @@ class Config:
         """Runtime liveness beacon consumed by the watchdog (mtime is the truth)."""
         return self.safety_dir / "heartbeat.json"
 
+    @property
+    def estop_request_path(self) -> Path:
+        """Operator-written remote-ESTOP request; the control loop turns it into a trip."""
+        return self.safety_dir / "estop.request.json"
+
+    @property
+    def estop_clear_request_path(self) -> Path:
+        """Operator-written clear request; the control loop turns it into a latch clear."""
+        return self.safety_dir / "estop.clear.json"
+
     @classmethod
     def from_env(cls, repo_root: str | Path | None = None) -> "Config":
         """Build a :class:`Config` from environment variables.

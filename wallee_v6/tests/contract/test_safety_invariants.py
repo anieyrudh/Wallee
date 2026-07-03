@@ -211,6 +211,54 @@ def test_interlock_trip_invokes_registered_stop_callback(tmp_path, monkeypatch):
         runtime_db.close()
 
 
+def test_remote_estop_request_trips_interlock_stops_and_clears(tmp_path, monkeypatch):
+    """P6: an operator's remote ESTOP request stops the machine and latches.
+
+    The request is written by the operator CLI and honored by the control loop
+    at the cycle boundary: it fires the physical stop, latches durably, blocks
+    all further dispatch, and only an explicit attended clear releases it.
+    """
+    monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WALLEE_ENABLED_PACKS", "sim_printer,sim_arm")
+    monkeypatch.setenv("WALLEE_SIMULATION", "1")
+    from wallee_v6.config import Config
+    from wallee_v6.main import _apply_remote_estop_requests
+    from wallee_v6.safety import write_estop_signal
+
+    config = Config.from_env(repo_root=REPO_ROOT)
+    runtime_db, _, _, compiler, _, safety, engine, _ = build_runtime(config)
+    try:
+        write_estop_signal(config.estop_request_path, reason="lid open", requested_by="op")
+        assert not safety.engaged()
+
+        _apply_remote_estop_requests(config, safety, runtime_db)
+
+        assert safety.engaged(), "the remote request must engage the interlock"
+        assert config.estop_latch_path.exists(), "the trip must latch durably"
+        assert not config.estop_request_path.exists(), "the request is consumed once, never replayed"
+        stop_log = config.data_dir / "safety" / "stop_commands.jsonl"
+        assert stop_log.exists() and stop_log.read_text(encoding="utf-8").strip(), (
+            "a remote ESTOP must physically stop the machine, not merely latch"
+        )
+
+        world = compiler.compile(GOAL)
+        action = world.frontier[0]
+        report = engine.execute_plan(
+            GOAL, world, PlanIR(decision="EXECUTE", sequence=[action.action_id], why="must be blocked")
+        )
+        assert report.executed_action_ids == []
+        assert engine.runtime_db._conn.execute("select count(*) from exec_journal").fetchone()[0] == 0
+
+        # Only a deliberate, attended clear releases the latch.
+        write_estop_signal(config.estop_clear_request_path, reason="made safe", requested_by="op")
+        _apply_remote_estop_requests(config, safety, runtime_db)
+        assert not safety.engaged()
+        assert not config.estop_latch_path.exists()
+    finally:
+        engine.close()
+        runtime_db.close()
+
+
 def test_stale_heartbeat_blocks_next_dispatch(runtime, fake_mono):
     compiler, engine, db, safety = (
         runtime["compiler"],
