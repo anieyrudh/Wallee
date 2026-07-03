@@ -103,3 +103,53 @@ From the analysis, parked until the core is stable on hardware:
   deterministic).
 - Live `pass^k` reliability lane (only meaningful against a live planner, not a
   deterministic replay).
+
+## The microfactory horizon (end-state assessment, 2026-07)
+
+The stated end goal is Wallee as the operating layer of a microfactory: N
+heterogeneous machines under one roof. **Verdict: this does not change the v7
+design — it layers on top of it.** Industrial automation already settled this
+decomposition (cell controller vs. supervisory operations, the ISA-95 shape,
+independently mirrored by the Viam / FDM Monster / Prusa Connect convergence
+in [DESIGN_RESEARCH_2026-07.md](DESIGN_RESEARCH_2026-07.md)): each Wallee
+instance is a **cell controller** — locally safe, locally gated, fully
+functional with the supervisor absent — and a microfactory OS is a
+**supervisory layer above** the cells, not a change inside them. The
+propose/dispose architecture recurses cleanly: a factory-level planner
+proposing dispatches against a factory-level frontier, disposed by the same
+deterministic gate/journal/approval machinery one level up.
+
+What the supervisory layer eventually adds — all **above** the kernel, none
+inside it, each behind a trigger:
+
+| Concern | Shape | Trigger |
+|---|---|---|
+| Job/order scheduling + dispatch | Advisory coordinator (v7.x fleet lane) grows into a dispatcher whose dispatches are **proposals into each machine's existing goal → approval pipeline** | N≥3 and real queue pain |
+| Material/inventory state | New fact domain under the reserved `site.` key namespace (V7-I4), not a new mechanism | First real material-tracking need |
+| Cross-machine workflows | Orchestration of per-machine jobs (print → remove → post-process) at the supervisory level | First genuinely multi-machine job |
+| Multi-operator authorization | Operator identity on approval records + per-machine/verb roles; additive to the journal schema and the V7-I10 gateway grammar | Second regular operator |
+| Staged fleet updates | RAUC A/B (already planned) + canary-machine rollout procedure | First fleet-wide update |
+| Factory observability | Read-only aggregation over per-machine journals/events (the coordinator's planned shape) | With the coordinator |
+
+Commitments held **now** so none of the above ever requires surgery:
+
+1. **The coordinator stays advisory and separate** (already a v7 rule). When
+   it becomes a dispatcher there is still exactly one command path into a
+   machine: its own gated pipeline. Never a second path.
+2. **`site.` is a reserved fact-key namespace** from M1 (V7-I4) so
+   factory-level facts slot into the registry without re-cutting it.
+3. **Goals/jobs stay structured records and approvals stay attributable**, so
+   a scheduler can emit goals and RBAC can bind to approvals without schema
+   surgery.
+4. **Safety authority is per-machine, permanently.** A factory ESTOP is a
+   fan-out to per-machine stops; there is no central safety authority whose
+   failure is shared across cells.
+
+The single item where the design would genuinely have to evolve — recorded
+here so it is a decision, not a surprise: a **shared-workspace actuator** (an
+arm or gantry serving multiple cells) breaks the per-machine safety premise,
+because one actuator's motion crosses cell boundaries. That day needs
+hardware-grade zoned interlocks (light curtains / estop groups wired across
+the affected cells) and a new capability family designed with the same rigor
+as the safety protocol — it is hardware-driven and cannot be pre-built in
+software. Trigger: the first shared actuator, not before.
