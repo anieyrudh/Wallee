@@ -1,38 +1,22 @@
-## Summary
+# What & why
 
-- What changed?
-- Why was it needed?
+<!-- One or two sentences. Link the plan item / issue that schedules this. -->
 
-## Validation
+# Gate checklist (mirrors the required checks — run `./scripts/gate.sh`)
 
-- [ ] `pytest -q`
-- [ ] `ruff check wallee scripts`
-- [ ] `python scripts/check_docs.py`
-- [ ] `python scripts/check_repo_contract.py`
+- [ ] `tests` — suite green, coverage floor holds; goldens byte-identical
+      (any re-bless is a separate `[re-bless]` commit)
+- [ ] `gates` — ruff, forbidden patterns, hygiene clean
+- [ ] `mypy` — strict scope clean
+- [ ] `safety-invariants` — contract suite green; no xfail weakened without
+      its plan-item link
+- [ ] `adversarial-gates` / `sim-evals` — gate + trajectory lanes green
+- [ ] `cassette-replay` — prompt/payload unchanged (any re-record is a
+      separate `[re-record]` commit)
+- [ ] `schema-sync` — schemas regenerated, never hand-edited
+- [ ] `docs-contract` / `repo-contract` — docs, pack conformance, purity and
+      file-size ratchets green (ratchets lowered if code shrank)
 
-## Documentation impact
+# Safety impact
 
-- [ ] no public docs changed
-- [ ] `README.md` updated
-- [ ] `ARCHITECTURE.md` updated
-- [ ] device-pack docs updated
-- [ ] internal docs updated if needed
-
-## Safety impact
-
-- [ ] no safety-relevant behavior changed
-- [ ] engine behavior changed
-- [ ] safety-kernel behavior changed
-- [ ] actuator tool behavior changed
-- [ ] approval / human escalation behavior changed
-
-## Device-pack impact
-
-- [ ] no device-pack changes
-- [ ] existing device-pack behavior changed
-- [ ] new device pack added
-- [ ] sensors / actuators / callbacks updated
-
-## Notes for reviewers
-
-- Risks, follow-ups, or deployment caveats:
+<!-- Which of the six promises does this touch, if any? What proves it still holds? -->

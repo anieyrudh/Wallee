@@ -85,11 +85,31 @@ def check_mermaid_fences(files: list[Path]) -> list[str]:
     return errors
 
 
+def check_agent_doc_placement(files: list[Path]) -> list[str]:
+    """AGENTS.md/CLAUDE.md/CODEX.md live at the root (plus docs/history/*).
+
+    Stale agent guides in subdirectories keep getting loaded by agents until
+    they physically cannot be; the placement rule makes that structural.
+    """
+    errors: list[str] = []
+    for path in files:
+        if path.name not in {"AGENTS.md", "CLAUDE.md", "CODEX.md"}:
+            continue
+        rel = path.relative_to(REPO_ROOT)
+        if len(rel.parts) == 1 or rel.parts[0] == "docs" and rel.parts[1] == "history":
+            continue
+        errors.append(
+            f"{rel}: agent guides belong at the repo root (or docs/history/ as *_legacy renames)"
+        )
+    return errors
+
+
 def main() -> int:
     files = tracked_markdown_files()
     errors = []
     errors.extend(check_links(files))
     errors.extend(check_mermaid_fences(PUBLIC_DOCS))
+    errors.extend(check_agent_doc_placement(files))
     if errors:
         print("Documentation checks failed:")
         for error in errors:

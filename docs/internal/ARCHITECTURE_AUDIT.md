@@ -5,7 +5,7 @@
 
 ## Codebase Stats
 
-- Scope read for this audit: all readable text files under `wallee/` (`138` files), plus [`AGENTS.md`](AGENTS.md) and `.env.example` (retired with the legacy tree).
+- Scope read for this audit: all readable text files under `wallee/` (`138` files), plus [`AGENTS_v4_legacy.md`](../history/AGENTS_v4_legacy.md) and `.env.example` (retired with the legacy tree).
 - Python files: `67`
 - Python LOC: `9,657`
 - Registered runtime tools: `39`
