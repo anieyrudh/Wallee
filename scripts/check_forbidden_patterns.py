@@ -37,6 +37,7 @@ SKIP_PATH_SUBSTRINGS = ("egg-info/",)
 # (as documentation and as fixtures), so they are exempt from scanning.
 SELF_EXEMPT = {
     "scripts/check_forbidden_patterns.py",
+    "scripts/seeded_violation_drill.py",  # seeds the banned patterns on purpose
     "tests/test_forbidden_patterns.py",
 }
 

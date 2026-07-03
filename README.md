@@ -6,308 +6,186 @@
 
 [![CI](https://github.com/anieyrudh/wallee/actions/workflows/ci.yml/badge.svg)](https://github.com/anieyrudh/wallee/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-f4d35e)
-![Python 3.12](https://img.shields.io/badge/python-3.12-2563eb)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-2563eb)
 
-An architecture for safely letting LLMs operate physical hardware.
+**An architecture for safely letting LLMs operate physical hardware.**
 
-> **Single tree.** The repository now carries one implementation: the v6
-> runtime, promoted to the root `wallee/` package. The earlier v5 line is
-> retired — archived on the `legacy/v5` branch with its disposition recorded
-> in [`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md).
-> The previous v6 subtree README is preserved at
-> [`docs/internal/V6_TREE_README.md`](docs/internal/V6_TREE_README.md).
-
-**Everything below this section describes the retired v5 line and is being
-rewritten for v6** — for current truth, start at
-[`AGENTS.md`](AGENTS.md) and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Wallee drives a real 3D printer (a Prusa CORE One/+, from a Raspberry Pi 5)
+with an LLM in the loop — and never trusts the LLM. The model reasons about
+the live state of the machine and proposes what to do next; deterministic
+code decides whether that is allowed, executes it, verifies it happened, and
+can stop the machine at any moment even if the whole control process dies.
 
 ## The problem
 
-LLMs can reason about physical systems — diagnose faults from sensor data,
-plan interventions, explain what they're doing to a human operator. But they
-hallucinate, they're inconsistent, and they can't be trusted with direct
-hardware access.
-
-The question isn't whether LLMs are useful for physical control.
-It's how to let them reason without letting them touch.
+LLMs are genuinely useful in front of physical systems: they diagnose faults
+from telemetry, plan interventions, and explain themselves to an operator.
+They also hallucinate and drift. The question isn't whether to use them for
+physical control — it's how to let them **reason without letting them
+touch**.
 
 ## The approach
 
-Let the LLM reason. Don't let it execute.
+Wallee's answer is structural, not prompt-based:
 
-Wallee separates reasoning from execution. An LLM observes sensor data and
-proposes what to do next as structured JSON. Deterministic code validates
-every proposal before it reaches hardware. A safety kernel watches
-independently as a separate OS process. If the agent crashes, safety
-keeps running.
+- **Closed action space.** Each cycle, deterministic code compiles the live
+  world into a small `WorldPacket` with a **frontier**: the complete list of
+  actions that are legal right now, each bounded, typed, and hazard-classed.
+  The planner must answer in strict JSON (`PlanIR`) choosing frontier ids
+  only. There is no free-form command channel — a hostile or hallucinated
+  plan has nothing to grab.
+- **Deterministic gates.** The engine re-validates every choice against a
+  fresh world, takes locks, parks hazardous actions behind human approval
+  (bound to exact arguments, with expiry), journals a durable `IN_FLIGHT`
+  barrier *before* any side effect, and verifies the expected outcome
+  afterward — demanding a replan when the world disagrees.
+- **Independent safety.** A safety kernel owns a durable emergency-stop
+  latch that only a human can clear, and a separate watchdog process stops
+  the machine on a stale heartbeat — proven in CI by SIGKILLing the runtime
+  mid-job. No prompt is ever the last line of defense.
+- **Device packs.** All hardware knowledge lives in per-device packs behind
+  a generic core, enforced by a ratchet that only tightens. Swap the
+  machine, keep the architecture.
 
-No prompt engineering is responsible for safety. The architecture is.
+The six safety promises this adds up to are **executable**: each one is
+pinned by named tests and CI checks that go red if it weakens. See the
+promise-to-check map in [`AGENTS.md`](AGENTS.md) and the evidence in
+[`docs/VALIDATION.md`](docs/VALIDATION.md).
 
-The repository ships a concrete example device pack, but the core system
-itself does not assume a specific machine type. The agent loop, engine,
-safety kernel, whiteboard, and ledger are designed to stay generic while
-device packs define how to sense and control a particular hardware target.
-
-## Architecture diagram
+## How a cycle works
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables': {
-  'primaryColor':'#dbeafe',
-  'primaryTextColor':'#0f172a',
-  'primaryBorderColor':'#2563eb',
-  'secondaryColor':'#dcfce7',
-  'secondaryTextColor':'#14532d',
-  'secondaryBorderColor':'#16a34a',
-  'tertiaryColor':'#fef3c7',
-  'tertiaryTextColor':'#78350f',
-  'tertiaryBorderColor':'#d97706',
-  'lineColor':'#475569',
-  'fontSize':'14px'
+  'primaryColor':'#dbeafe','primaryTextColor':'#0f172a','primaryBorderColor':'#2563eb',
+  'lineColor':'#475569','fontSize':'14px'
 }}%%
-graph TD
-    subgraph "Untrusted Zone"
-        LLM["LLM via OpenRouter"]
-    end
-    subgraph "Trusted Zone"
-        PROMPT["Prompt Builder"] --> LLM
-        LLM --> PARSER["Parser + Validator"]
-        PARSER --> LEDGER["Ledger"]
-        LEDGER --> ENGINE["Engine Gates"]
-        ENGINE --> DISPATCH["Hardware Dispatch"]
-    end
-    subgraph "Physical World"
-        DISPATCH --> HARDWARE["Hardware"]
-        HARDWARE --> SENSORS["Sensors + Cameras"]
-        SENSORS --> WB["Redis Whiteboard"]
-        WB --> PROMPT
-    end
-    subgraph "Independent Safety"
-        SAFETY["Safety Kernel Process"] -->|"ESTOP"| HARDWARE
-        SAFETY -->|"monitors"| WB
-    end
-    HUMAN["Human via Telegram / CLI"] --> WB
-    WB --> HUMAN
-
-    class LLM untrusted
-    class PROMPT,PARSER,LEDGER,ENGINE,DISPATCH trusted
-    class WB state
-    class HARDWARE,SENSORS hardware
-    class SAFETY safety
-    class HUMAN human
+flowchart LR
+    HW["Hardware"] --> PACK["Device pack"]
+    PACK -->|"facts"| WC["World compiler"]
+    WC -->|"WorldPacket:\nfacts + legal frontier"| LLM["Planner LLM\n(untrusted)"]
+    LLM -->|"PlanIR\n(strict JSON, frontier ids only)"| ENG["Engine gates:\nvalidate · approve · journal"]
+    ENG -->|"bounded commands"| PACK2["Device pack"]
+    PACK2 --> HW2["Hardware"]
+    HW2 -->|"fresh state"| VER["Verify or replan"]
+    SAFE["Safety kernel + watchdog\n(independent processes)"] -.->|"ESTOP"| HW2
+    HUMAN["Human"] -.->|"approve · ESTOP · clear"| ENG
 
     classDef untrusted fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
     classDef trusted fill:#dbeafe,stroke:#2563eb,color:#0f172a
-    classDef state fill:#ede9fe,stroke:#7c3aed,color:#3b0764
     classDef hardware fill:#dcfce7,stroke:#16a34a,color:#14532d
     classDef safety fill:#e0f2fe,stroke:#0891b2,color:#164e63
     classDef human fill:#fef3c7,stroke:#d97706,color:#78350f
+    class LLM untrusted
+    class WC,ENG,VER trusted
+    class HW,HW2,PACK,PACK2 hardware
+    class SAFE safety
+    class HUMAN human
 ```
-
-The LLM proposes actions. The engine validates every proposal against safety constraints before dispatching to hardware. The safety kernel runs as an independent process and can ESTOP the machine even if the agent crashes.
-
-## Everything is an API
-
-To the agent, the world is a set of APIs:
-
-**Hardware API** — sensors publish state to the whiteboard, actuators accept
-commands through the engine. `set_parameter(target=210, channel="primary")`
-is an API call. The engine validates it before dispatch, exactly like an API
-gateway validates requests before forwarding to a backend.
-
-**Human API** — the operator is a service endpoint. `call_human("I need you
-to clear the obstruction from the tool head", severity="warning")` is an API call with
-high latency and physical capabilities the hardware API lacks. It goes through
-the same engine, gets logged in the same ledger, returns a result.
-
-**Knowledge API** — `lookup_issue("overcurrent")` queries a local reference.
-`web_search("stepper driver thermal fault symptoms")` queries the internet.
-`remember("This machine drifts after a long thermal soak")` writes to persistent memory. All are
-tools with params and responses.
-
-The agent doesn't know the difference between calling hardware, calling a human,
-or calling a knowledge service. They're all tools. The engine knows the difference
-— hardware tools go through safety gates, human and knowledge tools bypass them.
-
-## Actuators vs sensors
-
-The tool registry has two kinds of entries:
-
-**Actuator tools** — actions the LLM can propose. These go through the engine
-gate pipeline before executing. Examples: `set_temperature`, `pause_print`,
-`call_human`.
-
-**Sensor publishers** — background functions that periodically read hardware and
-publish state to the whiteboard. The LLM never calls these directly — it reads
-their output from the whiteboard. Examples: temperature readings, camera frames,
-and stateful machine telemetry.
-
-The LLM sees sensor data in its prompt. It proposes actuator tools in its response.
-The engine validates actuator proposals. Sensors run independently.
-
-Wallee currently exposes 20 actuator tools the LLM can propose, plus 20 background sensor publishers.
-
-Device packs are where the hardware-specific work lives: sensor publishers, actuator tools, callbacks, setup instructions, and machine-specific state conventions.
-
-## Key design principles
-
-- Untrusted LLM: the model proposes actions, but deterministic code validates and dispatches them.
-- One action per cycle: observe, reason, act, then observe again.
-- Structural safety: gates, ledgers, approvals, and watchdogs carry the safety burden, not prompt wording.
-- Generic core: hardware-specific behavior belongs in device packs, not in the agent, engine, or safety kernel.
-- Whiteboard-first state: tools publish live state into Redis so the agent reasons from a shared world model.
-
-## Components
-
-- `wallee/agent/` builds prompts, calls OpenRouter, parses strict JSON, and routes one decision per cycle.
-- `wallee/engine/` polls the ledger and runs proposals through a 6-stage validation pipeline before dispatch.
-- `wallee/safety/` runs an independent watchdog process that monitors heartbeats, overcurrent flags, and ESTOP state.
-- `wallee/device_packs/` contains hardware-facing sensors, actuators, and callbacks for concrete machine integrations.
-- `wallee/human/` provides Telegram and CLI control paths, approvals, image upload, and durable operator callouts.
-- `wallee/knowledge/` holds the core reasoning files plus the runtime knowledge files the agent reads while a job is active.
-- `wallee/ui/` serves a read-only real-time dashboard over HTTP and WebSocket.
-- `wallee/testing/` contains the offline replay harness and 60 scenario files used for regression-style decision checks.
-
-## Repository layout
-
-- `wallee/` - latest maintained implementation, currently v6.5
-- `wallee/` - earlier generic architecture/runtime line
-- `ARCHITECTURE.md` - legacy root architecture reference
-
-- [`README.md`](README.md): public overview, quick start, validation summary, and example deployment pointer.
-- [`ARCHITECTURE.md`](ARCHITECTURE.md): deeper data flow, trust boundaries, runtime contracts, and validation notes.
-- [`SECURITY.md`](SECURITY.md): threat model (prompt injection, LAN exposure, ESTOP rules) and disclosure policy.
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): Raspberry Pi cutover runbook for the v6 runtime.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md): deliberately deferred work (single-tree promotion, Prusa eviction, deferred research).
-- `wallee/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`): how to build a new hardware integration.
-- `docs/internal/RETIRED_FINDINGS.md` (legacy agent-prompt scaffold, retired): prompt scaffold for AI agents creating a new device pack.
-- [`wallee/packs/prusa_core_one_plus/README.md`](wallee/packs/prusa_core_one_plus/README.md): example device-pack documentation for the shipped reference implementation.
-
-## The agent cycle
-
-1. Read the full whiteboard snapshot with inline trend annotations from Redis.
-2. Update phase-transition bookkeeping and fetch the current episode from the ledger.
-3. Scan recent rejections to set or refresh any per-tool cooldown.
-4. Read human inputs, including `human.intent`, `human.image`, and pending feedback state.
-5. Auto-handle a small set of deterministic cases, such as queued work start when the machine is idle and ready.
-6. Detect external state changes by comparing the whiteboard against recent tool state effects and ledger history.
-7. Load the cached knowledge set for this job: `SOUL.md`, `LEARNED.md`, `OBSERVATIONS.md`, and `JOB_CONTEXT.md` when present.
-8. Build the cached system prompt and the dynamic user message, then attach a human-sent photo if one exists for this cycle.
-9. Snapshot stale-decision sentinels, call the LLM, and discard the answer if the world changed underneath the call.
-10. Parse and validate the JSON response, apply cooldown and oscillation guards, and route the decision to the ledger or to a wait state.
-11. Clear one-shot human inputs after use and go back to sleep until the next timer or wake event.
-
-## Engine gates
-
-The engine treats built-in non-hardware tools such as `call_human`, `lookup_issue`, and `web_search` as `gate_bypass` actions. Everything else goes through the full validation path below.
-
-| Gate | What it checks | Failure outcome |
-|---|---|---|
-| Chain predecessor | Unknown tools are rejected, and later `ACTION_CHAIN` steps wait until earlier steps succeed. | `REJECTED` or `SKIPPED` |
-| Safety interlock | `safety.estop` blocks all hardware actions, and resume-style actions are blocked while `agent.external_pause` is set. | `REJECTED` |
-| Queue guard | Only one in-flight action per device group is allowed. | `SKIPPED` |
-| Deadline | Proposal age must stay within `max_proposal_age_ms`. | `REJECTED` |
-| Approval | Tools marked `requires_approval` wait for an operator decision in the ledger. | `WAITING_APPROVAL`, then `REJECTED` on timeout or rejection |
-| TOCTOU precheck | The tool's side-effect-free precheck revalidates discrete state immediately before dispatch. | `REJECTED` |
-
-After those gates, the engine writes an in-flight diary record, marks the action `DISPATCHED`, executes the tool, and persists either `DONE` or `FAILED`.
-
-## Knowledge architecture
-
-- `SOUL.md`: mission, values, and reasoning style. Roughly 467 words, about 607 tokens by a simple `words × 1.3` estimate.
-- `LEARNED.md`: compact operating heuristics and cross-signal reasoning patterns. Roughly 560 words, about 728 tokens.
-- `REFERENCE.md`: the large intervention matrix, accessed through `lookup_issue` instead of being loaded every cycle. Roughly 10,195 words, about 13.3k tokens.
-- `OBSERVATIONS.md`: the live memory file, updated over time through the `remember` tool and always loaded into the system prompt.
 
 ## Quick start
 
-1. Clone the repository and create a virtual environment.
+```bash
+git clone https://github.com/anieyrudh/wallee && cd wallee
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 
-   ```bash
-   git clone https://github.com/anieyrudh/wallee.git
-   cd wallee
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+# One full cycle against the simulated printer — no hardware, no API key
+# (the deterministic heuristic planner is the default backend):
+python -m wallee.main --simulate --once --goal "Unload cooled part from printer_1 into tray_A"
 
-2. Install and start a Redis server (the whiteboard and safety monitoring
-   depend on it), e.g. `sudo apt install redis-server` on a Pi.
+# A short multi-cycle run:
+python -m wallee.main --simulate --cycles 5 --goal "Improve the active print conservatively."
 
-3. Create your local config from the template.
+# Everything CI runs:
+./scripts/gate.sh
+```
 
-   ```bash
-   cp .env.example .env
-   ```
+To use a real LLM planner:
 
-4. Fill in the required values in `.env`, especially the OpenRouter key, Redis URL, the device pack list you want active, and any pack-specific connection settings.
-5. Configure your selected device pack so its telemetry sources, control interfaces, and optional cameras are reachable from the host running Wallee.
-6. Start Wallee.
+```bash
+export WALLEE_PLANNER_BACKEND=openrouter
+export OPENROUTER_API_KEY=...            # never committed; see .env.example
+export OPENROUTER_MODEL=openai/gpt-5-mini
+python -m wallee.main --simulate --once --goal "Improve the active print conservatively."
+```
 
-   ```bash
-   python -m wallee.main
-   ```
+For real hardware, follow the attended cutover runbook in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — including the safety checklist
+you run with a hand on the physical emergency stop.
 
-   `wallee.main` launches the safety kernel subprocess automatically, then starts the engine, sensors, agent, dashboard, and optional Telegram bot.
+## The reference hardware pack
 
-7. Open the dashboard in a browser at `http://127.0.0.1:8081` (loopback by default; set `DASHBOARD_HOST` and `DASHBOARD_TOKEN` to expose it).
+`wallee/packs/prusa_core_one_plus/` folds one physical printer's several
+vendor surfaces into one device: PrusaLink HTTP as the authoritative
+control path, UDP metrics as advisory telemetry, optional serial for
+bounded live-tuning writes, a read-only G-code **job notebook** that gives
+the planner grounded per-section context, and an observe-only nozzle-camera
+vision advisory whose free text can never steer a deterministic gate. The
+planner sees outcome-level actions (pause, cancel, bounded parameter trims)
+— never raw G-code, never numeric setpoints, never motion.
 
-## Validation
+Pack docs: [`README`](wallee/packs/prusa_core_one_plus/README.md) ·
+[`SETUP`](wallee/packs/prusa_core_one_plus/SETUP.md) ·
+[`CAPABILITIES`](wallee/packs/prusa_core_one_plus/CAPABILITIES.md)
 
-The current suite intentionally mixes two layers of coverage:
+## Validation, honestly
 
-- Core/framework tests in `tests/` validate the hardware-agnostic agent, engine, parser, whiteboard, ledger, safety kernel, and built-in tools.
-- Shipped example device-pack tests under `wallee/device_packs/*/tests/` validate the concrete hardware integrations bundled with this repository.
-
-| Run | Result |
+| Lane | What it proves |
 |---|---|
-| This tree (`pytest tests/ wallee/`) | `549 passed` |
-| `wallee` tree (`pytest tests/`, run separately) | `269 passed` |
-| Registered runtime actions | 20 actuator tools the LLM can propose, plus 20 background sensor publishers |
-| Replay harness corpus | `60` scenarios (offline replay score: 47/60 — see `wallee/testing/REPORT.md`) |
+| 422 tests (incl. entrypoint e2e) | the wired system, not just units |
+| 37 contract invariants | the six safety promises, MANIFEST-pinned |
+| Golden traces | refactors change nothing (byte-identical) |
+| Cassette replay | the real outbound prompt/payload, offline |
+| 60-scenario hazard corpus | translated legacy scenarios die at the gates |
+| Fault-injection trajectories | crashes and lies degrade safely |
+| Seeded-violation drill | every named guard actually fires (7/7) |
+
+Full detail — including the honest 47/60 live-model baseline and what still
+requires a hardware sign-off — in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+
+## Repository layout
+
+```
+wallee/            the runtime package (core is device-generic)
+wallee/packs/      device packs: sim_printer, sim_arm, prusa_core_one_plus
+tests/             suite: contract/ (promises), replay/, sim_evals/, goldens
+schemas/           generated JSON schemas (PlanIR, WorldPacket, manifests)
+knowledge/         planner prompt contract, rubric, examples
+deploy/systemd/    the two services (runtime + independent watchdog)
+scripts/           gate.sh + the checkers CI runs
+docs/              DEPLOYMENT, VALIDATION, GLOSSARY, SCHEMAS, ROADMAP, history
+```
+
+## Documentation
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the full design: cycle, boundaries, durable state, safety plane
+- [`AGENTS.md`](AGENTS.md) — the authoritative guide for contributors and AI agents (non-negotiables, hard rules, the gate)
+- [`SECURITY.md`](SECURITY.md) — threat model and disclosure policy
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Raspberry Pi cutover runbook
+- [`docs/VALIDATION.md`](docs/VALIDATION.md) — what is proven, by what, and what isn't yet
+- [`docs/GLOSSARY.md`](docs/GLOSSARY.md) — every term of art in one place
+- [`docs/SCHEMAS.md`](docs/SCHEMAS.md) — the durable JSON contracts
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — deferred work, recorded deliberately
+- [`CHANGELOG.md`](CHANGELOG.md) — the refactor, phase by phase
+
+The retired v5 line is archived on the `legacy/v5` branch; its architecture
+document and findings register live under
+[`docs/history/`](docs/history/ARCHITECTURE_v5_legacy.md) and
+[`docs/internal/RETIRED_FINDINGS.md`](docs/internal/RETIRED_FINDINGS.md).
 
 ## Known limitations
 
-- ESTOP is software-only today. It sends a stop request through the active control path; it is not a hardware relay or power interlock.
-- The safety kernel depends on Redis and network reachability to the machine, so it is independent from the agent process but not from the broader host stack.
-- Vision latency is bounded by camera refresh and a multimodal OpenRouter call, so visual reaction time is slower than direct telemetry.
-- The current deployment profile is single-machine oriented.
+- ESTOP is software-mediated unless you add a hardware relay. The remote
+  `wallee-operator estop` is a soft stop honored at the cycle boundary; the
+  physical button and the watchdog are the hard paths.
+- The operator notification channel (Telegram port) is not yet rebuilt for
+  v6 — until it lands, unattended operation is out of bounds
+  ([`SECURITY.md`](SECURITY.md)).
+- The vision advisory's finding vocabulary is small (residue, stringing,
+  spaghetti, blob, unknown); structural detection of detachment/collision
+  is roadmap work.
+- Run Wallee and the printer on a trusted, isolated network segment.
 
-## Thesis
+## License
 
-The contribution is not "an LLM controls hardware directly." It is: LLMs can
-reason usefully about physical systems if you build an architecture that
-doesn't trust them. Separate the reasoning (flexible, probabilistic,
-sometimes wrong) from the execution (deterministic, validated, safe).
-Let the model think. Let the code decide.
-
-## Research / Thesis / Citation
-
-This repository is intended to stand as a research artifact for a hardware-agnostic control architecture: the contribution is the separation between probabilistic reasoning and deterministic execution, not a claim that one specific machine integration is the architecture.
-
-Plain citation format:
-
-`Anieyrudh R. Wallee: An architecture for safely letting LLMs operate physical hardware. GitHub repository. 2026.`
-
-BibTeX template:
-
-```bibtex
-@misc{wallee2026,
-  author       = {Anieyrudh R},
-  title        = {Wallee: An architecture for safely letting LLMs operate physical hardware},
-  year         = {2026},
-  howpublished = {\url{https://github.com/anieyrudh/wallee}},
-  note         = {GitHub repository}
-}
-```
-
-## Example implementation: Prusa Core One+ 3D printer
-
-The repository ships one concrete deployment for a Raspberry Pi 5 controlling a
-single Prusa Core One+ through device packs. It is an example implementation of
-the architecture, not the architecture itself.
-
-Hardware-specific detail for the example lives in the device-pack docs:
-
-- Setup guide: [`wallee/packs/prusa_core_one_plus/SETUP.md`](wallee/packs/prusa_core_one_plus/SETUP.md)
-- Capability map: [`wallee/packs/prusa_core_one_plus/CAPABILITIES.md`](wallee/packs/prusa_core_one_plus/CAPABILITIES.md)
-- Device-pack guide: `wallee/packs/` (see each pack's README; the legacy device-pack guide is retired — `docs/internal/RETIRED_FINDINGS.md`)
+MIT — see [`LICENSE`](LICENSE).

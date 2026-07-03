@@ -10,6 +10,63 @@ history lives in the per-version changelogs under `docs/internal/`.
 
 ## [Unreleased]
 
+### Phase 5 — Police (the permanent end-state)
+
+- **Canonical CI**: `tests` (matrix, 72% coverage floor), `gates`
+  (pre-commit set), `mypy` (strict scope on the safety core),
+  `safety-invariants`, `adversarial-gates`, `sim-evals`, `cassette-replay`,
+  `schema-sync`, `docs-contract`, `repo-contract`, `pip-audit` — plus
+  CodeQL, grouped dependabot, and the weekly `live-eval` trend lane
+  (`scripts/run_live_eval.py` over the translated corpus; never a merge
+  gate).
+- **Fault-injection lane** (`tests/sim_evals/`): mid-trajectory faults
+  degrade safely. The lane immediately caught (and this release fixes) the
+  engine reporting a FAILED action in `executed_action_ids`.
+- **Seeded-violation drill**: 7/7 named guards fired
+  (`docs/internal/DRILL_2026-07.md`), including one honest catch of the
+  drill's own bad seeding.
+- **One command surface**: `./scripts/gate.sh` mirrors CI; the PR template
+  checkboxes mirror the required checks; `AGENTS.md` is the single
+  authoritative agent guide (gate table kept in sync with ci.yml by
+  `scripts/gen_agents_gate_block.py`); CLAUDE/CODEX are pointers; stale
+  agent guides renamed into `docs/history/` with a placement rule in
+  `check_docs.py`.
+- **Docs consolidation**: root README and ARCHITECTURE rewritten for the
+  single tree (v5 architecture archived to history); new
+  `docs/VALIDATION.md` (the honest ledger, incl. the 47/60 live baseline),
+  `docs/GLOSSARY.md`, `docs/SCHEMAS.md`.
+
+### Phase 4 — Prune (one tree, lean-down behind stable contracts)
+
+- **Legacy v5 tree retired** (`wallee/` v5, root `tests/`,
+  requirements files): archived in history with a full disposition register
+  (`docs/internal/RETIRED_FINDINGS.md`); the `legacy/v5` branch +
+  `legacy/v5-final` tag are cut from the last pre-deletion `main` commit at
+  merge time. The 60-scenario replay corpus was translated to v6
+  world-packet key-space FIRST (`tests/replay/keymap.py`) and now runs as a
+  model-independent gate-assertion suite plus live planner-eval cases; its
+  honest 47/60 baseline is preserved.
+- **Single package**: `wallee_v6/` promoted to the root `wallee` package
+  (pure `git mv` + mechanical rename; goldens/cassettes byte-identical;
+  `rg wallee_v6` = 0 outside history docs). `pyproject` is the one spec:
+  name `wallee`, version 6.6.0, entry points `wallee` / `wallee-operator` /
+  `wallee-watchdog`.
+- **Dead code deleted**: the unauthenticated dashboard (with
+  fastapi/uvicorn), the RedisWhiteboard placeholder, the legacy Pi launch
+  script. `ControlLease` kept and unit-tested (it is load-bearing).
+- **Dedupe behind goldens**: one `wallee/coerce.py` for the scalar/fact
+  helpers (five-plus clones removed), one run-scope builder, the
+  `pack._realize` if-chain replaced by a spec table. The core-purity
+  ratchet enforced the boundary during its own refactor (342 → 337).
+- **main.py split** (1,461 → 51-line shim over cli / composition / loop /
+  artifacts / archive), proven by the entrypoint e2e suite; the 800-line
+  file cap lands as a shrink-only ratchet (`scripts/check_file_sizes.py`)
+  with the remaining seven oversized files recorded per-file in ROADMAP.
+- **Persistent-failure trip**: N consecutive crashed cycles now stop the
+  machine and escalate (once per incident, re-armed on operator clear) —
+  closing the analysis finding that the counter was computed but unused.
+- **Bounded whiteboard change ring** (was an unbounded slow leak).
+
 ### Phase 3 — Promote (device-boundary, injection hardening, remote stop, docs)
 
 - **Duplicate device-id claims are rejected.** The registry refuses to load two
