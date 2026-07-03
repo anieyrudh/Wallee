@@ -378,7 +378,12 @@ class Engine:
             )
 
         outcome = self._finalize_action(run.action_run_id, action, goal, result)
-        report.executed_action_ids.append(action.action_id)
+        if not outcome.failed_action_run_id:
+            # A failed/expired execution must not be reported as executed; the
+            # run row (FAILED) is the truth and the report must match it. A
+            # verification mismatch stays in executed_action_ids — the side
+            # effect did reach the machine even though the world disagrees.
+            report.executed_action_ids.append(action.action_id)
         report.notes.extend(outcome.notes)
         report.human_request_ids.extend(outcome.human_request_ids)
         if outcome.post_execution_world is not None:

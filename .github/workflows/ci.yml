@@ -14,10 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  v6-tests:
-    name: v6-tests (${{ matrix.python-version }})
+  tests:
+    name: tests (${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -31,11 +31,49 @@ jobs:
       - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" ruff
-      - name: Run v6 tests
-        run: pytest tests -q
-      - name: Lint
-        run: ruff check .
+          pip install -e ".[dev]"
+      - name: Run tests with the coverage floor
+        # The floor only ratchets up: raise it when coverage rises, never
+        # lower it to make a PR pass.
+        run: pytest tests -q --cov=wallee --cov-report=term --cov-fail-under=72
+
+  gates:
+    name: gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run the pre-commit gate set
+        # Identical to the local `scripts/gate.sh` fast path: lint, hygiene,
+        # forbidden patterns, docs, repo contract, core purity, file sizes.
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  mypy:
+    name: mypy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Type-check the strict module scope
+        # Strict scope is configured in pyproject [tool.mypy]; it grows
+        # module-by-module toward the whole core.
+        run: mypy wallee/coerce.py wallee/ids.py wallee/predicates.py wallee/runtime_control.py wallee/safety.py wallee/stop_transport.py wallee/whiteboard.py
 
   safety-invariants:
     name: safety-invariants
@@ -59,6 +97,43 @@ jobs:
       - name: Check contract manifest and xfail hygiene
         run: python scripts/check_contract_manifest.py
 
+  adversarial-gates:
+    name: adversarial-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Hostile plans and the translated hazard corpus die at the gates
+        # Model-independent: hostile PlanIRs, injection strings, and the
+        # 60-scenario replay corpus translated to world-packet key-space.
+        run: pytest tests/contract/test_gate_adversarial.py tests/replay -q
+
+  sim-evals:
+    name: sim-evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Fault-injection trajectory evals over the sim printer
+        # Offline and deterministic; pass^k sampling belongs to the live lane.
+        run: pytest tests/sim_evals -q
+
   cassette-replay:
     name: cassette-replay
     runs-on: ubuntu-latest
@@ -75,8 +150,8 @@ jobs:
           pip install -e ".[dev]"
       - name: Replay recorded planner traffic through the production planner
         # Offline and deterministic. A red here means the outbound prompt or
-        # payload changed: regenerate with scripts/record_cassettes.py
-        # in a separate [re-record] commit.
+        # payload changed: regenerate with scripts/record_cassettes.py in a
+        # separate [re-record] commit.
         run: pytest tests/test_cassette_replay.py -q
 
   schema-sync:
@@ -96,7 +171,7 @@ jobs:
       - name: Schemas match their code sources; manifests validate
         run: python scripts/gen_schemas.py
 
-  docs-and-contracts:
+  docs-contract:
     name: docs-contract
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -109,10 +184,25 @@ jobs:
       - name: Install wallee (with dev extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" ruff
+          pip install -e ".[dev]"
       - name: Check docs
         run: python scripts/check_docs.py
-      - name: Check repo contracts
+
+  repo-contract:
+    name: repo-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Check pack conformance
         run: python scripts/check_repo_contract.py
       - name: Check forbidden patterns
         run: python scripts/check_forbidden_patterns.py
@@ -120,3 +210,20 @@ jobs:
         run: python scripts/check_core_purity.py
       - name: Check file sizes (800-line cap, shrink-only ratchet)
         run: python scripts/check_file_sizes.py
+
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee and pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pip-audit
+      - name: Audit installed dependencies
+        run: pip-audit

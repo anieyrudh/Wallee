@@ -81,7 +81,7 @@ class PredicateEvaluator:
             return False
 
         actual = facts[fact_name]
-        return _ATOM_OPS[op](actual, expected)
+        return bool(_ATOM_OPS[op](actual, expected))
 
     def describe(self, predicate: dict[str, Any] | None) -> str:
         """Return a compact human-readable description of a predicate."""

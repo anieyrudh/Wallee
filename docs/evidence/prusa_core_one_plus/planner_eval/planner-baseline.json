@@ -1,0 +1,29 @@
+{
+  "contract_files_compared": {
+    "baseline_prompt_package": "embedded baseline prompt text from pre-hardening knowledge files",
+    "revised_contract": "knowledge/CONTRACT.md",
+    "revised_examples_dir": "knowledge/EXAMPLES",
+    "revised_rubric": "knowledge/RUBRIC.md"
+  },
+  "eval_artifacts": [
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-12T205508-phase1-speed-once.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T104538-phase1-flow-session.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T094224-phase1-speed-once.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T124434-phase1-nozzle-session.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T124453-phase1-flow-session.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T125852-phase1-speed-flow-session.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-13T143546-phase1-all-families-session.json",
+    "docs/evidence/prusa_core_one_plus/phase1/runs/2026-04-12T210801-phase1-speed-once.json"
+  ],
+  "frozen_runtime_invariants": [
+    "frontier-only planner",
+    "one bounded action at a time",
+    "deterministic execution and verification",
+    "current family-local Prusa gates unchanged",
+    "notebook and last-result context advisory only"
+  ],
+  "generated_at": "2026-07-03T01:34:37.314711Z",
+  "openrouter_model_default": "openai/gpt-5-mini",
+  "planner_backend_eval": "heuristic",
+  "planner_backend_runtime_default": "heuristic"
+}

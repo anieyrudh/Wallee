@@ -1,0 +1,48 @@
+name: live-eval
+
+# The weekly live planner-eval lane: replays the eval case set (including the
+# translated 60-scenario corpus via tests/replay/keymap.py) against the live
+# configured model and records pass rates. Budget-capped and best-effort — it
+# never gates merges; trends over time are the signal. Skips cleanly when the
+# secret is not configured (e.g. on forks).
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-eval:
+    name: live planner eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install wallee (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run the live eval lane (skips without the secret)
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "OPENROUTER_API_KEY not configured; skipping the live lane."
+            exit 0
+          fi
+          python scripts/run_live_eval.py
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-eval-results
+          path: |
+            .runtime/planner_eval/**
+          if-no-files-found: ignore

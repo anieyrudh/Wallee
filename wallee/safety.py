@@ -25,7 +25,7 @@ class InterlockState:
     reason: str | None = None
 
 
-def _atomic_write_json(path: Path, payload: dict) -> None:
+def _atomic_write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".estop.", suffix=".tmp")
     try:
@@ -59,7 +59,7 @@ def write_estop_signal(
     )
 
 
-def consume_estop_signal(path: Path | str) -> dict | None:
+def consume_estop_signal(path: Path | str) -> dict[str, object] | None:
     """Read and remove a pending ESTOP signal; return its payload or None.
 
     Consuming (delete-on-read) makes each request act exactly once: a trip or

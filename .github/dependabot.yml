@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Legacy tree runtime + dev dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -10,17 +9,6 @@ updates:
       python-deps:
         patterns: ["*"]
 
-  # Current wallee tree (pyproject)
-  - package-ecosystem: "pip"
-    directory: "/wallee"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      python-deps:
-        patterns: ["*"]
-
-  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -23,6 +23,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8,<9",
+  "pytest-cov>=5,<8",
+  "ruff==0.15.8",
+  "mypy>=1.11,<2",
+  "pre-commit>=3.7,<5",
 ]
 
 [project.scripts]
@@ -42,3 +46,22 @@ wallee = [
 
 [tool.setuptools.packages.find]
 include = ["wallee*"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+
+# Strict scope grows module-by-module toward the whole core (plan Phase 4/5).
+# These are the safety-relevant modules that pass --strict today; a regression
+# in any of them is a red `mypy` check.
+[[tool.mypy.overrides]]
+module = [
+  "wallee.coerce",
+  "wallee.ids",
+  "wallee.predicates",
+  "wallee.runtime_control",
+  "wallee.safety",
+  "wallee.stop_transport",
+  "wallee.whiteboard",
+]
+strict = true

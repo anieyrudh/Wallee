@@ -64,3 +64,25 @@ def runtime(tmp_path, monkeypatch):
     }
 
     runtime_db.close()
+
+
+class FakeMonotonic:
+    """Injectable monotonic clock for TTL/latch tests (shared across suites).
+
+    Wall-clock-driven tests cannot rule out timed un-latching (the legacy
+    ESTOP bug class expired after 600 s); a fake clock can.
+    """
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_mono():
+    return FakeMonotonic()
