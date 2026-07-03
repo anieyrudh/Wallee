@@ -444,12 +444,12 @@ class OpenRouterPlanner(Planner):
         signal = world.prompt_view().get("decision_signals", {}).get("vision_signal", {})
         if not isinstance(signal, dict) or not bool(signal.get("usable")):
             return False
+        # Consume the structured finding-type enum only: suppress solely when the
+        # sole observation is cosmetic residue. The model's free-text `summary` is
+        # never read here — a poisoned or hallucinated sentence must not be able to
+        # steer a deterministic gate (I-14; the closed enum is the contract).
         findings = {str(item) for item in signal.get("finding_types") or []}
-        if findings != {"residue"}:
-            return False
-        summary = str(signal.get("summary") or "").lower()
-        impact_terms = ("blob", "drag", "contact", "string", "spaghetti", "adhesion", "failed", "detached")
-        return not any(term in summary for term in impact_terms)
+        return findings == {"residue"}
 
     def _should_suppress_active_print_call_human_when_tuning_exists(self, plan: PlanIR, world: WorldPacket) -> bool:
         if plan.decision != "CALL_HUMAN":
@@ -501,6 +501,16 @@ def _healthy_active_print_with_tuning(world: WorldPacket) -> bool:
     return isinstance(tuning_action_space, dict) and bool(tuning_action_space)
 
 
+# Vision finding types that are a real, non-tunable fault: a collapsed nest of
+# extruded filament (spaghetti) means the print has failed and a human is needed
+# even while bounded tuning is otherwise available. `stringing`/`blob` are
+# tunable quality issues handled autonomously; `residue` is cosmetic; `unknown`
+# is ambiguous. Deterministic gates read this closed enum only — never the vision
+# model's free-text summary, so a poisoned or hallucinated sentence cannot flip a
+# gate (I-14).
+_REAL_FAULT_VISION_FINDINGS = frozenset({"spaghetti"})
+
+
 def _has_real_fault_or_operator_condition(world: WorldPacket) -> bool:
     health = str(world.facts.get("printer_1.health") or "").strip().upper()
     if health in {"ATTENTION", "ERROR", "OFFLINE"}:
@@ -508,25 +518,10 @@ def _has_real_fault_or_operator_condition(world: WorldPacket) -> bool:
     if world.pending_human:
         return True
     signal = world.prompt_view().get("decision_signals", {}).get("vision_signal", {})
-    if not isinstance(signal, dict):
+    if not isinstance(signal, dict) or not bool(signal.get("usable")):
         return False
     findings = {str(item).strip().lower() for item in signal.get("finding_types") or []}
-    if findings.intersection({"spaghetti", "adhesion_failure", "detached_part", "collision", "obstruction", "jam"}):
-        return True
-    summary = str(signal.get("summary") or "").lower()
-    severe_terms = (
-        "contact",
-        "collision",
-        "detached",
-        "failed",
-        "failure",
-        "obstruction",
-        "jam",
-        "spaghetti",
-        "adhesion failure",
-        "recovery",
-    )
-    return any(term in summary for term in severe_terms)
+    return bool(findings & _REAL_FAULT_VISION_FINDINGS)
 
 
 def _float_or_none(value: Any) -> float | None:

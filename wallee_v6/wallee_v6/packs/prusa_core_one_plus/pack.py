@@ -18,6 +18,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as Futur
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 import threading
 import time
 from typing import Any
@@ -937,9 +938,9 @@ class Pack(BasePack):
         job_active = bool(snapshot.get(f"{self.DEVICE_ID}.raw.job_active", False))
         job_progress = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_progress_pct"))
         job_time_printing = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_time_printing_s"))
-        current_file = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.current_file"))
+        current_file = _sanitize_filename(snapshot.get(f"{self.DEVICE_ID}.raw.current_file"))
         job_id = _int_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_id"))
-        requested_file = _string_or_none(
+        requested_file = _sanitize_filename(
             snapshot.get(f"{self.DEVICE_ID}.requested_file")
             or snapshot.get(f"{self.DEVICE_ID}.raw.requested_file")
             or snapshot.get("factory.requested_file")
@@ -956,7 +957,7 @@ class Pack(BasePack):
         part_present = bool(snapshot.get(f"{self.DEVICE_ID}.part_present", False))
         live_tuning_available = bool(snapshot.get(f"{self.DEVICE_ID}.raw.live_tuning_available", False))
         job_hash = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_hash"))
-        job_material = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_material"))
+        job_material = _sanitize_prompt_text(snapshot.get(f"{self.DEVICE_ID}.raw.job_material"), max_len=64)
         job_layer_height = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_layer_height_mm"))
         job_nozzle_target_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_nozzle_target_c_default"))
         job_bed_target_default = _float_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_bed_target_c_default"))
@@ -965,8 +966,12 @@ class Pack(BasePack):
             snapshot.get(f"{self.DEVICE_ID}.raw.active_print_accel_baseline_mm_s2")
         )
         job_active_section = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_active_section"))
-        job_active_section_reason = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_active_section_reason"))
-        job_active_notes = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_active_notes"))
+        job_active_section_reason = _sanitize_prompt_text(
+            snapshot.get(f"{self.DEVICE_ID}.raw.job_active_section_reason")
+        )
+        job_active_notes = _sanitize_prompt_text(
+            snapshot.get(f"{self.DEVICE_ID}.raw.job_active_notes"), max_len=500
+        )
         active_notes_json = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.active_notes_json"))
         job_notebook_available = bool(snapshot.get(f"{self.DEVICE_ID}.raw.job_notebook_available", False))
         job_notebook_status = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.job_notebook_status"))
@@ -1002,13 +1007,13 @@ class Pack(BasePack):
         nozzle_cam_last_frame_ref = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.nozzle_cam_last_frame_ref"))
         nozzle_cam_repeated_identical_count = _int_or_none(snapshot.get(f"{self.DEVICE_ID}.nozzle_cam_repeated_identical_count")) or 0
         raw_observed_at = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.raw.observed_at"))
-        vision_advisory_summary = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_advisory_summary"))
+        vision_advisory_summary = _sanitize_prompt_text(snapshot.get(f"{self.DEVICE_ID}.vision_advisory_summary"))
         vision_advisory_finding_types = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_advisory_finding_types"))
         vision_advisory_strength = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_advisory_strength"))
         vision_advisory_issue_level = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_advisory_issue_level"))
         vision_comparison_delta = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_comparison_delta"))
         vision_comparison_confidence = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_comparison_confidence"))
-        vision_comparison_summary = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_comparison_summary"))
+        vision_comparison_summary = _sanitize_prompt_text(snapshot.get(f"{self.DEVICE_ID}.vision_comparison_summary"))
         vision_reference_frame_ref = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_reference_frame_ref"))
         vision_observation_ref = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_observation_ref"))
         vision_frame_ref = _string_or_none(snapshot.get(f"{self.DEVICE_ID}.vision_frame_ref"))
@@ -2573,7 +2578,7 @@ class Pack(BasePack):
             if not isinstance(entry, dict):
                 continue
             path = _string_or_none(entry.get("path"))
-            display_name = _string_or_none(entry.get("display_name"))
+            display_name = _sanitize_filename(entry.get("display_name"))
             if not path or not display_name:
                 continue
             size = entry.get("size_bytes")
@@ -3232,6 +3237,58 @@ def _string_or_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _sanitize_prompt_text(value: Any, *, max_len: int = 240) -> str | None:
+    """Clamp a free-text field before it can reach the planner prompt.
+
+    Notebook notes, vision summaries, section reasons, and material names are
+    device- or operator-supplied and flow into the prompt as-is. A control
+    character or embedded newline could let such a string break out of its
+    field and inject planner-visible instructions, so we drop control/C1
+    characters, collapse whitespace to single spaces, and clamp length. This is
+    defense-in-depth: the deterministic safety gates never read this free text
+    at all (I-14), so a poisoned string can at worst mislead the LLM, not a gate.
+    """
+
+    text = _string_or_none(value)
+    if text is None:
+        return None
+    cleaned = "".join(
+        " " if (ord(ch) < 0x20 or ord(ch) == 0x7F or 0x80 <= ord(ch) <= 0x9F) else ch
+        for ch in text
+    )
+    cleaned = " ".join(cleaned.split())
+    if not cleaned:
+        return None
+    if len(cleaned) > max_len:
+        cleaned = cleaned[: max_len - 3].rstrip() + "..."
+    return cleaned
+
+
+_FILENAME_DISALLOWED = re.compile(r"[^0-9A-Za-z ._\-()#+&,\[\]]")
+
+
+def _sanitize_filename(value: Any, *, max_len: int = 128) -> str | None:
+    """Clamp a device-supplied filename to a safe, bounded display form.
+
+    Print filenames come off USB storage and are attacker-influenceable (anyone
+    who can drop a file on the drive names it). Restrict to filename-reasonable
+    characters and clamp length so a crafted name cannot carry prompt-breaking
+    control characters or unbounded text. Realistic `.gcode`/`.bgcode` names pass
+    through unchanged, so file matching is unaffected in practice.
+    """
+
+    text = _string_or_none(value)
+    if text is None:
+        return None
+    collapsed = " ".join(text.split())
+    cleaned = _FILENAME_DISALLOWED.sub("", collapsed).strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > max_len:
+        cleaned = cleaned[:max_len].rstrip()
+    return cleaned
 
 
 def _compact_blocker_list(value: Any) -> list[str]:

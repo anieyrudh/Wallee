@@ -241,7 +241,13 @@ def _timestamp_token(captured_at: str) -> str:
 
 
 def _collapse_text(value: Any) -> str:
-    return " ".join(str(value or "").strip().split())
+    # Drop control and C1 characters (the vision model's free text is untrusted
+    # input); collapsing on whitespace then folds any resulting gaps and newlines.
+    raw = str(value or "")
+    stripped = "".join(
+        ch for ch in raw if not (ord(ch) < 0x20 or ord(ch) == 0x7F or 0x80 <= ord(ch) <= 0x9F)
+    )
+    return " ".join(stripped.split())
 
 
 def _short_sentence(value: Any, *, fallback: str, limit: int = 160) -> str:
