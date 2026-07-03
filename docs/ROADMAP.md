@@ -64,9 +64,10 @@ From the analysis, parked until the core is stable on hardware:
 - **Full notification port and event-driven wake.** The operator/approval
   channel (e.g. Telegram) hardening rules are documented, but the full port and
   an event-driven (rather than polled) control-loop wake are not done.
-- **Authenticated dashboard.** `wallee/dashboard.py` is unauthenticated and
-  not wired into the runtime; a designed, authenticated read surface is future
-  work (and `fastapi`/`uvicorn` drop out of the deps until then).
+- **Authenticated dashboard.** The unauthenticated, unwired `dashboard.py`
+  was deleted in Phase 4 (Integration Decision I-8) and `fastapi`/`uvicorn`
+  dropped from the dependencies. A designed, authenticated read surface is
+  future work.
 
 ## Largely-satisfied P1 items with small remainders
 

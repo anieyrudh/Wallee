@@ -32,7 +32,6 @@ NETWORK_ALLOWLIST = {
     "llm_transport.py": "the LLM HTTP transport itself (live/recording/replay seam)",
     "stop_transport.py": "the generic machine-stop transport (safety arm; stdlib-only)",
     "registry.py": "pack presence detection probes (to become manifest-driven)",
-    "dashboard.py": "read-only HTTP surface (currently not wired into main)",
 }
 
 

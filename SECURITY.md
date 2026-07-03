@@ -62,8 +62,8 @@ weakly authenticated on a typical printer LAN.
 
 - Run Wallee and the printer on a **trusted, isolated network segment**, not a
   shared or internet-exposed LAN.
-- The v6 `dashboard.py` HTTP surface is **unauthenticated and not wired into the
-  runtime**; do not expose it. A designed, authenticated dashboard is tracked in
+- The runtime exposes **no HTTP surface of its own** (the old unauthenticated
+  dashboard was deleted). A designed, authenticated dashboard is tracked in
   [docs/ROADMAP.md](docs/ROADMAP.md).
 - Keep PrusaLink API keys out of the repository; provide them through
   environment files with restricted permissions (see

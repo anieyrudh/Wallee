@@ -1,7 +1,7 @@
 """Volatile whiteboard implementations.
 
 The in-memory whiteboard is the default because it keeps local development
-simple.  A Redis-backed implementation can be added behind the same interface
+simple.  A networked implementation can be added behind the same interface
 later without changing the world compiler or packs.
 """
 
@@ -83,36 +83,3 @@ class InMemoryWhiteboard(BaseWhiteboard):
         """Return changes strictly newer than *sequence*."""
         with self._lock:
             return [change for change in self._changes if change[0] > sequence]
-
-
-class RedisWhiteboard(BaseWhiteboard):
-    """Optional Redis implementation.
-
-    The import happens lazily because the reference repository should still work
-    without a Redis client installed.  This class is present to show the
-    production integration point, not because the tests need a real Redis
-    server.
-    """
-
-    def __init__(self, url: str = "redis://127.0.0.1:6379/0") -> None:
-        try:
-            import redis  # type: ignore
-        except Exception as exc:  # pragma: no cover - optional dependency
-            raise RuntimeError("redis package is required for RedisWhiteboard") from exc
-        self._client = redis.Redis.from_url(url, decode_responses=False)
-
-    def publish(self, key: str, value: Any) -> int:  # pragma: no cover - optional integration
-        raise NotImplementedError("RedisWhiteboard is a placeholder in the reference implementation")
-
-    def batch_publish(self, mapping: dict[str, Any]) -> int:  # pragma: no cover - optional integration
-        raise NotImplementedError("RedisWhiteboard is a placeholder in the reference implementation")
-
-    def get(self, key: str, default: Any | None = None) -> Any:  # pragma: no cover - optional integration
-        raw = self._client.get(key)
-        return default if raw is None else raw
-
-    def snapshot(self) -> WhiteboardSnapshot:  # pragma: no cover - optional integration
-        raise NotImplementedError("RedisWhiteboard is a placeholder in the reference implementation")
-
-    def changes_since(self, sequence: int) -> list[tuple[int, str, Any, Any, int]]:  # pragma: no cover - optional integration
-        raise NotImplementedError("RedisWhiteboard is a placeholder in the reference implementation")
