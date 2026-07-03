@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import PLAN
+from .conftest import PLAN, REPO_ROOT
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "wallee_v6"
 
@@ -52,7 +52,12 @@ def test_no_core_module_performs_network_io():
 
 @pytest.mark.xfail(
     strict=True,
-    reason=f"Phase 3 (Prusa eviction): core modules still carry device knowledge — {PLAN} §6",
+    reason=(
+        "Phase 3/4 (Prusa eviction): the decision-signal compilation is the "
+        "planner's prompt; the full move needs the structured TuningDescriptor "
+        "redesign and cassette re-record. Meanwhile scripts/check_core_purity.py "
+        f"ratchets the count down and blocks new leakage — {PLAN} §6"
+    ),
 )
 def test_no_core_module_references_device_ids():
     offenders: dict[str, int] = {}
@@ -61,6 +66,30 @@ def test_no_core_module_references_device_ids():
         if hits:
             offenders[module.name] = hits
     assert not offenders, f"device knowledge in core: {offenders}"
+
+
+def test_core_purity_ratchet_is_enforced():
+    """The shrink-only allowlist exists and the checker passes against it.
+
+    This is the machine-enforced boundary that holds until the eviction above
+    reaches zero: a new device reference in an already-clean core module, or an
+    allowlist entry that fails to shrink when the code did, fails CI.
+    """
+    import subprocess
+    import sys
+
+    # conftest.REPO_ROOT resolves to the wallee_v6/ package dir; the real repo
+    # root (where scripts/ lives and the checker must run) is its parent.
+    repo_root = REPO_ROOT.parent
+    allowlist = REPO_ROOT / ".core-purity-allowlist.json"
+    assert allowlist.exists(), "the core-purity ratchet allowlist must exist"
+    result = subprocess.run(
+        [sys.executable, str(repo_root / "scripts" / "check_core_purity.py")],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_duplicate_device_id_claims_are_impossible(tmp_path, monkeypatch):

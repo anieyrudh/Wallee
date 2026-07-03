@@ -39,3 +39,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: check-core-purity
+        name: check core purity (device knowledge stays in packs)
+        entry: python scripts/check_core_purity.py
+        language: system
+        pass_filenames: false
+        always_run: true

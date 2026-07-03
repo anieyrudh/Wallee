@@ -1,3 +1,4 @@
+tests/contract/test_core_genericity.py::test_core_purity_ratchet_is_enforced
 tests/contract/test_core_genericity.py::test_duplicate_device_id_claims_are_impossible
 tests/contract/test_core_genericity.py::test_no_core_module_performs_network_io
 tests/contract/test_core_genericity.py::test_no_core_module_references_device_ids
