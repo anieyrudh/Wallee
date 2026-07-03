@@ -63,26 +63,22 @@ def test_no_core_module_references_device_ids():
     assert not offenders, f"device knowledge in core: {offenders}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 3 (registry hardening): two packs may not claim one DEVICE_ID — {PLAN} §6",
-)
-def test_duplicate_device_id_claims_are_impossible():
-    from wallee_v6.packs.prusa_core_one_plus.pack import PrusaCoreOnePack
-    from wallee_v6.packs.sim_printer.pack import SimPrinterPack
+def test_duplicate_device_id_claims_are_impossible(tmp_path, monkeypatch):
+    # sim_printer and prusa_core_one_plus both claim "printer_1"; enabling both
+    # must be rejected, not silently merged.
+    from wallee_v6.config import Config
+    from wallee_v6.registry import PackRegistry
 
-    ids_distinct = SimPrinterPack.DEVICE_ID != PrusaCoreOnePack.DEVICE_ID
-    registry_source = (PACKAGE_ROOT / "registry.py").read_text(encoding="utf-8")
-    registry_rejects = "DEVICE_ID" in registry_source and "claim" in registry_source
-    # Either the shipped packs stop colliding, or the registry must reject
-    # co-enablement of packs that claim the same device id.
-    assert ids_distinct or registry_rejects
+    monkeypatch.setenv("WALLEE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WALLEE_ENABLED_PACKS", "sim_printer,prusa_core_one_plus")
+    monkeypatch.delenv("WALLEE_SIMULATION", raising=False)
+    monkeypatch.setenv("PRUSA_CORE_ONE_HOST", "192.0.2.10")  # let the real pack instantiate
+    config = Config.from_env(repo_root=PACKAGE_ROOT.parent)
+    registry = PackRegistry(config)
+    with pytest.raises(ValueError, match="claim device id"):
+        registry.load()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"Phase 3 (frontier unification): the planner may be validated against actions it was never shown — {PLAN} §6",
-)
 def test_prompt_frontier_matches_executable_frontier(runtime):
     from wallee_v6.models import PlanIR
 

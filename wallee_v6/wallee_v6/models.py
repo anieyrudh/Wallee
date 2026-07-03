@@ -182,6 +182,23 @@ class WorldPacket(BaseModel):
     compilation: WorldCompilationContext | None = None
     prompt_frontier_limit: int | None = None
 
+    def planner_visible_action_ids(self) -> set[str]:
+        """Ids the planner is actually allowed to select.
+
+        The explicit (non-tuning) frontier is truncated to
+        prompt_frontier_limit before the planner sees it; tuning actions are
+        offered separately via the tuning action space and are never
+        truncated. Validation must match what the planner was shown — an
+        explicit action that was truncated out of the prompt is not legal even
+        though it is still in the full frontier.
+        """
+        explicit = [a for a in self.frontier if not _is_tuning_action(a)]
+        if self.prompt_frontier_limit is not None:
+            explicit = explicit[: max(0, self.prompt_frontier_limit)]
+        visible = {a.action_id for a in explicit}
+        visible.update(a.action_id for a in self.frontier if _is_tuning_action(a))
+        return visible
+
     def prompt_view(self) -> JsonDict:
         """Return the compact planner-facing representation of this packet."""
         explicit_frontier = [action.prompt_view() for action in self.frontier if not _is_tuning_action(action)]

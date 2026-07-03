@@ -137,10 +137,16 @@ class Engine:
         if not plan.sequence:
             raise ValueError("EXECUTE decision requires at least one action ID")
 
+        # Validate against what the planner was actually shown, not the full
+        # frontier: an explicit action truncated out of the prompt is not a
+        # legal selection even though it still exists in the frontier.
+        visible = world.planner_visible_action_ids()
         actions: list[LegalAction] = []
         for action_id in plan.sequence:
             if action_id not in frontier:
                 raise ValueError(f"plan referenced unknown frontier action {action_id!r}")
+            if action_id not in visible:
+                raise ValueError(f"plan referenced action {action_id!r} that was not offered to the planner")
             actions.append(frontier[action_id])
         return actions
 

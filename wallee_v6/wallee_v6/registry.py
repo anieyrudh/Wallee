@@ -38,11 +38,24 @@ class PackRegistry:
 
     def load(self) -> None:
         """Discover and instantiate packs."""
+        claimed_device_ids: dict[str, str] = {}
         for manifest_path in sorted(self.config.pack_root.glob("*/manifest.yaml")):
             manifest = self._load_manifest(manifest_path)
             if not self._should_enable(manifest):
                 continue
             pack = self._instantiate(manifest)
+            # Two enabled packs that claim the same device id would silently
+            # merge their facts and frontiers under one key. Refuse it: a
+            # device id must have exactly one owning pack.
+            device_id = getattr(pack, "DEVICE_ID", None)
+            if device_id is not None:
+                prior = claimed_device_ids.get(device_id)
+                if prior is not None:
+                    raise ValueError(
+                        f"packs {prior!r} and {manifest.pack_id!r} both claim device id "
+                        f"{device_id!r}; enable only one"
+                    )
+                claimed_device_ids[device_id] = manifest.pack_id
             self._packs[manifest.pack_id] = LoadedPack(manifest=manifest, instance=pack)
 
     def _load_manifest(self, manifest_path: Path) -> PackManifest:
