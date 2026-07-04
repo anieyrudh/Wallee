@@ -10,6 +10,11 @@
 
 **An architecture for safely letting LLMs operate physical hardware.**
 
+> **Which branch is which?** This branch (`claude/refactor-phase-0`) is the
+> **refactored v6 line, `6.6.0`** — awaiting hardware sign-off before it merges
+> to `main`. v7 (`v7/mainline`) is not cut yet. Full map:
+> [`docs/BRANCHES.md`](docs/BRANCHES.md).
+
 Wallee drives a real 3D printer (a Prusa CORE One/+, from a Raspberry Pi 5)
 with an LLM in the loop — and never trusts the LLM. The model reasons about
 the live state of the machine and proposes what to do next; deterministic
