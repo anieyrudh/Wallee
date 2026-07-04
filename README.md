@@ -10,7 +10,7 @@
 
 **An architecture for safely letting LLMs operate physical hardware.**
 
-> **Which branch is which?** This branch (`claude/refactor-phase-0`) is the
+> **Which branch is which?** This branch (`v6.6/refactored`) is the
 > **refactored v6 line, `6.6.0`** — awaiting hardware sign-off before it merges
 > to `main`. v7 (`v7/mainline`) is not cut yet. Full map:
 > [`docs/BRANCHES.md`](docs/BRANCHES.md).
