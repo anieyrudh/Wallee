@@ -25,9 +25,11 @@ own Phase 0–5** (the original
 [v7 plan](V7_EXECUTION_PLAN.md) *also* has a "Phase 0" — a **different, later**
 one that will run on `v7/mainline`. The two are unrelated.
 
-A now-deleted branch `claude/project-analysis-improvements-4ay1eo` held the
-first two planning commits that seeded the refactor; those commits live on in
-`v6.6/refactored`, so the branch was removed as stale.
+A stale branch `claude/project-analysis-improvements-4ay1eo` held the first
+two planning commits that seeded the refactor; those commits live on in
+`v6.6/refactored`, so it is slated for deletion. (Both it and the old
+`claude/refactor-phase-0` ref may linger on the remote until deleted by hand —
+they carry nothing that isn't in `v6.6/refactored`.)
 
 ## Where the v7 plans live right now
 
