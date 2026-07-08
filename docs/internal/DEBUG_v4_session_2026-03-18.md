@@ -4,7 +4,7 @@
 
 ## Session summary
 
-Agent ran for ~24 minutes on Pi (192.168.0.188) with v4 code. Printer (Core One+ at 192.168.0.195) had a previously paused print with nozzle blob. Operator resumed and started a new print externally. Print detached from bed mid-way. Agent correctly identified the failure via camera vision but entered a CALL_HUMAN spam loop after the print finished.
+Agent ran for ~24 minutes on Pi (<PI_WIFI_IP>) with v4 code. Printer (Core One+ at <PRINTER_IP>) had a previously paused print with nozzle blob. Operator resumed and started a new print externally. Print detached from bed mid-way. Agent correctly identified the failure via camera vision but entered a CALL_HUMAN spam loop after the print finished.
 
 ---
 
@@ -61,7 +61,7 @@ Agent ran for ~24 minutes on Pi (192.168.0.188) with v4 code. Printer (Core One+
 
 ### Cameras
 - **Nozzle:** live (19KB frame, port 8080)
-- **Buddy1:** live (49KB frame, IP 192.168.0.194)
+- **Buddy1:** live (49KB frame, IP 192.0.2.194)
 - **Buddy2/3:** offline
 
 ### Host Pi

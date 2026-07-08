@@ -277,12 +277,14 @@ goes through the same TOCTOU+journal tail).
 
 Independent of the merge, these are worth addressing because the repo is public:
 
-- **Operator network identity is committed in the clear:** a Tailscale VPN IP
-  (`100.80.179.71`) in `wallee/device_packs/prusa_link/CAPABILITIES.md`; an SSH
-  target (`b0@192.168.0.188`) plus a destructive `redis-cli FLUSHALL` one-liner in
-  `docs/internal/CLAUDE.md`; printer IP `192.168.0.195` and device MACs in
-  `pi_cameras` tests and several docs. **[verified in git history]** These were
-  redacted on the refactor branch but remain on `main` and in history.
+- **Operator network identity was committed in the clear** (now redacted in the
+  working tree — see the scrub commit): a Tailscale VPN IP, an SSH target, and a
+  destructive `redis-cli FLUSHALL` one-liner in `docs/internal/CLAUDE.md`, plus the
+  real printer/Pi LAN IPs and device MACs across `prusa_link`/`pi_cameras` docs and
+  tests. **[verified in git history]** These were already redacted on the refactor
+  branch; the scrub replaces them on `main` with RFC-5737 documentation values and
+  `<PLACEHOLDER>` tokens. **They remain in git *history* until a history rewrite is
+  run** — rotate the Tailscale address regardless.
 - **v5 attack surface (all LAN-reachable, all fail-open):** unauthenticated
   dashboard on `0.0.0.0` leaking camera frames + operator photos + intents;
   UDP metrics accepted from any source (spoofable safety-relevant telemetry);

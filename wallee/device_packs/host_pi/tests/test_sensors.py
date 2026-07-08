@@ -105,7 +105,7 @@ class _FakeFamily:
 class TestReadNetworkInterfaces:
     def test_returns_interfaces(self):
         mock_addrs = {
-            "eth0": [MagicMock(family=_FakeFamily("AF_INET"), address="192.168.1.5")],
+            "eth0": [MagicMock(family=_FakeFamily("AF_INET"), address="192.0.2.5")],
             "lo": [MagicMock(family=_FakeFamily("AF_INET"), address="127.0.0.1")],
         }
         mock_stats = {
@@ -122,7 +122,7 @@ class TestReadNetworkInterfaces:
         interfaces = result["host.network_interfaces"]
         assert "eth0" in interfaces
         assert "lo" not in interfaces  # loopback excluded
-        assert interfaces["eth0"]["ipv4"] == "192.168.1.5"
+        assert interfaces["eth0"]["ipv4"] == "192.0.2.5"
         assert interfaces["eth0"]["up"] is True
 
     def test_has_sensor_metadata(self):

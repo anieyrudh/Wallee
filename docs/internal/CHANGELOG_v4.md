@@ -90,8 +90,8 @@
 
 ### Agent started on Pi — 2026-03-18 20:09 SGT
 - All 5 device packs loaded, 17 sensors + 19 actuators registered
-- Buddy camera discovered at 192.168.0.194
-- PrusaLink connected to 192.168.0.195
+- Buddy camera discovered at 192.0.2.194
+- PrusaLink connected to <PRINTER_IP>
 - Telegram bot connected
 - First cycle: detected print FINISHED with nozzle blob, called human
 - Second cycle: WAIT 300s — temps nominal, awaiting operator

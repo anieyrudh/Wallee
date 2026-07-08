@@ -107,7 +107,7 @@ The real-hardware pack stays close to the V6 design principles:
 ```bash
 export WALLEE_ENABLED_PACKS=prusa_core_one_plus
 export WALLEE_SIMULATION=0
-export PRUSA_CORE_ONE_HOST=http://192.168.0.195
+export PRUSA_CORE_ONE_HOST=http://<PRINTER_IP>
 export PRUSA_CORE_ONE_API_KEY=your_prusalink_api_key
 ```
 
